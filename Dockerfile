@@ -29,7 +29,7 @@ FROM node:24-alpine AS web
 ENV NODE_ENV=production
 ENV PORT=3000
 WORKDIR /app
-RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+RUN apk add --no-cache curl && addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=web-builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=web-builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=web-builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
@@ -44,7 +44,7 @@ FROM node:24-alpine AS server
 ENV NODE_ENV=production
 ENV PORT=4000
 WORKDIR /app
-RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 authometry
+RUN apk add --no-cache curl && addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 authometry
 COPY --from=server-builder --chown=authometry:nodejs /app/apps/server/dist ./dist
 COPY --from=server-builder --chown=authometry:nodejs /app/apps/server/migrations ./migrations
 USER authometry
