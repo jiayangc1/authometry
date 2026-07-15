@@ -135,7 +135,7 @@ export class TraceRecorder {
         trace.applicationName,
         trace.clientId,
         trace.user?.id ?? null,
-        trace.user ?? null,
+        trace.user ? JSON.stringify(trace.user) : null,
         trace.grantType,
         trace.endpoint,
         trace.method,
@@ -143,9 +143,9 @@ export class TraceRecorder {
         trace.completedAt,
         trace.durationMs,
         trace.oauthError ?? null,
-        trace.explanation ?? null,
-        trace.steps,
-        trace.request,
+        trace.explanation ? JSON.stringify(trace.explanation) : null,
+        JSON.stringify(trace.steps),
+        JSON.stringify(trace.request),
       ],
     );
     return trace;
