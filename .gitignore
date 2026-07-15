@@ -34,3 +34,26 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Builds and tests
+.next/
+dist/
+coverage/
+playwright-report/
+test-results/
+.turbo/
+*.tsbuildinfo
+
+# Runtime
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# Local infrastructure
+.data/
+authometry.local/
