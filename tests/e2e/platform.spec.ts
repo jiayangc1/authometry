@@ -59,7 +59,7 @@ test("owner can sign in and switch environments", async ({ page }) => {
 test("application creation reveals a client secret once", async ({ page }) => {
   await login(page);
   await page.goto("/applications/new");
-  await page.getByLabel("Application name").fill("Release Portal");
+  await page.getByLabel("Application name").fill(`Release Portal ${Date.now().toString(36)}`);
   await page.getByLabel("Redirect URI").fill("http://127.0.0.1:3000/callback");
   await page.getByRole("button", { name: "Create application" }).click();
   await expect(page.getByRole("heading", { name: "Client secret created" })).toBeVisible();
@@ -68,7 +68,10 @@ test("application creation reveals a client secret once", async ({ page }) => {
 
 test("authorization code with S256 PKCE issues and rotates tokens", async ({ page }) => {
   await login(page);
-  const headers = { "x-authometry-csrf": await csrf(page) };
+  const headers = {
+    "x-authometry-csrf": await csrf(page),
+    "x-authometry-environment": "production",
+  };
   const suffix = Date.now().toString(36);
   const created = await page.request.post("/api/v1/applications", {
     headers,
@@ -86,7 +89,7 @@ test("authorization code with S256 PKCE issues and rotates tokens", async ({ pag
     clientId: string;
     clientSecret: string;
   };
-  const detail = await page.request.get(`/api/v1/applications/${application.id}`);
+  const detail = await page.request.get(`/api/v1/applications/${application.id}`, { headers });
   const version = ((await detail.json()) as { version: number }).version;
   const assigned = await page.request.patch(`/api/v1/applications/${application.id}`, {
     headers,
@@ -118,6 +121,7 @@ test("authorization code with S256 PKCE issues and rotates tokens", async ({ pag
     code_challenge_method: "S256",
   }).toString();
   await page.goto(authorize.toString());
+  await expect(page).toHaveURL(/\/authorize\/login\?request_id=/);
   await page.getByLabel("Email address").fill(`user-${suffix}@authometry.test`);
   await page.getByLabel("Password").fill("protocol-user-password");
   await page.getByRole("button", { name: "Continue" }).click();
