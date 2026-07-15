@@ -7,9 +7,11 @@ import { Github } from "lucide-react";
 import { Button } from "@authometry/ui";
 import { AuthHeading, AuthShell, inputClass } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
+import { useHydrated } from "@/lib/use-hydrated";
 
 export default function AuthorizationLoginPage() {
   const params = useSearchParams();
+  const hydrated = useHydrated();
   const requestId = params.get("request_id") ?? "";
   const request = useQuery({
     queryKey: ["authorize-request", requestId],
@@ -49,7 +51,7 @@ export default function AuthorizationLoginPage() {
           description={`${request.data?.application.name ?? "This application"} is requesting access through Authometry.`}
           title="Continue to your account"
         />
-        <form className="space-y-4" onSubmit={submit}>
+        <form className="space-y-4" method="post" onSubmit={submit}>
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium">Email address</span>
             <input autoComplete="email" className={inputClass} name="email" required type="email" />
@@ -69,7 +71,12 @@ export default function AuthorizationLoginPage() {
               {error}
             </p>
           )}
-          <Button className="w-full" disabled={loading} type="submit" variant="primary">
+          <Button
+            className="w-full"
+            disabled={!hydrated || loading}
+            type="submit"
+            variant="primary"
+          >
             {loading ? "Checking account…" : "Continue"}
           </Button>
         </form>

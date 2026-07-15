@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Button, StatusBadge } from "@authometry/ui";
 import { AuthHeading, AuthShell, inputClass } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
+import { useHydrated } from "@/lib/use-hydrated";
 
 interface Invitation {
   email: string;
@@ -14,6 +15,7 @@ interface Invitation {
   role: string;
 }
 export default function AcceptInvitePage() {
+  const hydrated = useHydrated();
   const token = useSearchParams().get("token") ?? "";
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
@@ -64,7 +66,7 @@ export default function AcceptInvitePage() {
         {query.isError ? (
           <p className="text-sm text-[var(--danger)]">This invitation is invalid or expired.</p>
         ) : (
-          <form className="space-y-4" onSubmit={submit}>
+          <form className="space-y-4" method="post" onSubmit={submit}>
             <label>
               <span className="mb-1.5 block text-xs font-medium">Password</span>
               <input
@@ -94,7 +96,7 @@ export default function AcceptInvitePage() {
             )}
             <Button
               className="w-full"
-              disabled={loading || !query.data}
+              disabled={!hydrated || loading || !query.data}
               type="submit"
               variant="primary"
             >

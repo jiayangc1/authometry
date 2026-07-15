@@ -6,8 +6,10 @@ import { CheckCircle2 } from "lucide-react";
 import { Button } from "@authometry/ui";
 import { AuthHeading, AuthShell, inputClass } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
+import { useHydrated } from "@/lib/use-hydrated";
 
 export default function DevicePage() {
+  const hydrated = useHydrated();
   const params = useSearchParams();
   const [code, setCode] = useState(params.get("user_code") ?? "");
   const [complete, setComplete] = useState(false);
@@ -47,7 +49,7 @@ export default function DevicePage() {
               description="Enter the code shown on your device, then authenticate to approve access."
               title="Connect a device"
             />
-            <form className="space-y-4" onSubmit={submit}>
+            <form className="space-y-4" method="post" onSubmit={submit}>
               <label className="block">
                 <span className="mb-1.5 block text-xs font-medium">Device code</span>
                 <input
@@ -66,7 +68,7 @@ export default function DevicePage() {
                 <input className={inputClass} name="password" required type="password" />
               </label>
               {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
-              <Button className="w-full" type="submit" variant="primary">
+              <Button className="w-full" disabled={!hydrated} type="submit" variant="primary">
                 Connect device
               </Button>
             </form>

@@ -6,8 +6,10 @@ import { useState } from "react";
 import { Button } from "@authometry/ui";
 import { AuthHeading, AuthShell, inputClass } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
+import { useHydrated } from "@/lib/use-hydrated";
 
 export default function ResetPasswordPage() {
+  const hydrated = useHydrated();
   const token = useSearchParams().get("token") ?? "";
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
@@ -53,7 +55,7 @@ export default function ResetPasswordPage() {
             </Button>
           </div>
         ) : (
-          <form className="space-y-4" onSubmit={submit}>
+          <form className="space-y-4" method="post" onSubmit={submit}>
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium">New password</span>
               <input
@@ -81,7 +83,12 @@ export default function ResetPasswordPage() {
                 {error}
               </p>
             )}
-            <Button className="w-full" disabled={loading || !token} type="submit" variant="primary">
+            <Button
+              className="w-full"
+              disabled={!hydrated || loading || !token}
+              type="submit"
+              variant="primary"
+            >
               {loading ? "Resetting…" : "Reset password"}
             </Button>
           </form>

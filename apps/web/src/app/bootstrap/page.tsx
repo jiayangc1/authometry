@@ -4,9 +4,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@authometry/ui";
 import { AuthHeading, AuthShell, inputClass } from "@/components/auth/auth-shell";
+import { useHydrated } from "@/lib/use-hydrated";
 
 export default function BootstrapPage() {
   const router = useRouter();
+  const hydrated = useHydrated();
   const search = useSearchParams();
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
@@ -49,7 +51,7 @@ export default function BootstrapPage() {
           title="Set up Authometry"
           description="Create the first owner and workspace for this installation."
         />
-        <form className="space-y-4" onSubmit={submit}>
+        <form className="space-y-4" method="post" onSubmit={submit}>
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium">Your name</span>
             <input autoComplete="name" className={inputClass} name="name" required />
@@ -81,7 +83,12 @@ export default function BootstrapPage() {
               {error}
             </p>
           )}
-          <Button className="w-full" disabled={loading} type="submit" variant="primary">
+          <Button
+            className="w-full"
+            disabled={!hydrated || loading}
+            type="submit"
+            variant="primary"
+          >
             {loading ? "Creating workspace…" : "Create workspace"}
           </Button>
         </form>

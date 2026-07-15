@@ -7,9 +7,11 @@ import { Github } from "lucide-react";
 import { Button } from "@authometry/ui";
 import { AuthHeading, AuthShell, inputClass } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
+import { useHydrated } from "@/lib/use-hydrated";
 
 export default function LoginPage() {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [bootstrapRequired, setBootstrapRequired] = useState(false);
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
@@ -57,7 +59,7 @@ export default function LoginPage() {
             </Link>
           </div>
         )}
-        <form className="space-y-4" onSubmit={submit}>
+        <form className="space-y-4" method="post" onSubmit={submit}>
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium">Email address</span>
             <input autoComplete="email" className={inputClass} name="email" required type="email" />
@@ -86,7 +88,12 @@ export default function LoginPage() {
               {error}
             </p>
           )}
-          <Button className="w-full" disabled={loading} type="submit" variant="primary">
+          <Button
+            className="w-full"
+            disabled={!hydrated || loading}
+            type="submit"
+            variant="primary"
+          >
             {loading ? "Signing in…" : "Sign in"}
           </Button>
         </form>
