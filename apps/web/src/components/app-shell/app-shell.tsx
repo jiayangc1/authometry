@@ -37,6 +37,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { resolvedTheme, setTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [selectedEnvironmentSlug, setSelectedEnvironmentSlug] = useState<string>();
   const { data: me } = useQuery({
     queryKey: ["me"],
     queryFn: () => apiFetch<MeResponse>("/api/v1/auth/me"),
@@ -46,13 +47,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     queryFn: () => apiFetch<EnvironmentResponse>("/api/v1/environments"),
   });
   const selectedEnvironment =
-    environments?.data.find(({ slug }) =>
-      typeof document === "undefined"
-        ? false
-        : document.cookie.includes(`authometry_environment=${slug}`),
-    ) ?? environments?.data.find(({ is_default }) => is_default);
+    environments?.data.find(({ slug }) => slug === selectedEnvironmentSlug) ??
+    environments?.data.find(({ is_default }) => is_default);
 
   useEffect(() => {
+    const persistedEnvironment = document.cookie
+      .split("; ")
+      .find((entry) => entry.startsWith("authometry_environment="))
+      ?.split("=")
+      .slice(1)
+      .join("=");
+    if (persistedEnvironment) setSelectedEnvironmentSlug(decodeURIComponent(persistedEnvironment));
+
     function onKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       const typing = target?.matches("input, textarea, select, [contenteditable=true]");
@@ -76,6 +82,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   function selectEnvironment(slug: string) {
     document.cookie = `authometry_environment=${encodeURIComponent(slug)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    setSelectedEnvironmentSlug(slug);
     void queryClient.invalidateQueries();
   }
 
