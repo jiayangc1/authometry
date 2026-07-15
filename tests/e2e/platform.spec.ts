@@ -120,7 +120,11 @@ test("authorization code with S256 PKCE issues and rotates tokens", async ({ pag
     code_challenge: challenge,
     code_challenge_method: "S256",
   }).toString();
-  await page.goto(authorize.toString());
+  const authorizationResponse = await page.goto(authorize.toString());
+  expect(
+    authorizationResponse?.status(),
+    (await authorizationResponse?.text())?.slice(0, 500),
+  ).toBe(200);
   await expect(page).toHaveURL(/\/authorize\/login\?request_id=/);
   await page.getByLabel("Email address").fill(`user-${suffix}@authometry.test`);
   await page.getByLabel("Password").fill("protocol-user-password");
