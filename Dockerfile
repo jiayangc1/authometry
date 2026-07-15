@@ -20,6 +20,8 @@ FROM dependencies AS source
 COPY . .
 
 FROM source AS web-builder
+ARG INTERNAL_API_ORIGIN=http://authometry-api:4000
+ENV INTERNAL_API_ORIGIN=$INTERNAL_API_ORIGIN
 RUN pnpm --filter @authometry/web build
 
 FROM node:24-alpine AS web

@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const apiOrigin = process.env.INTERNAL_API_ORIGIN ?? "http://127.0.0.1:4000";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["127.0.0.1"],
   output: "standalone",
   outputFileTracingRoot: new URL("../../", import.meta.url).pathname,
   reactStrictMode: true,
