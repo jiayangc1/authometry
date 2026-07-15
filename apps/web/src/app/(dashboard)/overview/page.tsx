@@ -95,7 +95,7 @@ export default function OverviewPage() {
           </>
         }
         description="Monitor authorization activity and the health of your Authometry instance."
-        title="Authentication"
+        title="Overview"
       />
       <section className="mb-6 grid divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] sm:grid-cols-4 sm:divide-x sm:divide-y-0">
         <div className="flex items-center gap-2.5 p-4">
