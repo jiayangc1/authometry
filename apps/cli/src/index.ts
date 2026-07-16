@@ -26,7 +26,7 @@ interface GlobalOptions {
 const program = new Command()
   .name("authometry")
   .description("Validate, inspect, and apply Authometry configuration.")
-  .version("0.1.0")
+  .version("0.1.1")
   .option(
     "--server <url>",
     "Authometry server URL",

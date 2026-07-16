@@ -47,4 +47,17 @@ export default tseslint.config(
     files: ["**/*.config.{js,mjs,ts}", "**/scripts/**/*.{ts,mjs}"],
     rules: { "@typescript-eslint/no-unsafe-assignment": "off" },
   },
+  {
+    files: ["apps/web/**/*.{tsx,jsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "JSXOpeningElement[name.name='input'] > JSXAttribute[name.name='type'][value.value='checkbox']",
+          message: "Use the shared @authometry/ui Checkbox instead of a raw HTML checkbox.",
+        },
+      ],
+    },
+  },
 );

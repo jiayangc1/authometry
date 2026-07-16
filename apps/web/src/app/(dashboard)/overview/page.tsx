@@ -1,15 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  CheckCircle2,
-  ExternalLink,
-  Play,
-  ShieldCheck,
-  TriangleAlert,
-  XCircle,
-} from "lucide-react";
+import { ArrowRight, ExternalLink, Play, ShieldCheck, TriangleAlert, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@authometry/ui";
 import { RequestChart } from "@/components/dashboard/request-chart";
@@ -19,10 +11,6 @@ import { apiFetch } from "@/lib/api";
 import { compactNumber, duration, relativeTime } from "@/lib/format";
 
 interface OverviewResponse {
-  health: { status: string; label: string };
-  issuer: string;
-  environment: string;
-  version: string;
   metrics: {
     authorizationRequests: number;
     successRate: number;
@@ -94,36 +82,9 @@ export default function OverviewPage() {
             </Button>
           </>
         }
-        description="Monitor authorization activity and the health of your Authometry instance."
+        description="Monitor authorization activity across your Authometry instance."
         title="Overview"
       />
-      <section className="mb-6 grid divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-        <div className="flex items-center gap-2.5 p-4">
-          <CheckCircle2 className="size-4 text-[var(--success)]" />
-          <div>
-            <p className="text-xs text-[var(--text-secondary)]">Health</p>
-            <p className="mt-0.5 text-[13px] font-medium">{data.health.label}</p>
-          </div>
-        </div>
-        {[
-          ["Issuer", data.issuer],
-          ["Environment", data.environment],
-          ["Version", data.version],
-        ].map(([label, value]) => (
-          <div className="p-4" key={label}>
-            <p className="text-xs text-[var(--text-secondary)]">{label}</p>
-            <p
-              className={
-                label === "Issuer"
-                  ? "technical-value mt-0.5 truncate"
-                  : "mt-0.5 text-[13px] font-medium"
-              }
-            >
-              {value}
-            </p>
-          </div>
-        ))}
-      </section>
       <section className="mb-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map(([label, value, support]) => (
           <div
