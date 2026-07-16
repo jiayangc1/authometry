@@ -40,7 +40,7 @@ Successful refresh consumes the current session token and rotates it. Reuse dete
 
 State-changing cookie requests use a signed double-submit CSRF value: the readable `authometry_csrf` cookie must exactly match `x-authometry-csrf` and pass its HMAC signature. Personal access tokens use the Authorization header and do not rely on ambient browser cookies.
 
-Login, bootstrap, recovery, and authorization UI APIs are rate-limited to 30 requests per 15 minutes outside tests. The token endpoint is limited to 120 requests per minute.
+Credential-bearing login, bootstrap, recovery, invitation, and device authorization requests are rate-limited to 30 requests per 15 minutes outside tests. Routine session, refresh, logout, provider discovery, authorization status, consent, and workspace requests do not share that credential-attempt budget. The token endpoint is limited to 120 requests per minute.
 
 ## OAuth protections
 

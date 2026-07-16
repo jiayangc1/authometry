@@ -70,6 +70,20 @@ export function createApp() {
     legacyHeaders: false,
   });
 
+  app.post(
+    [
+      "/api/v1/auth/bootstrap",
+      "/api/v1/auth/login",
+      "/api/v1/auth/forgot-password",
+      "/api/v1/auth/reset-password",
+      "/api/v1/auth/invitation",
+      "/api/v1/authorize/login",
+      "/api/v1/authorize/device",
+    ],
+    authLimiter,
+  );
+  app.get("/api/v1/auth/invitation", authLimiter);
+
   function mountProtocol(prefix: string): void {
     app.use(`${prefix}/.well-known`, discoveryRouter);
     app.use(`${prefix}/oauth`, authorizationRouter);
@@ -80,9 +94,9 @@ export function createApp() {
   mountProtocol("/w/:workspaceSlug");
   mountProtocol("/w/:workspaceSlug/:environmentSlug");
   mountProtocol("/:environmentSlug");
-  app.use("/api/v1/auth", authLimiter, adminAuthRouter);
-  app.use("/api/v1/authorize", authLimiter, authorizeApiRouter);
-  app.use("/api/v1/authorize", authLimiter, deviceApiRouter);
+  app.use("/api/v1/auth", adminAuthRouter);
+  app.use("/api/v1/authorize", authorizeApiRouter);
+  app.use("/api/v1/authorize", deviceApiRouter);
   app.use("/api/v1", requireAdmin, requireCsrf, agentsRouter);
   app.use("/api/v1", requireAdmin, requireCsrf, dashboardRouter);
   app.use("/api/v1", requireAdmin, requireCsrf, configurationRouter);

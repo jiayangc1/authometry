@@ -31,4 +31,12 @@ describe("Express security and protocol boundaries", () => {
     expect(response.body.error.code).toBe("authentication_required");
     expect(response.body.error.requestId).toMatch(/^req_/);
   });
+
+  it("only applies the authentication limiter to sensitive attempts", async () => {
+    const routineResponse = await request(app).get("/api/v1/auth/me").expect(401);
+    expect(routineResponse.headers["ratelimit-policy"]).toBeUndefined();
+
+    const loginResponse = await request(app).post("/api/v1/auth/login").send({}).expect(422);
+    expect(loginResponse.headers["ratelimit-policy"]).toBeDefined();
+  });
 });
