@@ -161,7 +161,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
-        <p className="px-2.5 pt-2 text-[10px] text-[var(--text-tertiary)]">Authometry v0.1.0</p>
+        <p className="px-2.5 pt-2 text-[10px] text-[var(--text-tertiary)]">Authometry v0.1.1</p>
       </div>
     </div>
   );

@@ -65,7 +65,7 @@ dashboardRouter.get(
       health: { status: "operational", label: "All systems operational" },
       issuer: environment.issuer,
       environment: environment.name,
-      version: "0.1.0",
+      version: "0.1.1",
       metrics: {
         authorizationRequests: total,
         successRate: total ? (success / total) * 100 : 100,

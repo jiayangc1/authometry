@@ -1,6 +1,6 @@
 {
   "name": "authometry",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Transparent, Git-native OAuth 2.0 and OpenID Connect infrastructure.",
   "license": "AGPL-3.0-only",
