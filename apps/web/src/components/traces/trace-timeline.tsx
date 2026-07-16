@@ -5,7 +5,7 @@ import { AlertTriangle, Check, CircleDashed, CircleX, Clock3, X } from "lucide-r
 import { useEffect, useRef, useState } from "react";
 import type { TraceStep } from "@authometry/domain";
 import { Button, StatusBadge, cn } from "@authometry/ui";
-import { duration } from "@/lib/format";
+import { duration, durationOffset } from "@/lib/format";
 
 export function TraceTimeline({ steps }: { steps: TraceStep[] }) {
   const [selected, setSelected] = useState(0);
@@ -97,7 +97,7 @@ export function TraceTimeline({ steps }: { steps: TraceStep[] }) {
                   </span>
                   <span className="text-right">
                     <span className="technical-value block text-[var(--text-tertiary)]">
-                      +{item.startedOffsetMs} ms
+                      {durationOffset(item.startedOffsetMs)}
                     </span>
                     <span className="technical-value block text-[var(--text-secondary)]">
                       {duration(item.durationMs)}
@@ -178,7 +178,7 @@ function StepPanel({ step, compact = false }: { step: TraceStep; compact?: boole
         {step.outputs?.length ? <FieldGroup fields={step.outputs} title="Output" /> : null}
         <dl className="grid grid-cols-[140px_1fr] gap-y-2 border-t border-[var(--border-subtle)] pt-4 text-xs">
           <dt className="text-[var(--text-secondary)]">Started</dt>
-          <dd className="technical-value">+{step.startedOffsetMs} ms</dd>
+          <dd className="technical-value">{durationOffset(step.startedOffsetMs)}</dd>
           <dt className="text-[var(--text-secondary)]">Completed in</dt>
           <dd className="technical-value">{duration(step.durationMs)}</dd>
         </dl>

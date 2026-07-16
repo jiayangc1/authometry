@@ -6,6 +6,7 @@ import type {
   TraceStepStatus,
   TraceStatus,
 } from "@authometry/domain";
+import { performance } from "node:perf_hooks";
 import { query } from "../db.js";
 import { randomId } from "./crypto.js";
 
@@ -25,6 +26,8 @@ export class TraceRecorder {
   readonly requestId = randomId("req", 7);
   readonly startedAt = new Date();
   readonly steps: TraceStep[] = [];
+  private readonly startedAtMonotonic = performance.now();
+  private lastStepCompletedOffsetMs = 0;
 
   constructor(
     private readonly context: {
@@ -55,6 +58,9 @@ export class TraceRecorder {
       documentationPath?: string;
     } = {},
   ): TraceStep {
+    const completedOffsetMs = this.elapsedMs();
+    const durationMs =
+      options.durationMs ?? Math.max(0, completedOffsetMs - this.lastStepCompletedOffsetMs);
     const step: TraceStep = {
       id: `${this.requestId}_step_${this.steps.length + 1}`,
       index: this.steps.length,
@@ -62,8 +68,8 @@ export class TraceRecorder {
       status,
       summary,
       description,
-      startedOffsetMs: Date.now() - this.startedAt.getTime(),
-      ...(options.durationMs === undefined ? {} : { durationMs: options.durationMs }),
+      startedOffsetMs: this.lastStepCompletedOffsetMs,
+      durationMs,
       ...(options.inputs === undefined ? {} : { inputs: options.inputs }),
       ...(options.outputs === undefined ? {} : { outputs: options.outputs }),
       ...(options.decision === undefined ? {} : { decision: options.decision }),
@@ -72,17 +78,22 @@ export class TraceRecorder {
         : { documentationPath: options.documentationPath }),
     };
     this.steps.push(step);
+    this.lastStepCompletedOffsetMs = completedOffsetMs;
     return step;
   }
 
   skipRemaining(names: string[]): void {
+    const skippedAtOffsetMs = this.elapsedMs();
     for (const name of names) {
-      this.step(
+      this.steps.push({
+        id: `${this.requestId}_step_${this.steps.length + 1}`,
+        index: this.steps.length,
         name,
-        "skipped",
-        "Not run",
-        "This step was not run because an earlier step stopped the request.",
-      );
+        status: "skipped",
+        summary: "Not run",
+        description: "This step was not run because an earlier step stopped the request.",
+        startedOffsetMs: skippedAtOffsetMs,
+      });
     }
   }
 
@@ -91,7 +102,7 @@ export class TraceRecorder {
     options: { oauthError?: string; explanation?: TraceExplanation } = {},
   ): Promise<AuthorizationTrace> {
     const completedAt = new Date();
-    const durationMs = completedAt.getTime() - this.startedAt.getTime();
+    const durationMs = this.elapsedMs();
     const trace: AuthorizationTrace = {
       id: this.id,
       workspaceId: this.context.workspaceId,
@@ -149,5 +160,9 @@ export class TraceRecorder {
       ],
     );
     return trace;
+  }
+
+  private elapsedMs(): number {
+    return Math.round((performance.now() - this.startedAtMonotonic) * 1_000) / 1_000;
   }
 }
