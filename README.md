@@ -23,6 +23,7 @@ Authometry is an inspectable OAuth 2.0 and OpenID Connect authorization platform
 - Client Credentials and Device Authorization grants.
 - OIDC discovery, JWKS, ID tokens, UserInfo, revocation, introspection, and RP-initiated logout.
 - Exact redirect URI matching, consent records, policy evaluation, and custom claim mappings.
+- Registered agent identities, pushed task authorization, actor-aware DPoP tokens, delegation grants, and reduced one-level token exchange.
 - Per-request authorization traces with secret redaction and corrective explanations.
 - Dashboard and Git-managed applications, scopes, policies, claims, and instance settings.
 - Workspaces, environments, role-based administration, personal access tokens, audit events, webhooks, and signing-key rotation.

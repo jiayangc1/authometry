@@ -8,6 +8,7 @@ import { adminAuthRouter, requireAdmin, requireCsrf } from "./auth/admin.js";
 import { dashboardRouter } from "./api/dashboard.js";
 import { configurationRouter } from "./api/configuration.js";
 import { settingsRouter } from "./api/settings.js";
+import { agentsRouter } from "./api/agents.js";
 import { pool } from "./db.js";
 import { env } from "./env.js";
 import { ApiError, sendApiError } from "./lib/http.js";
@@ -82,6 +83,7 @@ export function createApp() {
   app.use("/api/v1/auth", authLimiter, adminAuthRouter);
   app.use("/api/v1/authorize", authLimiter, authorizeApiRouter);
   app.use("/api/v1/authorize", authLimiter, deviceApiRouter);
+  app.use("/api/v1", requireAdmin, requireCsrf, agentsRouter);
   app.use("/api/v1", requireAdmin, requireCsrf, dashboardRouter);
   app.use("/api/v1", requireAdmin, requireCsrf, configurationRouter);
   app.use("/api/v1", requireAdmin, requireCsrf, settingsRouter);

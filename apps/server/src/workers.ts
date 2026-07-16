@@ -93,6 +93,12 @@ export async function runRetention(): Promise<void> {
     query("DELETE FROM one_time_tokens WHERE expires_at < now() - interval '1 day'"),
     query("DELETE FROM admin_refresh_sessions WHERE expires_at < now() - interval '30 days'"),
     query("DELETE FROM pending_authorization_requests WHERE expires_at < now() - interval '1 day'"),
+    query("DELETE FROM pushed_authorization_requests WHERE expires_at < now() - interval '1 day'"),
+    query("DELETE FROM agent_assertion_jtis WHERE expires_at < now()"),
+    query("DELETE FROM dpop_proof_jtis WHERE expires_at < now()"),
+    query(
+      "UPDATE delegation_grants SET status = 'expired' WHERE status = 'active' AND expires_at <= now()",
+    ),
     query(`DELETE FROM authorization_traces t USING environments e, workspace_settings s
            WHERE t.environment_id = e.id AND s.workspace_id = e.workspace_id
              AND t.created_at < now() - (s.trace_retention_days * interval '1 day')`),

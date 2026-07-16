@@ -25,6 +25,11 @@ export async function issueTokenSet({
   scopes,
   nonce,
   includeRefreshToken,
+  audience,
+  accessTokenLifetimeSeconds,
+  accessTokenClaims,
+  tokenType,
+  subject: subjectOverride,
 }: {
   application: TokenApplication;
   issuer: string;
@@ -32,15 +37,20 @@ export async function issueTokenSet({
   scopes: string[];
   nonce?: string;
   includeRefreshToken: boolean;
+  audience?: string | string[];
+  accessTokenLifetimeSeconds?: number;
+  accessTokenClaims?: Record<string, unknown>;
+  tokenType?: "Bearer" | "DPoP";
+  subject?: string;
 }): Promise<Record<string, unknown>> {
-  const subject = user?.id ?? application.client_id;
+  const subject = subjectOverride ?? user?.id ?? application.client_id;
   const accessClaims = user
     ? await mappedClaims(application.environment_id, user, "access_token")
     : {};
   const accessToken = await signOAuthJwt(
     application.environment_id,
     issuer,
-    application.client_id,
+    audience ?? application.client_id,
     subject,
     {
       scope: scopes.join(" "),
@@ -49,14 +59,15 @@ export async function issueTokenSet({
       ...accessClaims,
       ...(user && scopes.includes("email") ? { email: user.email } : {}),
       ...(user && scopes.includes("profile") ? { name: user.name, groups: user.groups } : {}),
+      ...accessTokenClaims,
     },
-    application.access_token_lifetime_seconds,
+    accessTokenLifetimeSeconds ?? application.access_token_lifetime_seconds,
   );
 
   const result: Record<string, unknown> = {
     access_token: accessToken,
-    token_type: "Bearer",
-    expires_in: application.access_token_lifetime_seconds,
+    token_type: tokenType ?? "Bearer",
+    expires_in: accessTokenLifetimeSeconds ?? application.access_token_lifetime_seconds,
     scope: scopes.join(" "),
   };
 

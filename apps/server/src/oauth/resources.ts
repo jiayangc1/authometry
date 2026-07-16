@@ -33,6 +33,7 @@ discoveryRouter.get(
       issuer,
       authorization_endpoint: `${issuer}/oauth/authorize`,
       token_endpoint: `${issuer}/oauth/token`,
+      pushed_authorization_request_endpoint: `${issuer}/oauth/par`,
       userinfo_endpoint: `${issuer}/oauth/userinfo`,
       jwks_uri: `${issuer}/.well-known/jwks.json`,
       revocation_endpoint: `${issuer}/oauth/revoke`,
@@ -46,10 +47,16 @@ discoveryRouter.get(
         "refresh_token",
         "client_credentials",
         "urn:ietf:params:oauth:grant-type:device_code",
+        "urn:ietf:params:oauth:grant-type:token-exchange",
       ],
       subject_types_supported: ["public"],
       id_token_signing_alg_values_supported: ["RS256"],
-      token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post", "none"],
+      token_endpoint_auth_methods_supported: [
+        "client_secret_basic",
+        "client_secret_post",
+        "private_key_jwt",
+        "none",
+      ],
       scopes_supported: ["openid", "profile", "email", "phone", "address", "offline_access"],
       claims_supported: [
         "sub",
@@ -66,6 +73,9 @@ discoveryRouter.get(
       ],
       code_challenge_methods_supported: ["S256"],
       prompt_values_supported: ["none", "login", "consent", "select_account"],
+      authorization_details_types_supported: ["agent_action"],
+      dpop_signing_alg_values_supported: ["ES256", "RS256"],
+      require_pushed_authorization_requests: false,
     });
   }),
 );

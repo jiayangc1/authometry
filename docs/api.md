@@ -100,6 +100,15 @@ All paths below are relative to `/api/v1` and require authentication, CSRF for c
 | PATCH  | `/applications/:applicationId`                                  | Update dashboard-owned application fields using optimistic versioning. |
 | POST   | `/applications/:applicationId/credentials`                      | Create a client credential and return the raw secret once.             |
 | POST   | `/applications/:applicationId/credentials/:credentialId/revoke` | Revoke a client credential.                                            |
+| GET    | `/agents`                                                       | List registered agent identities and active-grant counts.              |
+| POST   | `/agents`                                                       | Register an agent, OAuth client, public JWK, and authority ceilings.   |
+| GET    | `/agents/:agentId`                                              | Read an agent registration.                                            |
+| POST   | `/agents/:agentId/disable`                                      | Kill-switch an agent and recursively revoke its grant descendants.     |
+| POST   | `/agents/:agentId/enable`                                       | Re-enable a disabled agent for new requests.                           |
+| POST   | `/agents/:agentId/rotate-key`                                   | Replace an agent's public authentication JWK.                          |
+| GET    | `/agent-grants`                                                 | List task grants with subjects, actors, resources, and limits.         |
+| POST   | `/agent-grants/:grantId/revoke`                                 | Recursively revoke a grant and all delegated descendants.              |
+| POST   | `/agent-grants/:grantId/usage`                                  | Atomically consume usage across the complete grant ancestry.           |
 | GET    | `/traces`                                                       | List redacted authorization and token traces.                          |
 | GET    | `/traces/:traceId`                                              | Read trace steps, decisions, timing, and explanation.                  |
 | GET    | `/users`                                                        | List identity users.                                                   |

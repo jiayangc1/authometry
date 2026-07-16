@@ -10,7 +10,7 @@ Clients should load metadata rather than construct endpoint URLs:
 curl https://auth.example.com/.well-known/openid-configuration
 ```
 
-The discovery document advertises Authorization Code, Refresh Token, Client Credentials, and Device Authorization grants; the `code` response type; `query` response mode; S256 PKCE; public subjects; RS256 ID tokens; and `client_secret_basic`, `client_secret_post`, and `none` client authentication.
+The discovery document advertises Authorization Code, Refresh Token, Client Credentials, Device Authorization, and Token Exchange grants; the `code` response type; `query` response mode; S256 PKCE; public subjects; RS256 ID tokens; and `client_secret_basic`, `client_secret_post`, `private_key_jwt`, and `none` client authentication.
 
 Environment-specific issuers may use `/<environmentSlug>`, `/w/<workspaceSlug>`, or `/w/<workspaceSlug>/<environmentSlug>` prefixes. Always use the issuer stored on the environment and the endpoints returned by its discovery document.
 
@@ -21,6 +21,7 @@ Environment-specific issuers may use `/<environmentSlug>`, `/w/<workspaceSlug>`,
 | `/.well-known/openid-configuration` | GET    | OIDC provider metadata.                                                    |
 | `/.well-known/jwks.json`            | GET    | Active and retiring public signing keys.                                   |
 | `/oauth/authorize`                  | GET    | Begin Authorization Code flow.                                             |
+| `/oauth/par`                        | POST   | Push a signed, structured agent authorization request.                     |
 | `/oauth/token`                      | POST   | Exchange codes and refresh, client, or device credentials for tokens.      |
 | `/oauth/userinfo`                   | GET    | Return claims for a bearer access token.                                   |
 | `/oauth/device/authorization`       | POST   | Begin Device Authorization flow.                                           |
@@ -152,6 +153,20 @@ Both endpoints require client authentication. Revoking a refresh token revokes i
 
 Introspection returns `active: true` only when the token is valid, unexpired, unrevoked, and belongs to the authenticated client. Otherwise it returns `{ "active": false }`.
 
+## Agent authorization
+
+Agents are registered through `POST /api/v1/agents` with their own identifier, operator, OAuth client, public JWK, maximum capabilities, allowed resource audiences, redirect URIs, delegation settings, and authorization lifetime. Disabling an agent also disables its OAuth client and revokes all of its active grants.
+
+An agent sends a short-lived signed assertion to `/oauth/par` using `Authorization: AgentAssertion <JWT>`. The assertion must use the registered key, identify the agent in both `iss` and `sub`, target the PAR endpoint in `aud`, and contain fresh `iat`, `exp`, and single-use `jti` claims. The form body contains mandatory S256 PKCE fields, `resource`, `scope`, `purpose`, and JSON `authorization_details` entries of type `agent_action`. Authometry checks these values against the registration before returning a single-use 90-second `request_uri`.
+
+After direct user authentication and consent, Authometry stores a delegation grant independently from the code and token. The code exchange requires `private_key_jwt` client authentication and a DPoP proof bound to `POST <issuer>/oauth/token`. The access token has the user as `sub`; the agent and operator in `act`; the target API as `aud`; the approved structure in `authorization_details`; and `authometry_grant_id`, optional `authometry_task_id`, and `cnf.jkt` claims. Agent grants never issue refresh tokens.
+
+One-level agent delegation uses RFC 8693 Token Exchange. The child agent supplies the parent access token, its own actor identity token, a DPoP proof, resource, and reduced scope. Exchange succeeds only when the parent agent may delegate, the child may receive delegation, depth remains within the parent registration, the audience is unchanged, scopes are a subset, expiration does not exceed the parent, and the child registration independently permits the resource and scopes. The child token records a nested `act` chain and parent grant ID.
+
+Management APIs expose `GET /api/v1/agents`, `GET /api/v1/agent-grants`, grant revocation, usage recording, and the agent kill switch. Resource servers should introspect when immediate revocation or usage-limit enforcement is required; introspection rejects disabled, revoked, completed, and expired grants.
+
+A registered agent may also use `client_credentials` with `private_key_jwt` when it acts as itself rather than for a person. It must request one of its assigned resource audiences. The resulting token uses the agent ID as `sub` and deliberately has no `act` claim or delegation grant ID.
+
 ## Logout
 
 Send `id_token_hint` and `post_logout_redirect_uri` to `/oauth/logout`. Authometry redirects away from its own origin only when the ID token resolves to an application and the complete redirect URI is registered for that application. Invalid hints never expand the redirect target.
@@ -164,4 +179,4 @@ Enabled policies assigned to the application are evaluated before authorization.
 
 ## Unsupported features
 
-Authometry v1 does not support implicit, hybrid, resource-owner password, dynamic client registration, CIBA, FAPI, DPoP, PAR, JAR, JARM, or plain PKCE. Do not advertise or depend on these profiles.
+Authometry v1 does not support implicit, hybrid, resource-owner password, dynamic client registration, CIBA, FAPI, JAR, JARM, plain PKCE, anonymous agents, recursive delegation beyond the registered limit, or broad agent refresh tokens. PAR and DPoP are supported for the registered-agent workflow described above; Authometry does not claim the broader FAPI conformance profiles.

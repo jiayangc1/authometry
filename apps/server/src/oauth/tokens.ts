@@ -1,5 +1,5 @@
 import { Router } from "express";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import { decodeJwt } from "jose";
 import { query, transaction } from "../db.js";
 import { hashToken, randomToken } from "../lib/crypto.js";
@@ -7,8 +7,17 @@ import { ApiError, asyncRoute } from "../lib/http.js";
 import { issueTokenSet, verifyPkce } from "../lib/oauth.js";
 import { verifyOAuthJwt } from "../lib/signing.js";
 import { TraceRecorder } from "../lib/trace.js";
-import { authenticateClient, oauthError } from "./common.js";
+import { authenticateClient, findApplicationByClientId, oauthError } from "./common.js";
 import type { IdentityUserRow, OAuthApplicationRow } from "./types.js";
+import {
+  findAgentById,
+  findAgentForClient,
+  reduceAuthorizationDetails,
+  verifyAgentAssertion,
+  verifyDpopProof,
+  type AgentIdentityRow,
+  type DelegationGrantRow,
+} from "./agents.js";
 
 interface AuthorizationCodeRow {
   id: string;
@@ -22,6 +31,7 @@ interface AuthorizationCodeRow {
   auth_time: Date;
   expires_at: Date;
   consumed_at: Date | null;
+  delegation_grant_id: string | null;
 }
 
 function noStore(response: Response): void {
@@ -32,6 +42,7 @@ function noStore(response: Response): void {
 async function authorizationCodeGrant(
   application: OAuthApplicationRow,
   body: Record<string, unknown>,
+  request: Request,
 ): Promise<Record<string, unknown>> {
   const code = String(body.code ?? "");
   const redirectUri = String(body.redirect_uri ?? "");
@@ -84,6 +95,38 @@ async function authorizationCodeGrant(
     if (!user || user.status !== "active")
       throw new ApiError(400, "invalid_grant", "The user is not active.");
 
+    let grant: DelegationGrantRow | undefined;
+    let agent: AgentIdentityRow | undefined;
+    let dpopJkt: string | undefined;
+    if (authorizationCode.delegation_grant_id) {
+      const grantResult = await client.query<DelegationGrantRow>(
+        `SELECT * FROM delegation_grants WHERE id = $1 FOR UPDATE`,
+        [authorizationCode.delegation_grant_id],
+      );
+      grant = grantResult.rows[0];
+      agent = await findAgentForClient(application.client_id);
+      if (
+        !grant ||
+        grant.status !== "active" ||
+        grant.expires_at < new Date() ||
+        !agent ||
+        agent.status !== "active" ||
+        grant.actor_agent_id !== agent.id
+      ) {
+        throw new ApiError(
+          400,
+          "invalid_grant",
+          "The agent delegation grant is inactive or expired.",
+        );
+      }
+      const proof = await verifyDpopProof(request, "POST", `${application.issuer}/oauth/token`);
+      dpopJkt = proof.jkt;
+      await client.query("UPDATE delegation_grants SET dpop_jkt = $2 WHERE id = $1", [
+        grant.id,
+        dpopJkt,
+      ]);
+    }
+
     // Token issuance performs its own writes after this code is committed. The code remains one-time even if signing fails.
     return issueTokenSet({
       application,
@@ -99,7 +142,27 @@ async function authorizationCodeGrant(
       },
       scopes: authorizationCode.scope,
       ...(authorizationCode.nonce ? { nonce: authorizationCode.nonce } : {}),
-      includeRefreshToken: authorizationCode.scope.includes("offline_access"),
+      includeRefreshToken: grant ? false : authorizationCode.scope.includes("offline_access"),
+      ...(grant && agent && dpopJkt
+        ? {
+            audience: grant.resource,
+            tokenType: "DPoP" as const,
+            accessTokenLifetimeSeconds: Math.max(
+              1,
+              Math.min(
+                application.access_token_lifetime_seconds,
+                Math.floor((grant.expires_at.getTime() - Date.now()) / 1000),
+              ),
+            ),
+            accessTokenClaims: {
+              act: { sub: agent.agent_id, operator: agent.operator_id },
+              authorization_details: grant.authorization_details,
+              authometry_grant_id: grant.id,
+              ...(grant.task_id ? { authometry_task_id: grant.task_id } : {}),
+              cnf: { jkt: dpopJkt },
+            },
+          }
+        : {}),
     });
   });
 }
@@ -299,6 +362,194 @@ async function deviceCodeGrant(
   return tokenSet;
 }
 
+async function tokenExchangeGrant(
+  application: OAuthApplicationRow,
+  body: Record<string, unknown>,
+  request: Request,
+): Promise<Record<string, unknown>> {
+  const subjectToken = String(body.subject_token ?? "");
+  const subjectTokenType = String(body.subject_token_type ?? "");
+  const actorToken = String(body.actor_token ?? "");
+  const actorTokenType = String(body.actor_token_type ?? "");
+  const resource = String(body.resource ?? "");
+  const scopes = String(body.scope ?? "")
+    .split(" ")
+    .filter(Boolean);
+  if (
+    subjectTokenType !== "urn:ietf:params:oauth:token-type:access_token" ||
+    actorTokenType !== "urn:ietf:params:oauth:token-type:jwt" ||
+    !subjectToken ||
+    !actorToken ||
+    !resource ||
+    !scopes.length
+  ) {
+    throw new ApiError(
+      400,
+      "invalid_request",
+      "Token exchange requires subject, actor, resource, and scope inputs.",
+    );
+  }
+  const requesterAgent = await findAgentForClient(application.client_id);
+  if (!requesterAgent || requesterAgent.status !== "active") {
+    throw new ApiError(400, "invalid_actor", "The delegating agent is not active.");
+  }
+  let actorIdentity: ReturnType<typeof decodeJwt>;
+  try {
+    actorIdentity = decodeJwt(actorToken);
+  } catch {
+    throw new ApiError(400, "invalid_actor", "The actor token is malformed.");
+  }
+  const targetAgentId = typeof actorIdentity.iss === "string" ? actorIdentity.iss : "";
+  const agent = await findAgentById(application.environment_id, targetAgentId);
+  if (!agent || agent.status !== "active" || !agent.may_receive_delegation) {
+    throw new ApiError(400, "invalid_actor", "The receiving agent cannot accept delegated grants.");
+  }
+  const [targetApplication] = await query<OAuthApplicationRow>(
+    `SELECT a.*, e.issuer, e.slug AS environment_slug
+     FROM oauth_applications a JOIN environments e ON e.id = a.environment_id
+     WHERE a.id = $1 AND a.status = 'active'`,
+    [agent.application_id],
+  );
+  if (!targetApplication) {
+    throw new ApiError(400, "invalid_actor", "The receiving agent client is disabled.");
+  }
+  await verifyAgentAssertion(
+    actorToken,
+    targetApplication.client_id,
+    `${application.issuer}/oauth/token`,
+  );
+  const { payload } = await verifyOAuthJwt(subjectToken, application.issuer);
+  const parentGrantId =
+    typeof payload.authometry_grant_id === "string" ? payload.authometry_grant_id : "";
+  if (payload.token_use !== "access" || !payload.sub || !parentGrantId) {
+    throw new ApiError(400, "invalid_grant", "The subject token is not an agent delegation token.");
+  }
+  const proof = await verifyDpopProof(request, "POST", `${application.issuer}/oauth/token`);
+  const result = await transaction(async (client) => {
+    const parentResult = await client.query<
+      DelegationGrantRow & { parent_may_delegate: boolean; maximum_delegation_depth: number }
+    >(
+      `SELECT g.*, a.may_delegate AS parent_may_delegate,
+              a.maximum_delegation_depth
+       FROM delegation_grants g JOIN agent_identities a ON a.id = g.actor_agent_id
+       WHERE g.id = $1 FOR UPDATE`,
+      [parentGrantId],
+    );
+    const parent = parentResult.rows[0];
+    const tokenAudience = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+    if (
+      !parent ||
+      parent.status !== "active" ||
+      parent.expires_at < new Date() ||
+      !parent.parent_may_delegate ||
+      parent.delegation_depth >= parent.maximum_delegation_depth ||
+      parent.actor_agent_id !== requesterAgent.id ||
+      parent.subject_user_id !== payload.sub ||
+      !tokenAudience.includes(parent.resource)
+    ) {
+      throw new ApiError(400, "invalid_grant", "The parent grant cannot be delegated.");
+    }
+    if (resource !== parent.resource || !scopes.every((scope) => parent.scopes.includes(scope))) {
+      throw new ApiError(
+        400,
+        "invalid_scope",
+        "A child grant must be a strict subset of its parent.",
+      );
+    }
+    if (
+      !agent.allowed_resources.includes(resource) ||
+      !scopes.every((scope) => agent.capabilities.includes(scope))
+    ) {
+      throw new ApiError(
+        400,
+        "invalid_target",
+        "The receiving agent is not registered for the requested authority.",
+      );
+    }
+    const childDetails = reduceAuthorizationDetails(parent.authorization_details, scopes);
+    if (!childDetails.length) {
+      throw new ApiError(
+        400,
+        "invalid_scope",
+        "The reduced scope does not authorize any parent action.",
+      );
+    }
+    const child = await client.query<{ id: string }>(
+      `INSERT INTO delegation_grants
+        (workspace_id, environment_id, application_id, subject_user_id, actor_agent_id,
+         parent_grant_id, resource, scopes, authorization_details, purpose, task_id, dpop_jkt,
+         delegation_depth, maximum_usage, expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+      [
+        application.workspace_id,
+        application.environment_id,
+        targetApplication.id,
+        parent.subject_user_id,
+        agent.id,
+        parent.id,
+        resource,
+        scopes,
+        childDetails,
+        parent.purpose,
+        parent.task_id,
+        proof.jkt,
+        parent.delegation_depth + 1,
+        parent.maximum_usage,
+        parent.expires_at,
+      ],
+    );
+    return { parent, childDetails, childId: child.rows[0]!.id };
+  });
+  const userRows = await query<IdentityUserRow>("SELECT * FROM identity_users WHERE id = $1", [
+    payload.sub,
+  ]);
+  const user = userRows[0];
+  if (!user || user.status !== "active")
+    throw new ApiError(400, "invalid_grant", "The subject is inactive.");
+  const parentAct = typeof payload.act === "object" && payload.act ? payload.act : undefined;
+  const expiresIn = Math.max(
+    1,
+    Math.min(
+      targetApplication.access_token_lifetime_seconds,
+      Math.floor((result.parent.expires_at.getTime() - Date.now()) / 1000),
+    ),
+  );
+  const issued = await issueTokenSet({
+    application: targetApplication,
+    issuer: targetApplication.issuer,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      groups: user.groups,
+      customClaims: user.custom_claims,
+      emailVerified: Boolean(user.email_verified_at),
+      authTime: user.last_authenticated_at ?? new Date(),
+    },
+    scopes,
+    includeRefreshToken: false,
+    audience: resource,
+    tokenType: "DPoP",
+    accessTokenLifetimeSeconds: expiresIn,
+    accessTokenClaims: {
+      act: {
+        sub: agent.agent_id,
+        operator: agent.operator_id,
+        ...(parentAct ? { act: parentAct } : {}),
+      },
+      authorization_details: result.childDetails,
+      authometry_grant_id: result.childId,
+      authometry_parent_grant: result.parent.id,
+      ...(result.parent.task_id ? { authometry_task_id: result.parent.task_id } : {}),
+      cnf: { jkt: proof.jkt },
+    },
+  });
+  return {
+    ...issued,
+    issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+  };
+}
+
 export const tokenRouter = Router();
 
 tokenRouter.post(
@@ -342,6 +593,7 @@ tokenRouter.post(
           tokens = await authorizationCodeGrant(
             application,
             request.body as Record<string, unknown>,
+            request,
           );
           break;
         case "refresh_token":
@@ -361,16 +613,39 @@ tokenRouter.post(
           if (!scopes.every((scope) => application.allowed_scopes.includes(scope))) {
             throw new ApiError(400, "invalid_scope", "The client requested an unassigned scope.");
           }
+          const agent = await findAgentForClient(application.client_id);
+          const resource = String(request.body.resource ?? "");
+          if (agent && (!resource || !agent.allowed_resources.includes(resource))) {
+            throw new ApiError(
+              400,
+              "invalid_target",
+              "Registered agents must request an assigned resource audience.",
+            );
+          }
           tokens = await issueTokenSet({
             application,
             issuer: application.issuer,
             scopes,
             includeRefreshToken: false,
+            ...(agent
+              ? {
+                  subject: agent.agent_id,
+                  audience: resource,
+                  accessTokenClaims: { agent_operator: agent.operator_id },
+                }
+              : {}),
           });
           break;
         }
         case "urn:ietf:params:oauth:grant-type:device_code":
           tokens = await deviceCodeGrant(application, String(request.body.device_code ?? ""));
+          break;
+        case "urn:ietf:params:oauth:grant-type:token-exchange":
+          tokens = await tokenExchangeGrant(
+            application,
+            request.body as Record<string, unknown>,
+            request,
+          );
           break;
         default:
           throw new ApiError(
@@ -478,7 +753,7 @@ tokenRouter.post(
       });
     } else {
       try {
-        const { payload } = await verifyOAuthJwt(token, application.issuer, application.client_id);
+        const { payload } = await verifyOAuthJwt(token, application.issuer);
         if (payload.jti && payload.exp && payload.client_id === application.client_id) {
           await query(
             `INSERT INTO revoked_access_tokens(jti, workspace_id, environment_id, application_id, expires_at)
@@ -507,27 +782,71 @@ tokenRouter.post(
     const token = String(request.body.token ?? "");
     try {
       const payload = decodeJwt(token);
-      const { payload: verified } = await verifyOAuthJwt(
-        token,
-        application.issuer,
-        application.client_id,
-      );
+      const { payload: verified } = await verifyOAuthJwt(token, application.issuer);
+      const tokenClient =
+        typeof verified.client_id === "string"
+          ? await findApplicationByClientId(verified.client_id)
+          : undefined;
+      if (!tokenClient || tokenClient.environment_id !== application.environment_id) {
+        throw new Error("wrong environment");
+      }
       if (verified.jti) {
         const [revoked] = await query("SELECT jti FROM revoked_access_tokens WHERE jti = $1", [
           verified.jti,
         ]);
         if (revoked) throw new Error("revoked");
       }
+      if (typeof verified.authometry_grant_id === "string") {
+        const grants = await query<{
+          status: string;
+          expires_at: Date;
+          agent_status: string;
+        }>(
+          `WITH RECURSIVE lineage AS (
+             SELECT id, parent_grant_id, status, expires_at, actor_agent_id
+             FROM delegation_grants WHERE id = $1
+             UNION ALL
+             SELECT parent.id, parent.parent_grant_id, parent.status, parent.expires_at,
+                    parent.actor_agent_id
+             FROM delegation_grants parent JOIN lineage child ON child.parent_grant_id = parent.id
+           )
+           SELECT lineage.status, lineage.expires_at, agent.status AS agent_status
+           FROM lineage JOIN agent_identities agent ON agent.id = lineage.actor_agent_id`,
+          [verified.authometry_grant_id],
+        );
+        if (
+          !grants.length ||
+          grants.some(
+            (grant) =>
+              grant.status !== "active" ||
+              grant.agent_status !== "active" ||
+              grant.expires_at < new Date(),
+          )
+        ) {
+          throw new Error("inactive grant");
+        }
+      } else {
+        const audience = Array.isArray(verified.aud) ? verified.aud : [verified.aud];
+        if (!audience.includes(application.client_id)) throw new Error("wrong audience");
+      }
       response.json({
         active: true,
         scope: verified.scope,
         client_id: verified.client_id,
         sub: verified.sub,
-        token_type: "Bearer",
+        token_type: verified.cnf ? "DPoP" : "Bearer",
         exp: verified.exp,
         iat: verified.iat,
         iss: verified.iss,
         aud: payload.aud,
+        ...(verified.act ? { act: verified.act } : {}),
+        ...(verified.authorization_details
+          ? { authorization_details: verified.authorization_details }
+          : {}),
+        ...(verified.authometry_grant_id
+          ? { authometry_grant_id: verified.authometry_grant_id }
+          : {}),
+        ...(verified.cnf ? { cnf: verified.cnf } : {}),
       });
       return;
     } catch {
