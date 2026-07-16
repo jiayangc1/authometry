@@ -91,7 +91,7 @@ For a web client, begin authorization at `/oauth/authorize`, exchange the return
 
 ## Optional integrations
 
-Google and GitHub login are disabled until both the client ID and client secret for that provider are set. SMTP mail is disabled until `SMTP_HOST` is configured; invitations and password-reset flows that require delivery will report that mail is unavailable.
+Google and GitHub login are disabled until both the client ID and client secret for that provider are set. Mail is disabled until `RESEND_API_KEY` or SMTP is configured; invitations and password-reset flows that require delivery will report that mail is unavailable. Resend uses `RESEND_FROM` as its verified sender identity and takes precedence when both providers are configured.
 
 Restart the API after changing environment variables.
 

@@ -44,13 +44,15 @@ Both runtime images use Node.js 24 Alpine and run as non-root users. The web con
 | `BOOTSTRAP_TOKEN_EXPIRES_AT`               | Yes                    | Future ISO 8601 expiry; required when `NODE_ENV=production`.                          |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | No                     | Enable Google identity login when both are present.                                   |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | No                     | Enable GitHub identity login when both are present.                                   |
-| `SMTP_HOST`                                | No                     | Enables outbound mail.                                                                |
+| `RESEND_API_KEY`                           | No                     | Enables outbound mail through Resend.                                                 |
+| `RESEND_FROM`                              | No                     | Verified Resend sender identity; defaults to `Authometry <auth@cams.ch3n.cc>`.        |
+| `SMTP_HOST`                                | No                     | Enables SMTP fallback when Resend is not configured.                                  |
 | `SMTP_PORT`                                | No                     | SMTP port; defaults to `587`.                                                         |
 | `SMTP_USER`, `SMTP_PASSWORD`               | No                     | Optional SMTP authentication.                                                         |
 | `SMTP_FROM`                                | No                     | Sender identity.                                                                      |
 | `SMTP_SECURE`                              | No                     | Set `true` for implicit TLS.                                                          |
 
-Do not reuse secret values between variables. Store them in the deployment platform's secret manager, not in an image, Compose file, or repository.
+When both providers are configured, Resend is used. Do not reuse secret values between variables. Store them in the deployment platform's secret manager, not in an image, Compose file, or repository.
 
 ### Web build and runtime
 

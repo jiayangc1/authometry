@@ -22,6 +22,8 @@ const schema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
+  RESEND_API_KEY: z.string().startsWith("re_").optional(),
+  RESEND_FROM: z.string().default("Authometry <auth@cams.ch3n.cc>"),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
   SMTP_USER: z.string().optional(),
