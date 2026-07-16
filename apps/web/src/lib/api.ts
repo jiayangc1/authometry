@@ -19,6 +19,21 @@ export class ApiClientError extends Error {
   }
 }
 
+let refreshPromise: Promise<boolean> | undefined;
+
+function refreshSession(csrf: string | undefined): Promise<boolean> {
+  refreshPromise ??= fetch("/api/v1/auth/refresh", {
+    method: "POST",
+    credentials: "include",
+    headers: csrf ? { "x-authometry-csrf": decodeURIComponent(csrf) } : {},
+  })
+    .then((response) => response.ok)
+    .finally(() => {
+      refreshPromise = undefined;
+    });
+  return refreshPromise;
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
   const csrf = cookie("authometry_csrf");
   const environment = cookie("authometry_environment");
@@ -33,12 +48,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = 
     },
   });
   if (response.status === 401 && retry && !path.includes("/auth/refresh")) {
-    const refreshed = await fetch("/api/v1/auth/refresh", {
-      method: "POST",
-      credentials: "include",
-      headers: csrf ? { "x-authometry-csrf": decodeURIComponent(csrf) } : {},
-    });
-    if (refreshed.ok) return apiFetch<T>(path, init, false);
+    if (await refreshSession(csrf)) return apiFetch<T>(path, init, false);
   }
   if (!response.ok) {
     const result = (await response.json().catch(() => undefined)) as
