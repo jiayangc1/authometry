@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Github } from "lucide-react";
+import { Github, Info } from "lucide-react";
 import { Button } from "@authometry/ui";
 import { AuthHeading, AuthShell, inputClass } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
@@ -16,7 +16,9 @@ export default function AuthorizationLoginPage() {
   const request = useQuery({
     queryKey: ["authorize-request", requestId],
     queryFn: () =>
-      apiFetch<{ application: { name: string } }>(`/api/v1/authorize/requests/${requestId}`),
+      apiFetch<{ application: { name: string }; workspace: { name: string } }>(
+        `/api/v1/authorize/requests/${requestId}`,
+      ),
     enabled: Boolean(requestId),
   });
   const providers = useQuery({
@@ -48,12 +50,22 @@ export default function AuthorizationLoginPage() {
     <AuthShell>
       <div className="w-full">
         <AuthHeading
-          description={`${request.data?.application.name ?? "This application"} is requesting access through Authometry.`}
-          title="Continue to your account"
+          description={`${request.data?.application.name ?? "This application"} uses Authometry to sign you in securely.`}
+          title={`Continue to ${request.data?.application.name ?? "the application"}`}
         />
+        <div className="mb-5 flex gap-2.5 rounded-lg border border-[var(--accent-border)] bg-[var(--accent-soft)] px-3 py-2.5 text-xs leading-5 text-[var(--text-secondary)]">
+          <Info className="mt-0.5 size-3.5 shrink-0 text-[var(--accent)]" />
+          <p>
+            Use your{" "}
+            <strong className="font-semibold text-[var(--text-primary)]">
+              {request.data?.workspace.name ?? "workspace"}
+            </strong>{" "}
+            account. You do not need a separate Authometry dashboard account.
+          </p>
+        </div>
         <form className="space-y-4" method="post" onSubmit={submit}>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-medium">Email address</span>
+            <span className="mb-1.5 block text-xs font-medium">Workspace email</span>
             <input autoComplete="email" className={inputClass} name="email" required type="email" />
           </label>
           <label className="block">
@@ -77,7 +89,7 @@ export default function AuthorizationLoginPage() {
             type="submit"
             variant="primary"
           >
-            {loading ? "Checking account…" : "Continue"}
+            {loading ? "Signing in…" : `Continue to ${request.data?.application.name ?? "app"}`}
           </Button>
         </form>
         <div className="my-5 flex items-center gap-3 text-[11px] text-[var(--text-tertiary)] before:h-px before:flex-1 before:bg-[var(--border)] after:h-px after:flex-1 after:bg-[var(--border)]">
@@ -111,6 +123,10 @@ export default function AuthorizationLoginPage() {
             </a>
           </Button>
         </div>
+        <p className="mt-4 text-center text-[11px] leading-4 text-[var(--text-tertiary)]">
+          First time here? Google or GitHub creates your workspace identity when enabled. For email
+          sign-in, ask the workspace administrator for access.
+        </p>
       </div>
     </AuthShell>
   );

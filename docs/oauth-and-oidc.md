@@ -48,6 +48,19 @@ Client credentials are opaque and stored as hashes. A newly generated secret is 
 
 ## Authorization Code with PKCE
 
+### User accounts and the sign-in button
+
+Authometry is the identity provider, not a shared consumer account network. Each workspace has its
+own user directory, separate from the administrator accounts used to access the Authometry
+dashboard. An application can label its entry point **Continue with Authometry** and send the user
+through Authorization Code with PKCE.
+
+Password users must already exist in the workspace directory. When Google or GitHub is configured,
+the first successful social sign-in creates a workspace identity automatically; later sign-ins use
+that linked identity. Applications should begin the flow on their own backend or authentication
+library so that PKCE, `state`, and `nonce` are generated and validated server-side. A visual button
+must not replace those protocol protections.
+
 Generate a high-entropy verifier and its base64url-encoded SHA-256 challenge. Authometry supports S256, not `plain`.
 
 ```js

@@ -848,6 +848,9 @@ authorizeApiRouter.get(
       requestId: pending.request_id,
       status: pending.status,
       application: { id: application.id, name: application.name, type: application.type },
+      workspace: await query<{ name: string }>("SELECT name FROM workspaces WHERE id = $1", [
+        application.workspace_id,
+      ]).then(([workspace]) => ({ name: workspace?.name ?? "this workspace" })),
       ...(pending.parameters.agent_id
         ? {
             agent: await findAgentForClient(pending.parameters.client_id).then((agent) =>

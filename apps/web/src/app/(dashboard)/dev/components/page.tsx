@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { AlertTriangle, AppWindow, CheckCircle2, Info, Plus, type LucideIcon } from "lucide-react";
-import { Button, EmptyState, StatusBadge } from "@authometry/ui";
+import { AuthometryProviderButton, Button, EmptyState, StatusBadge } from "@authometry/ui";
 import { inputClass } from "@/components/auth/auth-shell";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
 
@@ -28,6 +28,18 @@ export default function ComponentShowcasePage() {
             <Button variant="ghost">Ghost</Button>
             <Button variant="danger">Danger</Button>
             <Button disabled>Disabled</Button>
+          </div>
+        </section>
+        <section className="border-t border-[var(--border)] pt-7">
+          <SectionHeader
+            description="Branded entry points for applications that delegate sign-in to Authometry."
+            title="OAuth provider buttons"
+          />
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] p-5">
+            <AuthometryProviderButton />
+            <AuthometryProviderButton appearance="brand" />
+            <AuthometryProviderButton appearance="dark" />
+            <AuthometryProviderButton compact>Sign in with Authometry</AuthometryProviderButton>
           </div>
         </section>
         <section className="border-t border-[var(--border)] pt-7">
