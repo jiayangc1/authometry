@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { createApplicationSlug, redirectUriSchema } from "@authometry/domain";
-import { Button, cn } from "@authometry/ui";
+import { Button, Checkbox, cn } from "@authometry/ui";
 import { PageContainer, PageHeader } from "@/components/layout/page";
 import { inputClass } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
@@ -133,11 +133,10 @@ export default function NewApplicationPage() {
           </dl>
         </div>
         <label className="mt-5 flex items-start gap-2.5 text-[13px]">
-          <input
-            className="mt-1"
+          <Checkbox
             checked={acknowledged}
             onChange={(event) => setAcknowledged(event.target.checked)}
-            type="checkbox"
+            wrapperClassName="mt-0.5"
           />
           I have stored this client secret securely.
         </label>
@@ -228,7 +227,7 @@ export default function NewApplicationPage() {
               <span className="mb-1.5 block text-xs font-medium">Redirect URI</span>
               <input
                 className={`${inputClass} technical-value`}
-                placeholder="http://localhost:3000/auth/callback"
+                placeholder="https://your-app.example/auth/callback"
                 {...form.register("redirectUri")}
               />
               {form.formState.errors.redirectUri && (

@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button, StatusBadge } from "@authometry/ui";
+import { Button, Checkbox, StatusBadge } from "@authometry/ui";
 import { useApplication } from "@/components/applications/application-context";
 import { SectionHeader } from "@/components/layout/page";
 import { apiFetch } from "@/lib/api";
@@ -64,7 +64,7 @@ export default function ApplicationScopesPage() {
               key={scope.id}
             >
               {editing && (
-                <input
+                <Checkbox
                   checked={checked}
                   disabled={scope.name === "openid"}
                   onChange={(event) =>
@@ -74,7 +74,6 @@ export default function ApplicationScopesPage() {
                         : values.filter((value) => value !== scope.name),
                     )
                   }
-                  type="checkbox"
                 />
               )}
               <div className="min-w-0 flex-1">

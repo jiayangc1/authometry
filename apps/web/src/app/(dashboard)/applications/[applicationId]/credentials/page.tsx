@@ -4,7 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { KeyRound, Plus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button, StatusBadge } from "@authometry/ui";
+import { Button, Checkbox, StatusBadge } from "@authometry/ui";
 import { useApplication } from "@/components/applications/application-context";
 import { CopyableValue } from "@/components/data-display/copyable-value";
 import { SectionHeader } from "@/components/layout/page";
@@ -127,10 +127,9 @@ export default function CredentialsPage() {
                   {secret}
                 </div>
                 <label className="mt-4 flex gap-2 text-[13px]">
-                  <input
+                  <Checkbox
                     checked={stored}
                     onChange={(event) => setStored(event.target.checked)}
-                    type="checkbox"
                   />
                   I have stored this client secret securely.
                 </label>
