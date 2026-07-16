@@ -1,74 +1,170 @@
 import Link from "next/link";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Braces, KeyRound, ShieldCheck } from "lucide-react";
 import { AuthometryLogo, Button } from "@authometry/ui";
+import {
+  documentationGroups,
+  documentationPages,
+  type DocumentationPage,
+} from "@/config/documentation";
 
-const sections = [
-  [
-    "applications",
-    "Applications",
-    "Register exact redirect URIs, select an application type, and assign only the scopes the client needs.",
-  ],
-  [
-    "oauth/pkce",
-    "Authorization Code with PKCE",
-    "Generate a high-entropy verifier, send its S256 challenge during authorization, and submit the original verifier once at the token endpoint.",
-  ],
-  [
-    "oauth/redirect-uris",
-    "Redirect URI matching",
-    "Authometry compares the complete redirect URI against registered values. Scheme, host, port, path, and query must match exactly.",
-  ],
-  [
-    "configuration-as-code",
-    "Configuration as code",
-    "Use authometry.dev/v1alpha1 manifests with validate, plan, apply, status, and export. Applies are atomic and record provenance without secret values.",
-  ],
-] as const;
+const groupIcons = {
+  Start: BookOpen,
+  "OAuth and OIDC": KeyRound,
+  Operate: ShieldCheck,
+} as const;
+
+function slugId(value: string) {
+  return value.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-");
+}
+
+function Navigation({ selected }: { selected: DocumentationPage | undefined }) {
+  return (
+    <nav aria-label="Documentation" className="space-y-6 md:sticky md:top-8 md:self-start">
+      {documentationGroups.map((group) => {
+        const Icon = groupIcons[group];
+        return (
+          <div key={group}>
+            <p className="mb-2 flex items-center gap-2 px-2 text-[10px] font-semibold tracking-[0.12em] text-[var(--text-tertiary)] uppercase">
+              <Icon className="size-3" /> {group}
+            </p>
+            <div className="space-y-0.5">
+              {documentationPages
+                .filter((page) => page.group === group)
+                .map((page) => (
+                  <Link
+                    aria-current={selected?.slug === page.slug ? "page" : undefined}
+                    className={`block border-l-2 px-3 py-2 text-xs leading-5 transition-colors ${
+                      selected?.slug === page.slug
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)] font-medium text-[var(--text-primary)]"
+                        : "border-transparent text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
+                    }`}
+                    href={`/docs/${page.slug}`}
+                    key={page.slug}
+                  >
+                    {page.title}
+                  </Link>
+                ))}
+            </div>
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+function DocumentationIndex() {
+  return (
+    <article>
+      <p className="technical-value mb-3 text-[var(--accent)]">AUTHOMETRY FIELD MANUAL</p>
+      <h1 className="max-w-2xl text-4xl font-semibold tracking-[-0.045em] md:text-5xl">
+        Follow the request. Find the decision.
+      </h1>
+      <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--text-secondary)]">
+        Configure clients, implement supported OAuth flows, and operate each environment with the
+        same exact inputs Authometry records in its authorization traces.
+      </p>
+      <div className="mt-10 grid gap-px overflow-hidden border border-[var(--border)] bg-[var(--border)] sm:grid-cols-2">
+        {documentationPages.map((page) => (
+          <Link
+            className="group min-h-40 bg-[var(--surface)] p-5 transition-colors hover:bg-[var(--surface-hover)]"
+            href={`/docs/${page.slug}`}
+            key={page.slug}
+          >
+            <p className="technical-value text-[var(--text-tertiary)]">{page.group}</p>
+            <h2 className="mt-4 flex items-center justify-between text-base font-semibold tracking-[-0.02em]">
+              {page.title}
+              <ArrowRight className="size-4 text-[var(--text-tertiary)] transition-transform group-hover:translate-x-1 group-hover:text-[var(--accent)]" />
+            </h2>
+            <p className="mt-3 text-xs leading-6 text-[var(--text-secondary)]">{page.summary}</p>
+          </Link>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function Article({ page }: { page: DocumentationPage }) {
+  return (
+    <>
+      <article className="min-w-0">
+        <p className="technical-value mb-3 text-[var(--accent)]">{page.group}</p>
+        <h1 className="text-3xl font-semibold tracking-[-0.04em] md:text-4xl">{page.title}</h1>
+        <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--text-secondary)]">
+          {page.summary}
+        </p>
+        <div className="mt-10 space-y-12">
+          {page.sections.map((section) => (
+            <section id={slugId(section.title)} key={section.title}>
+              <div className="mb-5 flex items-center gap-3 border-b border-[var(--border)] pb-3">
+                <Braces className="size-3.5 text-[var(--accent)]" />
+                <h2 className="text-lg font-semibold tracking-[-0.025em]">{section.title}</h2>
+              </div>
+              <div className="max-w-3xl space-y-4 text-sm leading-7 text-[var(--text-secondary)]">
+                {section.paragraphs?.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+                {section.bullets ? (
+                  <ul className="space-y-2 pl-5">
+                    {section.bullets.map((bullet) => (
+                      <li className="list-[square] pl-1 marker:text-[var(--accent)]" key={bullet}>
+                        {bullet}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {section.code ? (
+                  <pre className="overflow-x-auto border border-[var(--border)] bg-[var(--surface-subtle)] p-4 text-xs leading-6 text-[var(--text-primary)]">
+                    <code>{section.code}</code>
+                  </pre>
+                ) : null}
+                {section.note ? (
+                  <div className="border-l-2 border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-3 text-xs leading-6 text-[var(--text-primary)]">
+                    {section.note}
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ))}
+        </div>
+      </article>
+      <aside className="hidden xl:block">
+        <div className="sticky top-8 border-l border-[var(--border)] pl-5">
+          <p className="technical-value mb-3 text-[var(--text-tertiary)]">ON THIS PAGE</p>
+          <div className="space-y-2">
+            {page.sections.map((section) => (
+              <a
+                className="block text-xs leading-5 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                href={`#${slugId(section.title)}`}
+                key={section.title}
+              >
+                {section.title}
+              </a>
+            ))}
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+}
 
 export default async function DocsPage({ params }: { params: Promise<{ slug?: string[] }> }) {
   const path = (await params).slug?.join("/") ?? "";
-  const selected = sections.find(([key]) => key === path);
+  const selected = documentationPages.find((page) => page.slug === path);
   return (
-    <main className="mx-auto min-h-screen max-w-5xl px-5 py-8">
+    <main className="mx-auto min-h-screen max-w-[1440px] px-5 py-6 md:px-8">
       <header className="flex items-center justify-between border-b border-[var(--border)] pb-5">
-        <AuthometryLogo />
+        <Link aria-label="Documentation home" href="/docs">
+          <AuthometryLogo />
+        </Link>
         <Button asChild variant="ghost">
           <Link href="/overview">
             <ArrowLeft className="size-3.5" /> Dashboard
           </Link>
         </Button>
       </header>
-      <div className="grid gap-10 py-10 md:grid-cols-[220px_1fr]">
-        <nav aria-label="Documentation">
-          <p className="mb-3 flex items-center gap-2 text-xs font-semibold">
-            <BookOpen className="size-3.5" /> Documentation
-          </p>
-          <div className="space-y-1">
-            {sections.map(([key, title]) => (
-              <Link
-                className="block rounded px-2 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
-                href={`/docs/${key}`}
-                key={key}
-              >
-                {title}
-              </Link>
-            ))}
-          </div>
-        </nav>
-        <article>
-          <p className="technical-value mb-2 text-[var(--accent)]">AUTHOMETRY DOCUMENTATION</p>
-          <h1 className="text-3xl font-semibold tracking-[-0.035em]">
-            {selected?.[1] ?? "Authorization you can inspect"}
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--text-secondary)]">
-            {selected?.[2] ??
-              "Authometry implements modern OAuth 2.0 and OpenID Connect flows with exact validation, explicit policies, redacted traces, and Git-native configuration."}
-          </p>
-          <div className="mt-8 border-l-2 border-[var(--accent)] bg-[var(--accent-soft)] p-4 text-sm leading-6">
-            Protocol errors include a stable OAuth code, the observed condition, the expected
-            condition, a technical explanation, and an exact corrective action.
-          </div>
-        </article>
+      <div className="grid gap-10 py-10 md:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,760px)_180px] xl:gap-14">
+        <Navigation selected={selected} />
+        {selected ? <Article page={selected} /> : <DocumentationIndex />}
       </div>
     </main>
   );
