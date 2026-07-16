@@ -304,8 +304,8 @@ settingsRouter.post(
     if (!existing && !emailEnabled()) {
       throw new ApiError(
         409,
-        "smtp_disabled",
-        "Configure SMTP before inviting a new workspace member.",
+        "email_disabled",
+        "Configure Resend or SMTP before inviting a new workspace member.",
       );
     }
     const invitation = randomToken(40);
