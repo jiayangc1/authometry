@@ -1,16 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Copy, ExternalLink, RefreshCw } from "lucide-react";
-import { Button, StatusBadge } from "@authometry/ui";
+import { Button, Checkbox, StatusBadge } from "@authometry/ui";
 import { inputClass } from "@/components/auth/auth-shell";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
 
 export default function PlaygroundPage() {
   const [clientId, setClientId] = useState("amt_client_dashboard");
-  const [redirectUri, setRedirectUri] = useState("http://localhost:3000/callback");
+  const [redirectUri, setRedirectUri] = useState("");
   const [scopes, setScopes] = useState(["openid", "profile", "email"]);
   const [challenge, setChallenge] = useState("example-S256-challenge");
+  useEffect(() => {
+    setRedirectUri(new URL(window.location.pathname, window.location.origin).toString());
+  }, []);
   const url = useMemo(() => {
     const value = new URL(
       "/oauth/authorize",
@@ -68,7 +71,7 @@ export default function PlaygroundPage() {
                     className="flex items-center gap-1.5 rounded-full border border-[var(--border)] px-2.5 py-1 text-xs"
                     key={scope}
                   >
-                    <input
+                    <Checkbox
                       checked={scopes.includes(scope)}
                       onChange={(event) =>
                         setScopes(
@@ -77,7 +80,6 @@ export default function PlaygroundPage() {
                             : scopes.filter((value) => value !== scope),
                         )
                       }
-                      type="checkbox"
                     />
                     {scope}
                   </label>
