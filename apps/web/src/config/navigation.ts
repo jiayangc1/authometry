@@ -1,5 +1,6 @@
 import {
   Activity,
+  Bot,
   AppWindow,
   BookOpen,
   Boxes,
@@ -11,6 +12,7 @@ import {
   ScrollText,
   Settings,
   ShieldCheck,
+  Stamp,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -28,6 +30,7 @@ export const navigation: Array<{ label: string; items: NavigationItem[] }> = [
     items: [
       { label: "Overview", href: "/overview", icon: CircleGauge },
       { label: "Applications", href: "/applications", icon: AppWindow },
+      { label: "Agents", href: "/agents", icon: Bot },
       { label: "Users", href: "/users", icon: Users },
       { label: "Sessions", href: "/sessions", icon: FileClock },
     ],
@@ -36,6 +39,7 @@ export const navigation: Array<{ label: string; items: NavigationItem[] }> = [
     label: "Authorization",
     items: [
       { label: "Traces", href: "/traces", icon: ListTree },
+      { label: "Agent grants", href: "/agent-grants", icon: Stamp },
       { label: "Scopes", href: "/scopes", icon: KeyRound },
       { label: "Policies", href: "/policies", icon: ShieldCheck },
     ],

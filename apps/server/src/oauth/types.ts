@@ -1,3 +1,5 @@
+import type { AgentAuthorizationDetails } from "./agents.js";
+
 export interface OAuthApplicationRow {
   id: string;
   workspace_id: string;
@@ -13,7 +15,8 @@ export interface OAuthApplicationRow {
   post_logout_redirect_uris: string[];
   grant_types: string[];
   response_types: string[];
-  token_endpoint_auth_method: "none" | "client_secret_basic" | "client_secret_post";
+  token_endpoint_auth_method:
+    "none" | "client_secret_basic" | "client_secret_post" | "private_key_jwt";
   require_pkce: boolean;
   require_consent: boolean;
   allowed_scopes: string[];
@@ -59,4 +62,9 @@ export interface AuthorizationParameters {
   code_challenge_method?: string;
   prompt?: string;
   max_age?: string;
+  resource?: string;
+  authorization_details?: AgentAuthorizationDetails[];
+  purpose?: string;
+  task_id?: string;
+  agent_id?: string;
 }

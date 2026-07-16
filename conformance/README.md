@@ -7,7 +7,7 @@ Authometry targets the OpenID Foundation OP tests relevant to a public/confident
 - PKCE: S256 success, missing verifier, incorrect verifier, and authorization-code interception resistance.
 - Refresh token rotation: successful rotation, scope narrowing, reuse detection, and token-family revocation.
 - Dynamic client registration is intentionally excluded from v1 and must not be selected in a formal plan.
-- Implicit, hybrid, resource-owner password, CIBA, FAPI, DPoP, PAR, JAR, and JARM profiles are outside the v1 claim set.
+- Implicit, hybrid, resource-owner password, CIBA, FAPI, JAR, and JARM profiles are outside the v1 claim set. PAR and DPoP are implemented for registered agent authorization but are not yet included in the formal conformance plan.
 
 Run `pnpm conformance -- https://authometry.ch3n.cc` for the repository smoke plan. A formal OpenID Foundation conformance-suite run is required before making any certification claim; results and exported suite logs should be attached to the release record.
 

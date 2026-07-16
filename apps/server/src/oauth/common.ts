@@ -3,6 +3,7 @@ import { query } from "../db.js";
 import { ApiError } from "../lib/http.js";
 import { constantTimeEqual, hashToken } from "../lib/crypto.js";
 import type { OAuthApplicationRow } from "./types.js";
+import { verifyAgentAssertion } from "./agents.js";
 
 export async function findApplicationByClientId(
   clientId: string,
@@ -59,6 +60,19 @@ export async function authenticateClient(request: Request): Promise<OAuthApplica
   if (application.token_endpoint_auth_method === "none") {
     if (suppliedSecret)
       throw new ApiError(401, "invalid_client", "This public client does not use a client secret.");
+    return application;
+  }
+  if (application.token_endpoint_auth_method === "private_key_jwt") {
+    const assertionType = String(request.body.client_assertion_type ?? "");
+    const assertion = String(request.body.client_assertion ?? "");
+    if (assertionType !== "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" || !assertion) {
+      throw new ApiError(401, "invalid_client", "A private_key_jwt client assertion is required.");
+    }
+    await verifyAgentAssertion(
+      assertion,
+      application.client_id,
+      `${application.issuer}/oauth/token`,
+    );
     return application;
   }
   if (application.token_endpoint_auth_method === "client_secret_basic" && !basic) {
