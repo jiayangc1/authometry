@@ -19,7 +19,7 @@ import { Button, Checkbox } from "@authometry/ui";
 import { inputClass } from "@/components/auth/auth-shell";
 import { PageContainer, PageHeader } from "@/components/layout/page";
 
-const availableScopes = ["openid", "profile", "email", "offline_access"];
+const defaultScopes = ["openid", "profile", "email", "offline_access"];
 const flowStorageKey = "authometry-playground-flow";
 
 function randomUrlSafeValue(length = 32) {
@@ -70,10 +70,15 @@ export default function PlaygroundPage() {
 
   useEffect(() => {
     const current = new URL(window.location.href);
+    const configuredClientId = current.searchParams.get("client_id")?.trim();
+    const configuredRedirectUri = current.searchParams.get("redirect_uri")?.trim();
+    const configuredScopes = current.searchParams.get("scope")?.split(/\s+/).filter(Boolean);
     const callbackEntries = ["code", "state", "error", "error_description"]
       .map((key) => [key, current.searchParams.get(key)] as const)
       .filter((entry): entry is [string, string] => Boolean(entry[1]));
-    setRedirectUri(new URL(current.pathname, current.origin).toString());
+    if (configuredClientId) setClientId(configuredClientId);
+    setRedirectUri(configuredRedirectUri || new URL(current.pathname, current.origin).toString());
+    if (configuredScopes?.length) setScopes(configuredScopes);
     setCallback(callbackEntries);
     try {
       const saved = callbackEntries.length ? sessionStorage.getItem(flowStorageKey) : null;
@@ -153,6 +158,7 @@ export default function PlaygroundPage() {
 
   const returnedState = callback.find(([key]) => key === "state")?.[1];
   const callbackStateMatches = !returnedState || !state || returnedState === state;
+  const scopeOptions = [...new Set([...defaultScopes, ...scopes])];
 
   return (
     <PageContainer>
@@ -274,7 +280,7 @@ export default function PlaygroundPage() {
             <fieldset>
               <legend className="mb-2 text-xs font-medium">Requested scopes</legend>
               <div className="grid gap-2 sm:grid-cols-2">
-                {availableScopes.map((scope) => {
+                {scopeOptions.map((scope) => {
                   const checked = scopes.includes(scope);
                   return (
                     <label
