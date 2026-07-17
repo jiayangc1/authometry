@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Github } from "lucide-react";
 import { AuthometryLogo, Button } from "@authometry/ui";
+import { LegalFooter } from "@/components/legal/legal-page";
 
 export default function LandingPage() {
   return (
@@ -45,6 +46,7 @@ export default function LandingPage() {
         </div>
         <TraceThesis />
       </section>
+      <LegalFooter />
     </main>
   );
 }
