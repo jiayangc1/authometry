@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AuthometryLogo } from "@authometry/ui";
+import { AuthometryLogo, AuthometryMark } from "@authometry/ui";
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
@@ -49,6 +49,24 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </aside>
+    </main>
+  );
+}
+
+export function AuthorizationLoginShell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="flex min-h-dvh flex-col bg-[var(--surface)] px-5 py-6 sm:justify-center sm:py-10">
+      <section className="mx-auto flex w-full max-w-[450px] flex-1 flex-col justify-center sm:flex-none sm:rounded-[24px] sm:border sm:border-[var(--border-strong)] sm:bg-[var(--background)] sm:px-10 sm:py-10 sm:shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <Link
+          href="/"
+          aria-label="Authometry home"
+          className="mx-auto mb-7 flex size-10 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
+        >
+          <AuthometryMark className="size-6" />
+        </Link>
+        {children}
+      </section>
+      <p className="mt-7 text-center text-xs text-[var(--text-tertiary)]">Secured by Authometry</p>
     </main>
   );
 }
