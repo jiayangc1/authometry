@@ -95,7 +95,7 @@ export default function AuthorizationLoginPage() {
         </div>
         <form className="space-y-4" method="post" onSubmit={submit}>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-medium">Email</span>
+            <span className="mb-1.5 block text-xs font-medium">Email address</span>
             <input
               autoComplete="email"
               className={`${inputClass} h-11 rounded-lg`}
