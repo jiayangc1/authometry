@@ -14,7 +14,18 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex w-full max-w-[380px] flex-1 items-center py-12">
           {children}
         </div>
-        <p className="text-xs text-[var(--text-tertiary)]">Authometry · OAuth you can see.</p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-tertiary)]">
+          <span>Authometry · OAuth you can see.</span>
+          <Link className="hover:text-[var(--text-primary)]" href="/privacy">
+            Privacy
+          </Link>
+          <Link className="hover:text-[var(--text-primary)]" href="/terms">
+            Terms
+          </Link>
+          <Link className="hover:text-[var(--text-primary)]" href="/data-deletion">
+            Data deletion
+          </Link>
+        </div>
       </section>
       <aside className="hidden border-l border-[var(--border)] bg-[var(--surface)] p-10 lg:flex lg:items-center">
         <div className="mx-auto w-full max-w-xl">

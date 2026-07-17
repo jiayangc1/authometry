@@ -64,6 +64,32 @@ When both providers are configured, Resend is used. Do not reuse secret values b
 
 Changing `INTERNAL_API_ORIGIN` requires rebuilding the web image.
 
+## Google and GitHub identity providers
+
+Create one production web OAuth client per provider. For a deployment whose `PUBLIC_ORIGIN` is
+`https://auth.example.com`, register these exact callback URLs:
+
+- Google: `https://auth.example.com/api/v1/authorize/social/google/callback`
+- GitHub: `https://auth.example.com/api/v1/authorize/social/github/callback`
+
+Do not add paths, query strings, wildcards, or a trailing slash. Set the provider homepage to the
+same `PUBLIC_ORIGIN`. Google branding should also use:
+
+- Homepage: `https://auth.example.com/`
+- Privacy policy: `https://auth.example.com/privacy`
+- Terms of service: `https://auth.example.com/terms`
+- Authorized domain: `auth.example.com` (and complete domain verification when requested)
+
+Authometry requests only `openid email profile` from Google and `read:user user:email` from GitHub.
+Keep the Google consent screen in testing until the branding, developer contact, authorized domain,
+homepage, policy links, and exact production callback have been reviewed. Then publish the app and
+complete any Google verification workflow shown for the project. Publishing removes the testing-user
+limit; Google, not Authometry, decides whether branding or app verification is required.
+
+Store the generated client secrets only in the deployment secret manager. Restart the API after
+setting the four provider variables, then confirm `/api/v1/authorize/providers` reports both
+providers as enabled.
+
 ## Database migrations
 
 The API runs migrations before it starts accepting traffic. Each migration runs transactionally and applied filenames are recorded in `schema_migrations`. A PostgreSQL advisory lock prevents multiple starting replicas from applying migrations concurrently.
