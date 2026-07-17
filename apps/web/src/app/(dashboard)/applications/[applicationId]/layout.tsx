@@ -1,8 +1,18 @@
 "use client";
 
-import { ChevronRight, FlaskConical, GitBranch, MoreHorizontal } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import {
+  Activity,
+  ChevronRight,
+  Clipboard,
+  FlaskConical,
+  GitBranch,
+  MoreHorizontal,
+  Settings,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
+import { toast } from "sonner";
 import { Button, StatusBadge, cn } from "@authometry/ui";
 import { ApplicationProvider, useApplication } from "@/components/applications/application-context";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
@@ -43,6 +53,24 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
     ["Credentials", `/applications/${application.id}/credentials`],
     ["Activity", `/applications/${application.id}/activity`],
   ] as const;
+  const clientId = application.client_id;
+  const playgroundParameters = new URLSearchParams({
+    client_id: clientId,
+    scope: application.allowed_scopes.join(" "),
+  });
+  const redirectUri = application.redirect_uris[0];
+  if (redirectUri) playgroundParameters.set("redirect_uri", redirectUri);
+  const playgroundHref = `/developer/playground?${playgroundParameters.toString()}`;
+
+  async function copyClientId() {
+    try {
+      await navigator.clipboard.writeText(clientId);
+      toast.success("Client ID copied.");
+    } catch {
+      toast.error("Could not copy the client ID.");
+    }
+  }
+
   return (
     <PageContainer>
       <div className="mb-5 flex items-center gap-1 text-xs text-[var(--text-secondary)]">
@@ -69,12 +97,50 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
           <p className="technical-value mt-1 text-[var(--text-secondary)]">{application.slug}</p>
         </div>
         <div className="flex gap-2">
-          <Button>
-            <FlaskConical className="size-3.5" /> Test authorization
+          <Button asChild>
+            <Link href={playgroundHref}>
+              <FlaskConical className="size-3.5" /> Test authorization
+            </Link>
           </Button>
-          <Button aria-label="More actions" size="icon">
-            <MoreHorizontal className="size-4" />
-          </Button>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <Button aria-label="More actions" size="icon">
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                align="end"
+                className="z-50 min-w-48 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.10)]"
+                sideOffset={6}
+              >
+                <DropdownMenu.Item asChild>
+                  <Link
+                    className="flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-[13px] outline-none focus:bg-[var(--surface-hover)]"
+                    href={`/applications/${application.id}/configuration`}
+                  >
+                    <Settings className="size-3.5 text-[var(--text-secondary)]" /> Edit
+                    configuration
+                  </Link>
+                </DropdownMenu.Item>
+                <DropdownMenu.Item asChild>
+                  <Link
+                    className="flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-[13px] outline-none focus:bg-[var(--surface-hover)]"
+                    href={`/applications/${application.id}/activity`}
+                  >
+                    <Activity className="size-3.5 text-[var(--text-secondary)]" /> View activity
+                  </Link>
+                </DropdownMenu.Item>
+                <DropdownMenu.Separator className="my-1 h-px bg-[var(--border)]" />
+                <DropdownMenu.Item
+                  className="flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-[13px] outline-none focus:bg-[var(--surface-hover)]"
+                  onSelect={() => void copyClientId()}
+                >
+                  <Clipboard className="size-3.5 text-[var(--text-secondary)]" /> Copy client ID
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
       </header>
       {application.ownership === "manifest" && (
@@ -87,7 +153,9 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
             </code>
             .
           </span>
-          <Button size="compact">View configuration</Button>
+          <Button asChild size="compact">
+            <Link href={`/applications/${application.id}/configuration`}>View configuration</Link>
+          </Button>
         </div>
       )}
       <nav
