@@ -22,16 +22,18 @@ export default function LandingPage() {
       <section className="mx-auto grid max-w-6xl items-center gap-16 px-5 py-20 lg:grid-cols-[0.82fr_1.18fr] lg:py-32">
         <div>
           <p className="mb-5 text-xs font-medium text-[var(--text-secondary)]">
-            OAuth infrastructure, made inspectable
+            Authometry — OAuth infrastructure, made inspectable
           </p>
           <h1 className="max-w-xl text-[48px] leading-[1.02] font-semibold tracking-[-0.055em] sm:text-[64px]">
-            OAuth you
+            Authometry:
             <br />
-            can see.
+            OAuth you can see.
           </h1>
           <p className="mt-6 max-w-lg text-[15px] leading-6 text-[var(--text-secondary)]">
-            Authometry makes every validation, scope, and policy decision visible—so a rejected
-            request tells you exactly what to change.
+            Authometry is an OAuth 2.0 and OpenID Connect authorization server and administration
+            dashboard. It lets developers register applications, issue tokens, manage scopes and
+            policies, and inspect every authorization decision—so a rejected request tells you
+            exactly what to change.
           </p>
           <div className="mt-8 flex items-center gap-2">
             <Button asChild variant="primary">
