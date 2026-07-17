@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Github } from "lucide-react";
+import { Github, LoaderCircle } from "lucide-react";
 import { Button } from "@authometry/ui";
 import { AuthHeading, AuthShell, inputClass } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
@@ -89,12 +89,20 @@ export default function LoginPage() {
             </p>
           )}
           <Button
-            className="w-full"
+            aria-busy={loading}
+            className="w-full disabled:opacity-100"
             disabled={!hydrated || loading}
             type="submit"
             variant="primary"
           >
-            {loading ? "Signing in…" : "Sign in"}
+            {loading ? (
+              <>
+                <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+                Signing in…
+              </>
+            ) : (
+              "Sign in"
+            )}
           </Button>
         </form>
         <div className="my-6 flex items-center gap-3 text-[11px] text-[var(--text-tertiary)] before:h-px before:flex-1 before:bg-[var(--border)] after:h-px after:flex-1 after:bg-[var(--border)]">
