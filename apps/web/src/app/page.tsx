@@ -55,10 +55,7 @@ export default function LandingPage() {
       >
         <div className="max-w-3xl">
           <p className="text-xs font-medium text-[var(--text-secondary)]">Application purpose</p>
-          <h2
-            className="mt-3 text-3xl font-semibold tracking-[-0.035em]"
-            id="authometry-purpose"
-          >
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.035em]" id="authometry-purpose">
             What Authometry does
           </h2>
           <p className="mt-4 text-[15px] leading-7 text-[var(--text-secondary)]">
