@@ -121,7 +121,8 @@ export default function TraceDetailPage() {
             onClick={() => {
               void navigator.clipboard
                 .writeText(data.request_id)
-                .then(() => toast.success("Request ID copied."));
+                .then(() => toast.success("Request ID copied."))
+                .catch(() => toast.error("Could not copy the request ID."));
             }}
           >
             <Copy aria-hidden="true" className="size-3.5" /> Copy Request ID
