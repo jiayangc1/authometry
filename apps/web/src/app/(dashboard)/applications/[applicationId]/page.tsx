@@ -23,7 +23,7 @@ export default function ApplicationOverviewPage() {
   ];
   const code = `import { Authometry } from "@authometry/next";\n\nexport const auth = new Authometry({\n  issuer: process.env.AUTHOMETRY_ISSUER!,\n  clientId: process.env.AUTHOMETRY_CLIENT_ID!,\n  clientSecret: process.env.AUTHOMETRY_CLIENT_SECRET!,\n});`;
   const issuer =
-    typeof window === "undefined" ? "https://auth.example.com" : window.location.origin;
+    typeof window === "undefined" ? "https://authometry.ch3n.cc" : window.location.origin;
   const endpoints: Array<[string, string]> = [
     ["Issuer", issuer],
     ["Discovery", `${issuer}/.well-known/openid-configuration`],

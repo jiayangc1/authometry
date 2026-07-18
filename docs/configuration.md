@@ -29,7 +29,7 @@ Contributors can build the workspace CLI with `pnpm --filter @authometry/cli bui
 Then provide a server, personal access token, and environment:
 
 ```bash
-export AUTHOMETRY_SERVER=https://auth.example.com
+export AUTHOMETRY_SERVER=https://authometry.ch3n.cc
 export AUTHOMETRY_TOKEN=amt_your_token
 export AUTHOMETRY_ENVIRONMENT=production
 ```
@@ -84,7 +84,7 @@ kind: AuthometryInstance
 metadata:
   name: primary
 spec:
-  issuer: https://auth.example.com
+  issuer: https://authometry.ch3n.cc
   defaultTokenLifetimes:
     accessToken: 15m
     refreshToken: 30d

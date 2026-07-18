@@ -67,18 +67,18 @@ Changing `INTERNAL_API_ORIGIN` requires rebuilding the web image.
 ## Google and GitHub identity providers
 
 Create one production web OAuth client per provider. For a deployment whose `PUBLIC_ORIGIN` is
-`https://auth.example.com`, register these exact callback URLs:
+`https://authometry.ch3n.cc`, register these exact callback URLs:
 
-- Google: `https://auth.example.com/api/v1/authorize/social/google/callback`
-- GitHub: `https://auth.example.com/api/v1/authorize/social/github/callback`
+- Google: `https://authometry.ch3n.cc/api/v1/authorize/social/google/callback`
+- GitHub: `https://authometry.ch3n.cc/api/v1/authorize/social/github/callback`
 
 Do not add paths, query strings, wildcards, or a trailing slash. Set the provider homepage to the
 same `PUBLIC_ORIGIN`. Google branding should also use:
 
-- Homepage: `https://auth.example.com/`
-- Privacy policy: `https://auth.example.com/privacy`
-- Terms of service: `https://auth.example.com/terms`
-- Authorized domain: `auth.example.com` (and complete domain verification when requested)
+- Homepage: `https://authometry.ch3n.cc/`
+- Privacy policy: `https://authometry.ch3n.cc/privacy`
+- Terms of service: `https://authometry.ch3n.cc/terms`
+- Authorized domain: `authometry.ch3n.cc` (and complete domain verification when requested)
 
 Authometry requests only `openid email profile` from Google and `read:user user:email` from GitHub.
 Keep the Google consent screen in testing until the branding, developer contact, authorized domain,
@@ -116,7 +116,7 @@ Do not edit an already-applied migration. Add a new numbered migration.
 Run the repository smoke plan against the public origin:
 
 ```bash
-pnpm conformance -- https://auth.example.com
+pnpm conformance -- https://authometry.ch3n.cc
 ```
 
 The script checks liveness, discovery metadata, supported grants, endpoint origins, and public JWKS metadata. It is not an OpenID Foundation certification run.

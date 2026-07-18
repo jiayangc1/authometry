@@ -9,7 +9,7 @@ This document catalogs the implemented surface. Route input and output may grow 
 Use the same public origin as the dashboard:
 
 ```text
-https://auth.example.com/api/v1
+https://authometry.ch3n.cc/api/v1
 ```
 
 The web service proxies this path to the private API. Do not point browser integrations at the private container address.
@@ -34,7 +34,7 @@ Create a token under **Settings → API tokens** and send it as a bearer value:
 curl \
   -H "authorization: Bearer $AUTHOMETRY_TOKEN" \
   -H "x-authometry-environment: production" \
-  https://auth.example.com/api/v1/config/status
+  https://authometry.ch3n.cc/api/v1/config/status
 ```
 
 Personal tokens begin with `amt_`, are shown once, stored only as hashes, and may have an expiry. Configuration endpoints enforce `config:read` on GET/HEAD and `config:write` on mutations. Personal tokens do not require cookie CSRF. The MCP endpoint uses its separate OAuth admin-consent flow rather than personal tokens.

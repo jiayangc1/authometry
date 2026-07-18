@@ -131,7 +131,7 @@ export default function PlaygroundPage() {
   const url = useMemo(() => {
     const value = new URL(
       "/oauth/authorize",
-      typeof window === "undefined" ? "https://auth.example.com" : window.location.origin,
+      typeof window === "undefined" ? "https://authometry.ch3n.cc" : window.location.origin,
     );
     value.search = new URLSearchParams(parameters).toString();
     return value.toString();

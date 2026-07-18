@@ -7,7 +7,7 @@ Authometry exposes a read-only Model Context Protocol server at `/mcp` over Stre
 Point the client at the MCP URL on the environment's issuer:
 
 ```text
-https://auth.example.com/mcp
+https://authometry.ch3n.cc/mcp
 ```
 
 The client first receives a `401` challenge containing the protected-resource metadata URL and the required `mcp:read` scope. It then discovers Authometry's authorization and token endpoints from OAuth or OpenID Provider metadata.
@@ -24,13 +24,13 @@ The client opens Authometry in the user's browser. After an Authometry administr
 Approving returns a short-lived authorization code to the exact registered redirect URI. The client exchanges it with the original PKCE verifier and the same `resource` value:
 
 ```text
-POST https://auth.example.com/oauth/token
+POST https://authometry.ch3n.cc/oauth/token
 grant_type=authorization_code
 client_id=amt_mcp_client_...
 code=...
 code_verifier=...
 redirect_uri=http://127.0.0.1:PORT/callback
-resource=https://auth.example.com/mcp
+resource=https://authometry.ch3n.cc/mcp
 ```
 
 The resulting access token is signed by Authometry, identifies the approving admin, includes `mcp:read`, and uses the MCP URL as its audience. `/mcp` rejects expired, revoked, wrong-issuer, wrong-audience, non-admin, and insufficient-scope tokens. Send the access token as `Authorization: Bearer ...` on every MCP request.
@@ -53,4 +53,4 @@ Tools that accept `environment` allow either a slug or UUID. If it is omitted, A
 
 The endpoint uses stateless Streamable HTTP and JSON responses. Clients must send `Content-Type: application/json` and advertise both `application/json` and `text/event-stream` in `Accept`, as required by the transport. `GET` and `DELETE` are not available because this read-only server does not provide server-initiated notifications or resumable sessions.
 
-For a workspace-scoped issuer such as `https://auth.example.com/w/acme`, use `https://auth.example.com/w/acme/mcp`. Resource metadata and token audience validation follow that complete URL.
+For a workspace-scoped issuer such as `https://authometry.ch3n.cc/w/acme`, use `https://authometry.ch3n.cc/w/acme/mcp`. Resource metadata and token audience validation follow that complete URL.

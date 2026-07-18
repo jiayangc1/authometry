@@ -13,7 +13,7 @@ MCP authorization uses the Authometry administrator account rather than an appli
 Clients should load metadata rather than construct endpoint URLs:
 
 ```bash
-curl https://auth.example.com/.well-known/openid-configuration
+curl https://authometry.ch3n.cc/.well-known/openid-configuration
 ```
 
 The discovery document advertises Authorization Code, Refresh Token, Client Credentials, Device Authorization, and Token Exchange grants; the `code` response type; `query` response mode; S256 PKCE; public subjects; RS256 ID tokens; and `client_secret_basic`, `client_secret_post`, `private_key_jwt`, and `none` client authentication.
@@ -81,7 +81,7 @@ const challenge = createHash("sha256").update(verifier).digest("base64url");
 Redirect the browser to the authorization endpoint:
 
 ```text
-https://auth.example.com/oauth/authorize?
+https://authometry.ch3n.cc/oauth/authorize?
   response_type=code&
   client_id=CLIENT_ID&
   redirect_uri=https%3A%2F%2Fclient.example.com%2Fcallback&
@@ -103,7 +103,7 @@ curl -u "$CLIENT_ID:$CLIENT_SECRET" \
   -d code="$CODE" \
   -d redirect_uri=https://client.example.com/callback \
   -d code_verifier="$VERIFIER" \
-  https://auth.example.com/oauth/token
+  https://authometry.ch3n.cc/oauth/token
 ```
 
 The response contains a bearer `access_token`, `expires_in`, and `scope`; it includes an `id_token` for OpenID requests and a `refresh_token` when `offline_access` was authorized.
@@ -115,7 +115,7 @@ curl -u "$CLIENT_ID:$CLIENT_SECRET" \
   -H 'content-type: application/x-www-form-urlencoded' \
   -d grant_type=refresh_token \
   -d refresh_token="$REFRESH_TOKEN" \
-  https://auth.example.com/oauth/token
+  https://authometry.ch3n.cc/oauth/token
 ```
 
 Every successful use rotates the refresh token. Replace the stored token atomically with the new response. Reusing a consumed token marks the family as reused and revokes the entire family. A refresh request may narrow, but not expand, its original scopes.
@@ -129,7 +129,7 @@ curl -u "$CLIENT_ID:$CLIENT_SECRET" \
   -H 'content-type: application/x-www-form-urlencoded' \
   -d grant_type=client_credentials \
   -d 'scope=events:read events:write' \
-  https://auth.example.com/oauth/token
+  https://authometry.ch3n.cc/oauth/token
 ```
 
 The returned JWT represents the application as its subject and does not include an ID or refresh token.
@@ -142,7 +142,7 @@ Request a device and user code:
 curl -u "$CLIENT_ID:$CLIENT_SECRET" \
   -H 'content-type: application/x-www-form-urlencoded' \
   -d 'scope=openid profile' \
-  https://auth.example.com/oauth/device/authorization
+  https://authometry.ch3n.cc/oauth/device/authorization
 ```
 
 Show `user_code` and `verification_uri` to the user, or provide `verification_uri_complete`. The response expires in 600 seconds and specifies a five-second polling interval. Poll without exceeding that interval:
@@ -152,7 +152,7 @@ curl -u "$CLIENT_ID:$CLIENT_SECRET" \
   -H 'content-type: application/x-www-form-urlencoded' \
   -d grant_type=urn:ietf:params:oauth:grant-type:device_code \
   -d device_code="$DEVICE_CODE" \
-  https://auth.example.com/oauth/token
+  https://authometry.ch3n.cc/oauth/token
 ```
 
 Pending authorization returns `authorization_pending`; polling too quickly returns `slow_down`. Stop on approval, denial, or expiry. A device code is consumed only once.
@@ -161,7 +161,7 @@ Pending authorization returns `authorization_pending`; polling too quickly retur
 
 ```bash
 curl -H "authorization: Bearer $ACCESS_TOKEN" \
-  https://auth.example.com/oauth/userinfo
+  https://authometry.ch3n.cc/oauth/userinfo
 ```
 
 UserInfo validates signature, issuer, audience, revocation, client route, and active user status. `profile` enables `name` and `groups`; `email` enables `email` and `email_verified`. Claim mappings can add non-reserved values to access tokens, ID tokens, and UserInfo.
