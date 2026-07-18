@@ -217,6 +217,40 @@ export const documentationPages: DocumentationPage[] = [
     ],
   },
   {
+    slug: "mcp",
+    group: "Operate",
+    title: "MCP server",
+    summary:
+      "Connect an AI client to read-only environment, application, scope, and authorization-trace tools.",
+    sections: [
+      {
+        title: "Create a scoped token",
+        paragraphs: [
+          "Create an MCP read-only token under Settings, API tokens. Authometry shows its amt_ value once and stores only its hash. The token must carry mcp:read and is sent as a Bearer value on every request.",
+        ],
+        note: "Keep the token in your MCP client's secret or environment-variable facility. Do not commit it to client configuration.",
+      },
+      {
+        title: "Connect over Streamable HTTP",
+        paragraphs: [
+          "Point the MCP client at the public Authometry origin followed by /mcp. The endpoint is stateless and returns JSON responses, so it does not create resumable sessions or a server-initiated event stream.",
+        ],
+        code: "URL: https://auth.example.com/mcp\nAuthorization: Bearer amt_...",
+      },
+      {
+        title: "Use read-only tools",
+        bullets: [
+          "list_environments returns environments in the token's workspace.",
+          "list_applications searches non-secret OAuth client configuration.",
+          "list_scopes reports resource scope sensitivity and application usage.",
+          "list_authorization_traces searches recent redacted protocol traces.",
+          "get_authorization_trace returns one redacted trace with its explanation and steps.",
+        ],
+        note: "Pass an environment slug or UUID when needed. Omitting it selects the workspace's default environment.",
+      },
+    ],
+  },
+  {
     slug: "configuration-as-code",
     group: "Operate",
     title: "Configuration as code",

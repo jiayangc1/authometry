@@ -5,7 +5,7 @@ Authometry separates the public web surface from the protocol and data service w
 ## Runtime topology
 
 ```text
-Browser or OAuth client
+Browser, OAuth client, or MCP client
         |
         v
 Web origin (Next.js, port 3000)
@@ -31,6 +31,7 @@ A Next.js App Router application. Protected dashboard paths are guarded by the p
 An Express service containing:
 
 - OAuth/OIDC discovery, authorization, token, UserInfo, device, revocation, introspection, and logout routes.
+- A stateless Streamable HTTP MCP endpoint authenticated by scoped personal access tokens.
 - Administrative authentication and management APIs.
 - Manifest export, transactional apply, drift status, and deployment history.
 - PostgreSQL migrations and periodic webhook and retention workers.

@@ -12,6 +12,7 @@ import { agentsRouter } from "./api/agents.js";
 import { pool } from "./db.js";
 import { env } from "./env.js";
 import { ApiError, sendApiError } from "./lib/http.js";
+import { mcpRouter } from "./mcp.js";
 import { migrate } from "./migrate.js";
 import { authorizationRouter, authorizeApiRouter } from "./oauth/authorization.js";
 import { discoveryRouter, deviceApiRouter, resourceRouter } from "./oauth/resources.js";
@@ -94,6 +95,7 @@ export function createApp() {
   mountProtocol("/w/:workspaceSlug");
   mountProtocol("/w/:workspaceSlug/:environmentSlug");
   mountProtocol("/:environmentSlug");
+  app.use("/mcp", mcpRouter);
   app.use("/api/v1/auth", adminAuthRouter);
   app.use("/api/v1/authorize", authorizeApiRouter);
   app.use("/api/v1/authorize", deviceApiRouter);

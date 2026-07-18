@@ -11,6 +11,7 @@ Authometry is an inspectable OAuth 2.0 and OpenID Connect authorization platform
 - [OAuth and OpenID Connect](docs/oauth-and-oidc.md) — issuer URLs, supported grants, endpoints, clients, and security behavior.
 - [Configuration as code](docs/configuration.md) — CLI workflow, manifest reference, ownership, secrets, and CI usage.
 - [Management API](docs/api.md) — authentication, environment selection, errors, and endpoint catalog.
+- [MCP server](docs/mcp.md) — connect an AI client to read-only Authometry tools over Streamable HTTP.
 - [Security](docs/security.md) — trust boundaries, token storage, encryption, CSRF, redaction, and key rotation.
 - [Deployment and operations](docs/deployment.md) — containers, environment variables, health checks, migrations, backup, and recovery.
 - [Contributing](CONTRIBUTING.md) — repository workflow and quality gates.
@@ -25,6 +26,7 @@ Authometry is an inspectable OAuth 2.0 and OpenID Connect authorization platform
 - Exact redirect URI matching, consent records, policy evaluation, and custom claim mappings.
 - Registered agent identities, pushed task authorization, actor-aware DPoP tokens, delegation grants, and reduced one-level token exchange.
 - Per-request authorization traces with secret redaction and corrective explanations.
+- Read-only MCP tools for applications, scopes, environments, and redacted authorization traces.
 - Dashboard and Git-managed applications, scopes, policies, claims, and instance settings.
 - Workspaces, environments, role-based administration, personal access tokens, audit events, webhooks, and signing-key rotation.
 
