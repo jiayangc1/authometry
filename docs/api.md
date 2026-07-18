@@ -69,27 +69,32 @@ Validation failures use HTTP 422 and include Zod field details. Authentication, 
 
 These routes are mounted under `/api/v1/auth`. Login and recovery routes are rate-limited.
 
-| Method | Path                         | Purpose                                                                                                |
-| ------ | ---------------------------- | ------------------------------------------------------------------------------------------------------ |
-| GET    | `/auth/bootstrap/status`     | Report whether first-owner bootstrap is available.                                                     |
-| POST   | `/auth/bootstrap`            | Create the first owner, workspace, default environment, scopes, and key. Requires `x-bootstrap-token`. |
-| GET    | `/auth/providers`            | Report which social providers are available for dashboard sign-in.                                     |
-| GET    | `/auth/social/:provider`     | Begin a PKCE-protected Google or GitHub dashboard sign-in.                                             |
-| POST   | `/auth/login`                | Authenticate an owner or member and issue session cookies.                                             |
-| POST   | `/auth/forgot-password`      | Create and, when SMTP is enabled, deliver a reset link.                                                |
-| POST   | `/auth/reset-password`       | Consume a reset token and set a new password.                                                          |
-| GET    | `/auth/invitation?token=...` | Inspect an account invitation.                                                                         |
-| POST   | `/auth/invitation`           | Accept an invitation and establish the account password.                                               |
-| POST   | `/auth/refresh`              | Rotate the administrative refresh session and cookies.                                                 |
-| POST   | `/auth/logout`               | Revoke the administrative session and clear cookies.                                                   |
-| GET    | `/auth/me`                   | Return current user, workspace, role, and available workspaces.                                        |
-| POST   | `/auth/switch-workspace`     | Change the workspace encoded in the administrative session.                                            |
-| POST   | `/auth/workspaces`           | Create another workspace and its default environment.                                                  |
+| Method | Path                          | Purpose                                                                                                |
+| ------ | ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| GET    | `/auth/bootstrap/status`      | Report whether first-owner bootstrap is available.                                                     |
+| POST   | `/auth/bootstrap`             | Create the first owner, workspace, default environment, scopes, and key. Requires `x-bootstrap-token`. |
+| GET    | `/auth/providers`             | Report which social providers are available for dashboard sign-in.                                     |
+| GET    | `/auth/social/:provider`      | Begin a PKCE-protected Google or GitHub dashboard sign-in.                                             |
+| GET    | `/auth/connections`           | List social providers linked to the current dashboard account.                                         |
+| POST   | `/auth/connections/:provider` | Begin linking a provider to the current dashboard account.                                             |
+| DELETE | `/auth/connections/:provider` | Disconnect a provider from the current dashboard account.                                              |
+| POST   | `/auth/login`                 | Authenticate an owner or member and issue session cookies.                                             |
+| POST   | `/auth/forgot-password`       | Create and, when SMTP is enabled, deliver a reset link.                                                |
+| POST   | `/auth/reset-password`        | Consume a reset token and set a new password.                                                          |
+| GET    | `/auth/invitation?token=...`  | Inspect an account invitation.                                                                         |
+| POST   | `/auth/invitation`            | Accept an invitation and establish the account password.                                               |
+| POST   | `/auth/refresh`               | Rotate the administrative refresh session and cookies.                                                 |
+| POST   | `/auth/logout`                | Revoke the administrative session and clear cookies.                                                   |
+| GET    | `/auth/me`                    | Return current user, workspace, role, and available workspaces.                                        |
+| POST   | `/auth/switch-workspace`      | Change the workspace encoded in the administrative session.                                            |
+| POST   | `/auth/workspaces`            | Create another workspace and its default environment.                                                  |
 
 Passwords are normalized emails plus a 12–128 character password. Social dashboard sign-in requires
 an existing, enabled administrator whose email exactly matches the provider's verified email; it
-never creates a privileged account. Bootstrap is accepted only before an owner exists and before the
-configured token expiry.
+never creates a privileged account. The first successful match records the provider identity so
+future provider and password sign-ins resolve to the same administrator. An authenticated
+administrator can also explicitly connect a provider under **Settings → My account**. Bootstrap is
+accepted only before an owner exists and before the configured token expiry.
 
 ## Dashboard resources
 

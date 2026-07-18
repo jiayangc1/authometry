@@ -57,9 +57,11 @@ through Authorization Code with PKCE.
 
 Password users must already exist in the workspace directory. When Google or GitHub is configured,
 the first successful social sign-in creates a workspace identity automatically; later sign-ins use
-that linked identity. Applications should begin the flow on their own backend or authentication
-library so that PKCE, `state`, and `nonce` are generated and validated server-side. A visual button
-must not replace those protocol protections.
+that linked identity. If the provider's verified email already belongs to a password user,
+Authometry asks for that user's password once and then attaches the provider to the existing user
+instead of creating a duplicate. Applications should begin the flow on their own backend or
+authentication library so that PKCE, `state`, and `nonce` are generated and validated server-side.
+A visual button must not replace those protocol protections.
 
 Generate a high-entropy verifier and its base64url-encoded SHA-256 challenge. Authometry supports S256, not `plain`.
 

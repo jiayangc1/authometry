@@ -19,8 +19,14 @@ interface UserDetail {
   groups: string[];
   custom_claims: Record<string, unknown>;
   mfa_enabled: boolean;
+  password_enabled: boolean;
   created_at: string;
   last_authenticated_at?: string;
+  social_connections: Array<{
+    provider: string;
+    provider_email?: string;
+    created_at: string;
+  }>;
   sessions: Array<{
     id: string;
     status: string;
@@ -42,6 +48,15 @@ export default function UserDetailPage() {
     ["User ID", user.id],
     ["Email", user.email],
     ["Email verified", user.email_verified_at ? "Verified" : "Not verified"],
+    [
+      "Sign-in methods",
+      [
+        ...(user.password_enabled ? ["Password"] : []),
+        ...user.social_connections.map(({ provider }) =>
+          provider === "github" ? "GitHub" : "Google",
+        ),
+      ].join(", ") || "None",
+    ],
     ["MFA", user.mfa_enabled ? "Enabled" : "Not enabled"],
     ["Groups", user.groups.join(", ") || "None"],
     ["Created", fullDateTime(user.created_at)],

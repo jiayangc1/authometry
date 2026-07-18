@@ -199,28 +199,110 @@ adminAuthRouter.get("/providers", (_request, response) => {
   });
 });
 
+async function createAdminSocialAuthorization(
+  provider: SocialProvider,
+  intent: "login" | "link",
+  adminUserId?: string,
+): Promise<URL> {
+  const state = randomToken(32);
+  const nonce = randomToken(24);
+  const verifier = randomToken(48);
+  // Keep the callback shared with application sign-in so existing provider registrations remain valid.
+  const redirectUri = `${env.PUBLIC_ORIGIN}/api/v1/authorize/social/${provider}/callback`;
+  const target = socialAuthorizationUrl(
+    provider,
+    redirectUri,
+    state,
+    sha256Base64Url(verifier),
+    nonce,
+  );
+  await query(
+    `INSERT INTO admin_social_login_states
+      (provider, state_hash, nonce_encrypted, code_verifier_encrypted, redirect_uri, intent,
+       admin_user_id, expires_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,now() + interval '10 minutes')`,
+    [
+      provider,
+      hashToken(state),
+      encrypt(nonce),
+      encrypt(verifier),
+      redirectUri,
+      intent,
+      adminUserId ?? null,
+    ],
+  );
+  return target;
+}
+
+adminAuthRouter.get(
+  "/connections",
+  requireAdmin,
+  asyncRoute(async (request, response) => {
+    const connections = await query<{
+      provider: SocialProvider;
+      provider_email: string | null;
+      created_at: Date;
+    }>(
+      `SELECT provider, provider_email, created_at FROM admin_social_identities
+       WHERE admin_user_id = $1 ORDER BY provider`,
+      [request.admin!.userId],
+    );
+    response.json({
+      data: (["google", "github"] as const).map((provider) => {
+        const connection = connections.find((candidate) => candidate.provider === provider);
+        return {
+          provider,
+          configured: socialProviderConfigured(provider),
+          linked: Boolean(connection),
+          email: connection?.provider_email ?? null,
+          createdAt: connection?.created_at ?? null,
+        };
+      }),
+    });
+  }),
+);
+
+adminAuthRouter.post(
+  "/connections/:provider",
+  requireAdmin,
+  requireCsrf,
+  asyncRoute(async (request, response) => {
+    const provider = z.enum(["google", "github"]).parse(request.params.provider);
+    const [existing] = await query<{ id: string }>(
+      "SELECT id FROM admin_social_identities WHERE admin_user_id = $1 AND provider = $2",
+      [request.admin!.userId, provider],
+    );
+    if (existing) {
+      throw new ApiError(
+        409,
+        "social_provider_already_linked",
+        `${provider} is already linked to this account.`,
+      );
+    }
+    const target = await createAdminSocialAuthorization(provider, "link", request.admin!.userId);
+    response.json({ authorizationUrl: target.toString() });
+  }),
+);
+
+adminAuthRouter.delete(
+  "/connections/:provider",
+  requireAdmin,
+  requireCsrf,
+  asyncRoute(async (request, response) => {
+    const provider = z.enum(["google", "github"]).parse(request.params.provider);
+    await query("DELETE FROM admin_social_identities WHERE admin_user_id = $1 AND provider = $2", [
+      request.admin!.userId,
+      provider,
+    ]);
+    response.status(204).end();
+  }),
+);
+
 adminAuthRouter.get(
   "/social/:provider",
   asyncRoute(async (request, response) => {
     const provider = z.enum(["google", "github"]).parse(request.params.provider);
-    const state = randomToken(32);
-    const nonce = randomToken(24);
-    const verifier = randomToken(48);
-    // Keep the callback shared with application sign-in so existing provider registrations remain valid.
-    const redirectUri = `${env.PUBLIC_ORIGIN}/api/v1/authorize/social/${provider}/callback`;
-    const target = socialAuthorizationUrl(
-      provider,
-      redirectUri,
-      state,
-      sha256Base64Url(verifier),
-      nonce,
-    );
-    await query(
-      `INSERT INTO admin_social_login_states
-        (provider, state_hash, nonce_encrypted, code_verifier_encrypted, redirect_uri, expires_at)
-       VALUES ($1,$2,$3,$4,$5,now() + interval '10 minutes')`,
-      [provider, hashToken(state), encrypt(nonce), encrypt(verifier), redirectUri],
-    );
+    const target = await createAdminSocialAuthorization(provider, "login");
     response.redirect(target.toString());
   }),
 );
@@ -238,8 +320,10 @@ export async function completeAdminSocialLogin(
       redirect_uri: string;
       code_verifier_encrypted: string;
       nonce_encrypted: string;
+      intent: "login" | "link";
+      admin_user_id: string | null;
     }>(
-      `SELECT id, redirect_uri, code_verifier_encrypted, nonce_encrypted
+      `SELECT id, redirect_uri, code_verifier_encrypted, nonce_encrypted, intent, admin_user_id
        FROM admin_social_login_states WHERE state_hash = $1 AND provider = $2
          AND consumed_at IS NULL AND expires_at > now() FOR UPDATE`,
       [hashToken(state), provider],
@@ -267,15 +351,131 @@ export async function completeAdminSocialLogin(
       "The provider email address is not verified.",
     );
   }
-  const [member] = await query<MemberRow>(
-    `SELECT u.id, u.email, u.name, u.password_hash, m.workspace_id, w.name AS workspace_name, m.role
-     FROM admin_users u
-     JOIN workspace_memberships m ON m.admin_user_id = u.id
-     JOIN workspaces w ON w.id = m.workspace_id
-     WHERE lower(u.email) = $1 AND u.disabled_at IS NULL
-     ORDER BY w.created_at LIMIT 1`,
-    [profile.email],
-  );
+
+  if (loginState.intent === "link") {
+    if (!loginState.admin_user_id) {
+      throw new ApiError(401, "invalid_social_state", "The social linking state is invalid.");
+    }
+    await transaction(async (client) => {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+        `admin:${provider}:${profile.subject}`,
+      ]);
+      const userResult = await client.query<{ id: string }>(
+        "SELECT id FROM admin_users WHERE id = $1 AND disabled_at IS NULL FOR UPDATE",
+        [loginState.admin_user_id],
+      );
+      if (!userResult.rows[0]) {
+        throw new ApiError(404, "admin_account_not_found", "The dashboard account was not found.");
+      }
+      const subjectResult = await client.query<{ admin_user_id: string }>(
+        `SELECT admin_user_id FROM admin_social_identities
+         WHERE provider = $1 AND provider_subject = $2`,
+        [provider, profile.subject],
+      );
+      if (
+        subjectResult.rows[0] &&
+        subjectResult.rows[0].admin_user_id !== loginState.admin_user_id
+      ) {
+        throw new ApiError(
+          409,
+          "social_identity_in_use",
+          `This ${provider} account is already linked to another dashboard account.`,
+        );
+      }
+      const providerResult = await client.query<{ provider_subject: string }>(
+        `SELECT provider_subject FROM admin_social_identities
+         WHERE admin_user_id = $1 AND provider = $2`,
+        [loginState.admin_user_id, provider],
+      );
+      if (providerResult.rows[0] && providerResult.rows[0].provider_subject !== profile.subject) {
+        throw new ApiError(
+          409,
+          "social_provider_already_linked",
+          `A different ${provider} account is already linked to this dashboard account.`,
+        );
+      }
+      await client.query(
+        `INSERT INTO admin_social_identities
+          (admin_user_id, provider, provider_subject, provider_email)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (provider, provider_subject) DO UPDATE SET
+           provider_email = EXCLUDED.provider_email, updated_at = now()`,
+        [loginState.admin_user_id, provider, profile.subject, profile.email],
+      );
+    });
+    response.redirect(`/settings/account?linked=${encodeURIComponent(provider)}`);
+    return true;
+  }
+
+  const member = await transaction(async (client) => {
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      `admin:${provider}:${profile.subject}`,
+    ]);
+    const linked = await client.query<MemberRow>(
+      `SELECT u.id, u.email, u.name, u.password_hash, m.workspace_id,
+              w.name AS workspace_name, m.role
+       FROM admin_social_identities s
+       JOIN admin_users u ON u.id = s.admin_user_id
+       JOIN workspace_memberships m ON m.admin_user_id = u.id
+       JOIN workspaces w ON w.id = m.workspace_id
+       WHERE s.provider = $1 AND s.provider_subject = $2 AND u.disabled_at IS NULL
+       ORDER BY w.created_at LIMIT 1`,
+      [provider, profile.subject],
+    );
+    if (linked.rows[0]) {
+      await client.query(
+        `UPDATE admin_social_identities SET provider_email = $3, updated_at = now()
+         WHERE provider = $1 AND provider_subject = $2`,
+        [provider, profile.subject, profile.email],
+      );
+      return linked.rows[0];
+    }
+    const matched = await client.query<MemberRow>(
+      `SELECT u.id, u.email, u.name, u.password_hash, m.workspace_id,
+              w.name AS workspace_name, m.role
+       FROM admin_users u
+       JOIN workspace_memberships m ON m.admin_user_id = u.id
+       JOIN workspaces w ON w.id = m.workspace_id
+       WHERE lower(u.email) = $1 AND u.disabled_at IS NULL
+       ORDER BY w.created_at LIMIT 1`,
+      [profile.email],
+    );
+    const found = matched.rows[0];
+    if (!found) return undefined;
+    const existingProvider = await client.query<{ provider_subject: string }>(
+      `SELECT provider_subject FROM admin_social_identities
+       WHERE admin_user_id = $1 AND provider = $2`,
+      [found.id, provider],
+    );
+    if (existingProvider.rows[0] && existingProvider.rows[0].provider_subject !== profile.subject) {
+      throw new ApiError(
+        409,
+        "social_provider_already_linked",
+        `A different ${provider} account is already linked to this dashboard account.`,
+      );
+    }
+    const existingSubject = await client.query<{ admin_user_id: string }>(
+      `SELECT admin_user_id FROM admin_social_identities
+       WHERE provider = $1 AND provider_subject = $2`,
+      [provider, profile.subject],
+    );
+    if (existingSubject.rows[0] && existingSubject.rows[0].admin_user_id !== found.id) {
+      throw new ApiError(
+        409,
+        "social_identity_in_use",
+        `This ${provider} account is already linked to another dashboard account.`,
+      );
+    }
+    await client.query(
+      `INSERT INTO admin_social_identities
+        (admin_user_id, provider, provider_subject, provider_email)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (provider, provider_subject) DO UPDATE SET
+         provider_email = EXCLUDED.provider_email, updated_at = now()`,
+      [found.id, provider, profile.subject, profile.email],
+    );
+    return found;
+  });
   if (!member) {
     throw new ApiError(
       403,

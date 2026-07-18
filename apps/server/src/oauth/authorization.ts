@@ -888,6 +888,7 @@ authorizeApiRouter.post(
         requestId: z.string().min(1),
         email: z.string().email(),
         password: z.string().min(1),
+        linkToken: z.string().min(32).optional(),
       })
       .parse(request.body);
     const { pending, application } = await loadPending(input.requestId);
@@ -897,6 +898,89 @@ authorizeApiRouter.post(
     );
     if (!user?.password_hash || !(await compare(input.password, user.password_hash))) {
       throw new ApiError(401, "invalid_credentials", "The email or password is incorrect.");
+    }
+    if (input.linkToken) {
+      const linkToken = input.linkToken;
+      await transaction(async (client) => {
+        const linkResult = await client.query<{
+          id: string;
+          user_id: string;
+          provider: "google" | "github";
+          provider_subject: string;
+          provider_email: string;
+        }>(
+          `SELECT id, user_id, provider, provider_subject, provider_email
+           FROM social_account_link_tokens
+           WHERE token_hash = $1 AND authorization_request_id = $2 AND workspace_id = $3
+             AND consumed_at IS NULL AND expires_at > now()
+           FOR UPDATE`,
+          [hashToken(linkToken), pending.id, application.workspace_id],
+        );
+        const link = linkResult.rows[0];
+        if (!link || link.user_id !== user.id) {
+          throw new ApiError(
+            400,
+            "invalid_account_link",
+            "The social account link is invalid or expired. Start again with the social provider.",
+          );
+        }
+        await client.query("SELECT id FROM identity_users WHERE id = $1 FOR UPDATE", [user.id]);
+        await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+          `user:${link.provider}:${link.provider_subject}`,
+        ]);
+        const subjectResult = await client.query<{ user_id: string }>(
+          `SELECT user_id FROM social_identities
+           WHERE workspace_id = $1 AND provider = $2 AND provider_subject = $3`,
+          [application.workspace_id, link.provider, link.provider_subject],
+        );
+        if (subjectResult.rows[0] && subjectResult.rows[0].user_id !== user.id) {
+          throw new ApiError(
+            409,
+            "social_identity_in_use",
+            `This ${link.provider} account is already linked to another user.`,
+          );
+        }
+        const providerResult = await client.query<{ provider_subject: string }>(
+          `SELECT provider_subject FROM social_identities
+           WHERE workspace_id = $1 AND user_id = $2 AND provider = $3
+           ORDER BY created_at LIMIT 1`,
+          [application.workspace_id, user.id, link.provider],
+        );
+        if (
+          providerResult.rows[0] &&
+          providerResult.rows[0].provider_subject !== link.provider_subject
+        ) {
+          throw new ApiError(
+            409,
+            "social_provider_already_linked",
+            `A different ${link.provider} account is already linked to this user.`,
+          );
+        }
+        if (!subjectResult.rows[0]) {
+          await client.query(
+            `INSERT INTO social_identities
+              (workspace_id, user_id, provider, provider_subject, provider_email)
+             VALUES ($1,$2,$3,$4,$5)`,
+            [
+              application.workspace_id,
+              user.id,
+              link.provider,
+              link.provider_subject,
+              link.provider_email,
+            ],
+          );
+        } else {
+          await client.query(
+            `UPDATE social_identities SET provider_email = $4
+             WHERE workspace_id = $1 AND provider = $2 AND provider_subject = $3`,
+            [application.workspace_id, link.provider, link.provider_subject, link.provider_email],
+          );
+        }
+        await client.query(
+          "UPDATE social_account_link_tokens SET consumed_at = now() WHERE id = $1",
+          [link.id],
+        );
+      });
     }
     await continueAfterAuthentication(request, response, pending, application, user, true);
   }),
@@ -1006,23 +1090,56 @@ authorizeApiRouter.get(
         "unverified_social_email",
         "The provider email address is not verified.",
       );
-    const user = await transaction(async (client) => {
+    const accountLinkToken = randomToken(40);
+    const resolution = await transaction(async (client) => {
       const linked = await client.query<IdentityUserRow>(
         `SELECT u.* FROM social_identities s JOIN identity_users u ON u.id = s.user_id
          WHERE s.workspace_id = $1 AND s.provider = $2 AND s.provider_subject = $3`,
         [application.workspace_id, provider, profile.subject],
       );
-      if (linked.rows[0]) return linked.rows[0];
+      if (linked.rows[0]) {
+        if (linked.rows[0].status !== "active") {
+          throw new ApiError(403, "user_disabled", "This user account is disabled.");
+        }
+        await client.query(
+          `UPDATE social_identities SET provider_email = $4
+           WHERE workspace_id = $1 AND provider = $2 AND provider_subject = $3`,
+          [application.workspace_id, provider, profile.subject, profile.email],
+        );
+        return { kind: "authenticated" as const, user: linked.rows[0] };
+      }
       const existing = await client.query<IdentityUserRow>(
         "SELECT * FROM identity_users WHERE workspace_id = $1 AND lower(email) = $2",
         [application.workspace_id, profile.email],
       );
       if (existing.rows[0]) {
-        throw new ApiError(
-          409,
-          "account_link_required",
-          "Sign in with your existing account before linking this provider.",
+        if (existing.rows[0].status !== "active") {
+          throw new ApiError(403, "user_disabled", "This user account is disabled.");
+        }
+        if (!existing.rows[0].password_hash) {
+          throw new ApiError(
+            409,
+            "account_link_unavailable",
+            "Sign in with the social provider already connected to this account.",
+          );
+        }
+        await client.query(
+          `INSERT INTO social_account_link_tokens
+            (workspace_id, environment_id, authorization_request_id, user_id, provider,
+             provider_subject, provider_email, token_hash, expires_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now() + interval '10 minutes')`,
+          [
+            application.workspace_id,
+            application.environment_id,
+            pending.id,
+            existing.rows[0].id,
+            provider,
+            profile.subject,
+            profile.email,
+            hashToken(accountLinkToken),
+          ],
         );
+        return { kind: "link_required" as const };
       }
       const created = await client.query<IdentityUserRow>(
         `INSERT INTO identity_users(workspace_id, email, name, email_verified_at)
@@ -1036,9 +1153,17 @@ authorizeApiRouter.get(
          VALUES ($1,$2,$3,$4,$5)`,
         [application.workspace_id, identity.id, provider, profile.subject, profile.email],
       );
-      return identity;
+      return { kind: "authenticated" as const, user: identity };
     });
-    await continueAfterAuthentication(request, response, pending, application, user);
+    if (resolution.kind === "link_required") {
+      const target = new URL("/authorize/login", env.PUBLIC_ORIGIN);
+      target.searchParams.set("request_id", pending.request_id);
+      target.searchParams.set("link_token", accountLinkToken);
+      target.searchParams.set("provider", provider);
+      response.redirect(target.toString());
+      return;
+    }
+    await continueAfterAuthentication(request, response, pending, application, resolution.user);
   }),
 );
 

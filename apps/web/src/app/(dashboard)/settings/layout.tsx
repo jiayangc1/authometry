@@ -8,6 +8,7 @@ import { PageContainer, PageHeader } from "@/components/layout/page";
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const items = [
+    ["My account", "/settings/account"],
     ["General", "/settings/general"],
     ["Members", "/settings/members"],
     ["Domains", "/settings/domains"],

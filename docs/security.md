@@ -38,7 +38,15 @@ Administrator access tokens are HS256 JWTs with a ten-minute lifetime, the publi
 
 Google and GitHub dashboard sign-in uses authorization code flow with PKCE, one-time hashed state,
 an encrypted verifier, and nonce validation. A provider identity can only sign in when its verified
-email matches an existing, enabled administrator; social sign-in never provisions privileged users.
+email matches an existing, enabled administrator or when an authenticated administrator explicitly
+starts a link. Social sign-in never provisions privileged users. Explicit links prove control of the
+active dashboard session and the provider account, and persisted provider subjects prevent email
+changes from splitting the identity later.
+
+When a workspace password user first signs in through a provider with the same verified email,
+Authometry creates a short-lived, single-use linking proof and asks for the existing password. The
+provider identity is attached only after both proofs succeed, so later password and social sign-ins
+resolve to the same user record without relying on email matching alone.
 
 Successful refresh consumes the current session token and rotates it. Reuse detection revokes the session family. Logout revokes the database session and clears cookies.
 

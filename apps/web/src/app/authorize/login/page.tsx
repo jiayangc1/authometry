@@ -13,6 +13,8 @@ export default function AuthorizationLoginPage() {
   const params = useSearchParams();
   const hydrated = useHydrated();
   const requestId = params.get("request_id") ?? "";
+  const linkToken = params.get("link_token") ?? "";
+  const linkProvider = params.get("provider") === "github" ? "GitHub" : "Google";
   const request = useQuery({
     queryKey: ["authorize-request", requestId],
     queryFn: () =>
@@ -38,6 +40,7 @@ export default function AuthorizationLoginPage() {
           requestId,
           email: data.get("email"),
           password: data.get("password"),
+          ...(linkToken ? { linkToken } : {}),
         }),
       });
       window.location.assign(result.next);
@@ -52,47 +55,62 @@ export default function AuthorizationLoginPage() {
         <header className="mb-8 text-center">
           <h1 className="text-[28px] leading-9 font-medium tracking-[-0.035em]">Sign in</h1>
           <p className="mt-2 text-sm text-[var(--text-secondary)]">
-            to continue to{" "}
-            <span className="font-medium text-[var(--text-primary)]">
-              {request.data?.application.name ?? "the application"}
-            </span>
+            {linkToken ? (
+              <>Confirm your password to link {linkProvider}</>
+            ) : (
+              <>
+                to continue to{" "}
+                <span className="font-medium text-[var(--text-primary)]">
+                  {request.data?.application.name ?? "the application"}
+                </span>
+              </>
+            )}
           </p>
           <p className="mt-1 text-xs text-[var(--text-tertiary)]">
             Use your {request.data?.workspace.name ?? "workspace"} account
           </p>
         </header>
-        <div className="grid gap-2.5">
-          <Button asChild className="h-10 w-full rounded-full text-sm">
-            <a
-              aria-disabled={!providers.data?.google}
-              className={!providers.data?.google ? "pointer-events-none opacity-50" : undefined}
-              href={
-                providers.data?.google
-                  ? `/api/v1/authorize/social/google?request_id=${encodeURIComponent(requestId)}`
-                  : undefined
-              }
-            >
-              <GoogleIcon className="size-[18px]" />
-              Continue with Google
-            </a>
-          </Button>
-          <Button asChild className="h-10 w-full rounded-full text-sm">
-            <a
-              aria-disabled={!providers.data?.github}
-              className={!providers.data?.github ? "pointer-events-none opacity-50" : undefined}
-              href={
-                providers.data?.github
-                  ? `/api/v1/authorize/social/github?request_id=${encodeURIComponent(requestId)}`
-                  : undefined
-              }
-            >
-              <Github className="size-[18px]" /> Continue with GitHub
-            </a>
-          </Button>
-        </div>
-        <div className="my-6 flex items-center gap-3 text-[11px] text-[var(--text-tertiary)] before:h-px before:flex-1 before:bg-[var(--border)] after:h-px after:flex-1 after:bg-[var(--border)]">
-          OR CONTINUE WITH EMAIL
-        </div>
+        {linkToken ? (
+          <div className="mb-6 border border-[var(--info-border)] bg-[var(--info-soft)] px-3 py-2.5 text-xs leading-5 text-[var(--text-secondary)]">
+            The verified {linkProvider} email belongs to an existing account. Sign in once to
+            confirm the link; future {linkProvider} sign-ins will use that same user.
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-2.5">
+              <Button asChild className="h-10 w-full rounded-full text-sm">
+                <a
+                  aria-disabled={!providers.data?.google}
+                  className={!providers.data?.google ? "pointer-events-none opacity-50" : undefined}
+                  href={
+                    providers.data?.google
+                      ? `/api/v1/authorize/social/google?request_id=${encodeURIComponent(requestId)}`
+                      : undefined
+                  }
+                >
+                  <GoogleIcon className="size-[18px]" />
+                  Continue with Google
+                </a>
+              </Button>
+              <Button asChild className="h-10 w-full rounded-full text-sm">
+                <a
+                  aria-disabled={!providers.data?.github}
+                  className={!providers.data?.github ? "pointer-events-none opacity-50" : undefined}
+                  href={
+                    providers.data?.github
+                      ? `/api/v1/authorize/social/github?request_id=${encodeURIComponent(requestId)}`
+                      : undefined
+                  }
+                >
+                  <Github className="size-[18px]" /> Continue with GitHub
+                </a>
+              </Button>
+            </div>
+            <div className="my-6 flex items-center gap-3 text-[11px] text-[var(--text-tertiary)] before:h-px before:flex-1 before:bg-[var(--border)] after:h-px after:flex-1 after:bg-[var(--border)]">
+              OR CONTINUE WITH EMAIL
+            </div>
+          </>
+        )}
         <form className="space-y-4" method="post" onSubmit={submit}>
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium">Email address</span>
@@ -125,7 +143,7 @@ export default function AuthorizationLoginPage() {
             type="submit"
             variant="primary"
           >
-            {loading ? "Signing in…" : "Continue"}
+            {loading ? "Signing in…" : linkToken ? `Link ${linkProvider} and continue` : "Continue"}
           </Button>
         </form>
       </div>

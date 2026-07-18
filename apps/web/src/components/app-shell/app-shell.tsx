@@ -325,6 +325,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       {me?.user.email}
                     </p>
                   </div>
+                  <DropdownMenu.Item asChild>
+                    <Link
+                      className="block cursor-default rounded-md px-2.5 py-2 text-[13px] outline-none focus:bg-[var(--surface-hover)]"
+                      href="/settings/account"
+                    >
+                      Account settings
+                    </Link>
+                  </DropdownMenu.Item>
                   <DropdownMenu.Item
                     className="cursor-default rounded-md px-2.5 py-2 text-[13px] outline-none focus:bg-[var(--surface-hover)]"
                     onSelect={() => void logout()}

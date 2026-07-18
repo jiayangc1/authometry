@@ -392,17 +392,27 @@ dashboardRouter.post(
 dashboardRouter.get(
   "/users/:userId",
   asyncRoute(async (request, response) => {
-    const [user] = await query("SELECT * FROM identity_users WHERE id = $1 AND workspace_id = $2", [
-      request.params.userId,
-      request.environment!.workspaceId,
-    ]);
-    if (!user) throw new ApiError(404, "user_not_found", "The user was not found.");
-    const sessions = await query(
-      `SELECT s.*, a.name AS application_name FROM user_sessions s
-       LEFT JOIN oauth_applications a ON a.id = s.application_id WHERE s.user_id = $1 ORDER BY s.last_active_at DESC`,
-      [request.params.userId],
+    const [user] = await query(
+      `SELECT id, workspace_id, email, name, email_verified_at, status, groups, custom_claims,
+              mfa_enabled, last_authenticated_at, created_at, updated_at,
+              (password_hash IS NOT NULL) AS password_enabled
+       FROM identity_users WHERE id = $1 AND workspace_id = $2`,
+      [request.params.userId, request.environment!.workspaceId],
     );
-    response.json({ ...user, sessions });
+    if (!user) throw new ApiError(404, "user_not_found", "The user was not found.");
+    const [sessions, socialConnections] = await Promise.all([
+      query(
+        `SELECT s.*, a.name AS application_name FROM user_sessions s
+         LEFT JOIN oauth_applications a ON a.id = s.application_id WHERE s.user_id = $1 ORDER BY s.last_active_at DESC`,
+        [request.params.userId],
+      ),
+      query(
+        `SELECT provider, provider_email, created_at FROM social_identities
+         WHERE user_id = $1 ORDER BY provider`,
+        [request.params.userId],
+      ),
+    ]);
+    response.json({ ...user, sessions, social_connections: socialConnections });
   }),
 );
 

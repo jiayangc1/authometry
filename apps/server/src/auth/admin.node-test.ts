@@ -14,3 +14,9 @@ await test("admin social login rejects a disabled provider before creating state
 
   assert.equal(response.body.error.code, "provider_disabled");
 });
+
+await test("dashboard social connection changes require an authenticated account", async () => {
+  const response = await request(createApp()).post("/api/v1/auth/connections/google").expect(401);
+
+  assert.equal(response.body.error.code, "authentication_required");
+});
