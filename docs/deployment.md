@@ -87,8 +87,8 @@ complete any Google verification workflow shown for the project. Publishing remo
 limit; Google, not Authometry, decides whether branding or app verification is required.
 
 Store the generated client secrets only in the deployment secret manager. Restart the API after
-setting the four provider variables, then confirm `/api/v1/authorize/providers` reports both
-providers as enabled.
+setting the four provider variables, then confirm both `/api/v1/auth/providers` and
+`/api/v1/authorize/providers` report the providers as enabled.
 
 ## Database migrations
 

@@ -7,9 +7,22 @@ import { slugSchema } from "@authometry/domain";
 import { env } from "../env.js";
 import { pool, query, transaction } from "../db.js";
 import { createSigningKey } from "../lib/signing.js";
-import { constantTimeEqual, hashToken, randomToken } from "../lib/crypto.js";
+import {
+  constantTimeEqual,
+  decrypt,
+  encrypt,
+  hashToken,
+  randomToken,
+  sha256Base64Url,
+} from "../lib/crypto.js";
 import { ApiError, asyncRoute } from "../lib/http.js";
 import { sendEmail } from "../lib/email.js";
+import {
+  exchangeSocialCode,
+  socialAuthorizationUrl,
+  socialProviderConfigured,
+  type SocialProvider,
+} from "../lib/social.js";
 import {
   signAdminAccessToken,
   signAdminRefreshEnvelope,
@@ -178,6 +191,107 @@ export function requireCsrf(
 }
 
 export const adminAuthRouter = Router();
+
+adminAuthRouter.get("/providers", (_request, response) => {
+  response.json({
+    google: socialProviderConfigured("google"),
+    github: socialProviderConfigured("github"),
+  });
+});
+
+adminAuthRouter.get(
+  "/social/:provider",
+  asyncRoute(async (request, response) => {
+    const provider = z.enum(["google", "github"]).parse(request.params.provider);
+    const state = randomToken(32);
+    const nonce = randomToken(24);
+    const verifier = randomToken(48);
+    // Keep the callback shared with application sign-in so existing provider registrations remain valid.
+    const redirectUri = `${env.PUBLIC_ORIGIN}/api/v1/authorize/social/${provider}/callback`;
+    const target = socialAuthorizationUrl(
+      provider,
+      redirectUri,
+      state,
+      sha256Base64Url(verifier),
+      nonce,
+    );
+    await query(
+      `INSERT INTO admin_social_login_states
+        (provider, state_hash, nonce_encrypted, code_verifier_encrypted, redirect_uri, expires_at)
+       VALUES ($1,$2,$3,$4,$5,now() + interval '10 minutes')`,
+      [provider, hashToken(state), encrypt(nonce), encrypt(verifier), redirectUri],
+    );
+    response.redirect(target.toString());
+  }),
+);
+
+export async function completeAdminSocialLogin(
+  request: Request,
+  response: Response,
+  provider: SocialProvider,
+  code: string,
+  state: string,
+): Promise<boolean> {
+  const loginState = await transaction(async (client) => {
+    const result = await client.query<{
+      id: string;
+      redirect_uri: string;
+      code_verifier_encrypted: string;
+      nonce_encrypted: string;
+    }>(
+      `SELECT id, redirect_uri, code_verifier_encrypted, nonce_encrypted
+       FROM admin_social_login_states WHERE state_hash = $1 AND provider = $2
+         AND consumed_at IS NULL AND expires_at > now() FOR UPDATE`,
+      [hashToken(state), provider],
+    );
+    const found = result.rows[0];
+    if (!found) return undefined;
+    await client.query("UPDATE admin_social_login_states SET consumed_at = now() WHERE id = $1", [
+      found.id,
+    ]);
+    return found;
+  });
+  if (!loginState) return false;
+
+  const profile = await exchangeSocialCode(
+    provider,
+    code,
+    loginState.redirect_uri,
+    decrypt(loginState.code_verifier_encrypted),
+    decrypt(loginState.nonce_encrypted),
+  );
+  if (!profile.emailVerified) {
+    throw new ApiError(
+      401,
+      "unverified_social_email",
+      "The provider email address is not verified.",
+    );
+  }
+  const [member] = await query<MemberRow>(
+    `SELECT u.id, u.email, u.name, u.password_hash, m.workspace_id, w.name AS workspace_name, m.role
+     FROM admin_users u
+     JOIN workspace_memberships m ON m.admin_user_id = u.id
+     JOIN workspaces w ON w.id = m.workspace_id
+     WHERE lower(u.email) = $1 AND u.disabled_at IS NULL
+     ORDER BY w.created_at LIMIT 1`,
+    [profile.email],
+  );
+  if (!member) {
+    throw new ApiError(
+      403,
+      "admin_account_required",
+      "No Authometry admin account matches this verified email address.",
+    );
+  }
+  await createSession(response, request, {
+    id: member.id,
+    email: member.email,
+    workspaceId: member.workspace_id,
+    role: member.role,
+  });
+  response.redirect("/overview");
+  return true;
+}
 
 adminAuthRouter.get(
   "/bootstrap/status",

@@ -36,6 +36,10 @@ Raw opaque credentials are returned only when created or delivered. Configuratio
 
 Administrator access tokens are HS256 JWTs with a ten-minute lifetime, the public origin as issuer, and `authometry-admin` as audience. Refresh envelopes have a 30-day lifetime and reference a rotating database session. Access and refresh cookies are HTTP-only, `SameSite=Lax`, path-wide, and secure in production.
 
+Google and GitHub dashboard sign-in uses authorization code flow with PKCE, one-time hashed state,
+an encrypted verifier, and nonce validation. A provider identity can only sign in when its verified
+email matches an existing, enabled administrator; social sign-in never provisions privileged users.
+
 Successful refresh consumes the current session token and rotates it. Reuse detection revokes the session family. Logout revokes the database session and clears cookies.
 
 State-changing cookie requests use a signed double-submit CSRF value: the readable `authometry_csrf` cookie must exactly match `x-authometry-csrf` and pass its HMAC signature. Personal access tokens use the Authorization header and do not rely on ambient browser cookies.

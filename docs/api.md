@@ -73,6 +73,8 @@ These routes are mounted under `/api/v1/auth`. Login and recovery routes are rat
 | ------ | ---------------------------- | ------------------------------------------------------------------------------------------------------ |
 | GET    | `/auth/bootstrap/status`     | Report whether first-owner bootstrap is available.                                                     |
 | POST   | `/auth/bootstrap`            | Create the first owner, workspace, default environment, scopes, and key. Requires `x-bootstrap-token`. |
+| GET    | `/auth/providers`            | Report which social providers are available for dashboard sign-in.                                     |
+| GET    | `/auth/social/:provider`     | Begin a PKCE-protected Google or GitHub dashboard sign-in.                                             |
 | POST   | `/auth/login`                | Authenticate an owner or member and issue session cookies.                                             |
 | POST   | `/auth/forgot-password`      | Create and, when SMTP is enabled, deliver a reset link.                                                |
 | POST   | `/auth/reset-password`       | Consume a reset token and set a new password.                                                          |
@@ -84,7 +86,10 @@ These routes are mounted under `/api/v1/auth`. Login and recovery routes are rat
 | POST   | `/auth/switch-workspace`     | Change the workspace encoded in the administrative session.                                            |
 | POST   | `/auth/workspaces`           | Create another workspace and its default environment.                                                  |
 
-Passwords are normalized emails plus a 12–128 character password. Bootstrap is accepted only before an owner exists and before the configured token expiry.
+Passwords are normalized emails plus a 12–128 character password. Social dashboard sign-in requires
+an existing, enabled administrator whose email exactly matches the provider's verified email; it
+never creates a privileged account. Bootstrap is accepted only before an owner exists and before the
+configured token expiry.
 
 ## Dashboard resources
 

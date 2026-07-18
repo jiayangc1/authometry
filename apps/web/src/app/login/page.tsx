@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Github, LoaderCircle } from "lucide-react";
-import { Button } from "@authometry/ui";
+import { Button, GoogleIcon } from "@authometry/ui";
 import { AuthHeading, AuthShell, inputClass } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
 import { useHydrated } from "@/lib/use-hydrated";
@@ -13,12 +13,16 @@ export default function LoginPage() {
   const router = useRouter();
   const hydrated = useHydrated();
   const [bootstrapRequired, setBootstrapRequired] = useState(false);
+  const [providers, setProviders] = useState({ google: false, github: false });
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     void apiFetch<{ bootstrapRequired: boolean }>("/api/v1/auth/bootstrap/status")
       .then((result) => setBootstrapRequired(result.bootstrapRequired))
+      .catch(() => undefined);
+    void apiFetch<{ google: boolean; github: boolean }>("/api/v1/auth/providers")
+      .then(setProviders)
       .catch(() => undefined);
   }, []);
 
@@ -109,11 +113,25 @@ export default function LoginPage() {
           OR
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <Button disabled title="Configure Google in Settings to enable sign-in">
-            Google
+          <Button asChild>
+            <a
+              aria-disabled={!providers.google}
+              className={!providers.google ? "pointer-events-none opacity-50" : undefined}
+              href={providers.google ? "/api/v1/auth/social/google" : undefined}
+              title={!providers.google ? "Configure Google to enable sign-in" : undefined}
+            >
+              <GoogleIcon className="size-4" /> Google
+            </a>
           </Button>
-          <Button disabled title="Configure GitHub in Settings to enable sign-in">
-            <Github className="size-4" /> GitHub
+          <Button asChild>
+            <a
+              aria-disabled={!providers.github}
+              className={!providers.github ? "pointer-events-none opacity-50" : undefined}
+              href={providers.github ? "/api/v1/auth/social/github" : undefined}
+              title={!providers.github ? "Configure GitHub to enable sign-in" : undefined}
+            >
+              <Github className="size-4" /> GitHub
+            </a>
           </Button>
         </div>
       </div>
