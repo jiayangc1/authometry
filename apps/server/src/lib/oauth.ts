@@ -30,6 +30,8 @@ export async function issueTokenSet({
   accessTokenClaims,
   tokenType,
   subject: subjectOverride,
+  adminUserId,
+  resource,
 }: {
   application: TokenApplication;
   issuer: string;
@@ -42,6 +44,8 @@ export async function issueTokenSet({
   accessTokenClaims?: Record<string, unknown>;
   tokenType?: "Bearer" | "DPoP";
   subject?: string;
+  adminUserId?: string;
+  resource?: string;
 }): Promise<Record<string, unknown>> {
   const subject = subjectOverride ?? user?.id ?? application.client_id;
   const accessClaims = user
@@ -96,13 +100,16 @@ export async function issueTokenSet({
     await transaction(async (client) => {
       const family = await client.query<{ id: string }>(
         `INSERT INTO refresh_token_families
-          (workspace_id, environment_id, application_id, user_id, scopes, expires_at)
-         VALUES ($1, $2, $3, $4, $5, now() + ($6 * interval '1 second')) RETURNING id`,
+          (workspace_id, environment_id, application_id, user_id, admin_user_id, resource,
+           scopes, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now() + ($8 * interval '1 second')) RETURNING id`,
         [
           application.workspace_id,
           application.environment_id,
           application.id,
           user?.id ?? null,
+          adminUserId ?? null,
+          resource ?? null,
           scopes,
           application.refresh_token_lifetime_seconds,
         ],

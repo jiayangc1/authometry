@@ -26,10 +26,14 @@ export default function TokensPage() {
     queryFn: () => apiFetch<{ data: Token[] }>("/api/v1/settings/tokens"),
   });
   const create = useMutation({
-    mutationFn: ({ name, scopes }: { name: string; scopes: string[] }) =>
+    mutationFn: (name: string) =>
       apiFetch<{ token: string }>("/api/v1/settings/tokens", {
         method: "POST",
-        body: JSON.stringify({ name, scopes, expiresInDays: 90 }),
+        body: JSON.stringify({
+          name,
+          scopes: ["config:read", "config:write"],
+          expiresInDays: 90,
+        }),
       }),
     onSuccess: async (result) => {
       setRawToken(result.token);
@@ -49,7 +53,7 @@ export default function TokensPage() {
   });
   return (
     <SettingsSection
-      description="Scoped tokens authenticate the Authometry CLI or MCP server. Values are stored only as hashes."
+      description="Scoped tokens authenticate the Authometry CLI. Values are stored only as hashes."
       title="API tokens"
     >
       <div className="flex justify-end">
@@ -62,15 +66,8 @@ export default function TokensPage() {
           className="flex gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3"
           onSubmit={(event) => {
             event.preventDefault();
-            const data = new FormData(event.currentTarget);
-            const name = data.get("name");
-            const purpose = data.get("purpose");
-            if (typeof name === "string") {
-              create.mutate({
-                name,
-                scopes: purpose === "mcp" ? ["mcp:read"] : ["config:read", "config:write"],
-              });
-            }
+            const name = new FormData(event.currentTarget).get("name");
+            if (typeof name === "string") create.mutate(name);
           }}
         >
           <input
@@ -80,10 +77,6 @@ export default function TokensPage() {
             placeholder="Deployment CLI"
             required
           />
-          <select className={inputClass} defaultValue="mcp" name="purpose">
-            <option value="mcp">MCP read-only</option>
-            <option value="cli">Deployment CLI</option>
-          </select>
           <Button disabled={create.isPending} type="submit" variant="primary">
             Create
           </Button>
@@ -128,7 +121,7 @@ export default function TokensPage() {
         </div>
       ) : (
         <EmptyState
-          description="Create a scoped token for the deployment CLI or read-only MCP access."
+          description="Create a scoped token to use validate, plan, apply, and status from CI or your terminal."
           icon={KeyRound}
           title="No API tokens"
         />

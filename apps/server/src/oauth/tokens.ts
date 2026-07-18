@@ -1,14 +1,17 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { decodeJwt } from "jose";
+import { createApplicationSlug, redirectUriSchema } from "@authometry/domain";
+import { z } from "zod";
 import { query, transaction } from "../db.js";
-import { hashToken, randomToken } from "../lib/crypto.js";
+import { hashToken, randomId, randomToken } from "../lib/crypto.js";
 import { ApiError, asyncRoute } from "../lib/http.js";
 import { issueTokenSet, verifyPkce } from "../lib/oauth.js";
 import { verifyOAuthJwt } from "../lib/signing.js";
 import { TraceRecorder } from "../lib/trace.js";
 import { authenticateClient, findApplicationByClientId, oauthError } from "./common.js";
 import type { IdentityUserRow, OAuthApplicationRow } from "./types.js";
+import { defaultEnvironment, mcpResourceForIssuer, resourceIndicatorsMatch } from "./resources.js";
 import {
   findAgentById,
   findAgentForClient,
@@ -22,7 +25,8 @@ import {
 interface AuthorizationCodeRow {
   id: string;
   application_id: string;
-  user_id: string;
+  user_id: string | null;
+  admin_user_id: string | null;
   redirect_uri: string;
   scope: string[];
   code_challenge: string | null;
@@ -32,6 +36,7 @@ interface AuthorizationCodeRow {
   expires_at: Date;
   consumed_at: Date | null;
   delegation_grant_id: string | null;
+  resource: string | null;
 }
 
 function noStore(response: Response): void {
@@ -47,6 +52,7 @@ async function authorizationCodeGrant(
   const code = String(body.code ?? "");
   const redirectUri = String(body.redirect_uri ?? "");
   const verifier = String(body.code_verifier ?? "");
+  const requestedResource = String(body.resource ?? "");
   return transaction(async (client) => {
     const codeResult = await client.query<AuthorizationCodeRow>(
       "SELECT * FROM authorization_codes WHERE code_hash = $1 FOR UPDATE",
@@ -84,9 +90,67 @@ async function authorizationCodeGrant(
         "The PKCE code verifier does not match the original challenge.",
       );
     }
+    const requiresResource = Boolean(authorizationCode.admin_user_id);
+    if (
+      (requiresResource && !requestedResource) ||
+      (requestedResource &&
+        (!authorizationCode.resource ||
+          !resourceIndicatorsMatch(requestedResource, authorizationCode.resource)))
+    ) {
+      throw new ApiError(
+        400,
+        "invalid_target",
+        "The token request resource does not match the authorization request.",
+      );
+    }
     await client.query("UPDATE authorization_codes SET consumed_at = now() WHERE id = $1", [
       authorizationCode.id,
     ]);
+    if (authorizationCode.admin_user_id) {
+      const adminResult = await client.query<{
+        id: string;
+        email: string;
+        name: string;
+        workspace_id: string;
+        role: string;
+      }>(
+        `SELECT u.id, u.email, u.name, m.workspace_id, m.role
+         FROM admin_users u JOIN workspace_memberships m ON m.admin_user_id = u.id
+         WHERE u.id = $1 AND m.workspace_id = $2 AND u.disabled_at IS NULL`,
+        [authorizationCode.admin_user_id, application.workspace_id],
+      );
+      const admin = adminResult.rows[0];
+      if (!admin) {
+        throw new ApiError(400, "invalid_grant", "The Authometry admin is not active.");
+      }
+      if (
+        !authorizationCode.resource ||
+        !resourceIndicatorsMatch(
+          authorizationCode.resource,
+          mcpResourceForIssuer(application.issuer),
+        )
+      ) {
+        throw new ApiError(400, "invalid_grant", "The authorization code has an invalid resource.");
+      }
+      return issueTokenSet({
+        application,
+        issuer: application.issuer,
+        subject: admin.id,
+        scopes: authorizationCode.scope,
+        audience: authorizationCode.resource,
+        resource: authorizationCode.resource,
+        adminUserId: admin.id,
+        includeRefreshToken: authorizationCode.scope.includes("offline_access"),
+        accessTokenClaims: {
+          authometry_principal: "admin",
+          workspace_id: admin.workspace_id,
+          role: admin.role,
+          email: admin.email,
+          name: admin.name,
+        },
+      });
+    }
+
     const userResult = await client.query<IdentityUserRow>(
       "SELECT * FROM identity_users WHERE id = $1",
       [authorizationCode.user_id],
@@ -141,6 +205,9 @@ async function authorizationCodeGrant(
         authTime: authorizationCode.auth_time,
       },
       scopes: authorizationCode.scope,
+      ...(authorizationCode.resource
+        ? { audience: authorizationCode.resource, resource: authorizationCode.resource }
+        : {}),
       ...(authorizationCode.nonce ? { nonce: authorizationCode.nonce } : {}),
       includeRefreshToken: grant ? false : authorizationCode.scope.includes("offline_access"),
       ...(grant && agent && dpopJkt
@@ -171,6 +238,7 @@ async function refreshTokenGrant(
   application: OAuthApplicationRow,
   rawToken: string,
   requestedScope?: string,
+  requestedResource?: string,
 ): Promise<Record<string, unknown>> {
   let reuseDetected = false;
   const result = await transaction(async (client) => {
@@ -183,11 +251,14 @@ async function refreshTokenGrant(
       status: "active" | "revoked" | "reused" | "expired";
       application_id: string;
       user_id: string | null;
+      admin_user_id: string | null;
+      resource: string | null;
       scopes: string[];
       family_expires_at: Date;
     }>(
       `SELECT t.id, t.family_id, t.expires_at, t.consumed_at, t.revoked_at,
-              f.status, f.application_id, f.user_id, f.scopes, f.expires_at AS family_expires_at
+              f.status, f.application_id, f.user_id, f.admin_user_id, f.resource, f.scopes,
+              f.expires_at AS family_expires_at
        FROM refresh_tokens t JOIN refresh_token_families f ON f.id = t.family_id
        WHERE t.token_hash = $1 FOR UPDATE`,
       [hashToken(rawToken)],
@@ -233,6 +304,14 @@ async function refreshTokenGrant(
         "A refresh request cannot expand the original scope.",
       );
     }
+    const requiresResource = Boolean(current.admin_user_id);
+    if (
+      (requiresResource && !requestedResource) ||
+      (requestedResource &&
+        (!current.resource || !resourceIndicatorsMatch(requestedResource, current.resource)))
+    ) {
+      throw new ApiError(400, "invalid_target", "The refresh token is bound to another resource.");
+    }
     const nextToken = randomToken(48);
     await client.query("UPDATE refresh_tokens SET consumed_at = now() WHERE id = $1", [current.id]);
     await client.query(
@@ -247,12 +326,31 @@ async function refreshTokenGrant(
       ],
     );
     let user: IdentityUserRow | undefined;
+    let admin:
+      { id: string; email: string; name: string; workspace_id: string; role: string } | undefined;
     if (current.user_id) {
       user = (
         await client.query<IdentityUserRow>("SELECT * FROM identity_users WHERE id = $1", [
           current.user_id,
         ])
       ).rows[0];
+    }
+    if (current.admin_user_id) {
+      admin = (
+        await client.query<{
+          id: string;
+          email: string;
+          name: string;
+          workspace_id: string;
+          role: string;
+        }>(
+          `SELECT u.id, u.email, u.name, m.workspace_id, m.role
+           FROM admin_users u JOIN workspace_memberships m ON m.admin_user_id = u.id
+           WHERE u.id = $1 AND m.workspace_id = $2 AND u.disabled_at IS NULL`,
+          [current.admin_user_id, application.workspace_id],
+        )
+      ).rows[0];
+      if (!admin) throw new ApiError(400, "invalid_grant", "The Authometry admin is not active.");
     }
     const tokenSet = await issueTokenSet({
       application,
@@ -271,6 +369,20 @@ async function refreshTokenGrant(
           }
         : {}),
       scopes,
+      ...(current.resource ? { audience: current.resource, resource: current.resource } : {}),
+      ...(admin
+        ? {
+            subject: admin.id,
+            adminUserId: admin.id,
+            accessTokenClaims: {
+              authometry_principal: "admin",
+              workspace_id: admin.workspace_id,
+              role: admin.role,
+              email: admin.email,
+              name: admin.name,
+            },
+          }
+        : {}),
       includeRefreshToken: false,
     });
     return { ...tokenSet, refresh_token: nextToken };
@@ -550,7 +662,112 @@ async function tokenExchangeGrant(
   };
 }
 
-export const tokenRouter = Router();
+export const tokenRouter = Router({ mergeParams: true });
+
+const dynamicRedirectUriSchema = redirectUriSchema.superRefine((value, context) => {
+  const parsed = new URL(value);
+  if (parsed.username || parsed.password) {
+    context.addIssue({ code: "custom", message: "Redirect URIs cannot contain credentials." });
+  }
+});
+
+export const dynamicRegistrationSchema = z.object({
+  client_name: z.string().trim().min(2).max(100).default("MCP client"),
+  redirect_uris: z.array(dynamicRedirectUriSchema).min(1).max(10),
+  grant_types: z
+    .array(z.enum(["authorization_code", "refresh_token"]))
+    .min(1)
+    .default(["authorization_code", "refresh_token"]),
+  response_types: z.array(z.literal("code")).min(1).max(1).default(["code"]),
+  token_endpoint_auth_method: z.literal("none").default("none"),
+  client_uri: z.string().url().optional(),
+});
+
+tokenRouter.post(
+  "/register",
+  asyncRoute(async (request, response) => {
+    noStore(response);
+    const parsed = dynamicRegistrationSchema.safeParse(request.body);
+    if (!parsed.success) {
+      oauthError(
+        response,
+        400,
+        "invalid_client_metadata",
+        parsed.error.issues[0]?.message ?? "The client metadata is invalid.",
+      );
+      return;
+    }
+    const input = parsed.data;
+    if (!input.grant_types.includes("authorization_code")) {
+      oauthError(response, 400, "invalid_client_metadata", "Authorization Code is required.");
+      return;
+    }
+    const environment = await defaultEnvironment(request);
+    const baseSlug = createApplicationSlug(input.client_name).slice(0, 50) || "mcp-client";
+    const slug = `${baseSlug}-${crypto.randomUUID().slice(0, 8)}`;
+    const clientId = randomId("amt_mcp_client", 18);
+    const allowedScopes = [
+      "mcp:read",
+      ...(input.grant_types.includes("refresh_token") ? ["offline_access"] : []),
+    ];
+    await transaction(async (client) => {
+      const application = await client.query<{ id: string }>(
+        `INSERT INTO oauth_applications
+          (workspace_id, environment_id, name, slug, client_id, client_id_source, type,
+           description, redirect_uris, grant_types, response_types, token_endpoint_auth_method,
+           require_pkce, require_consent, allowed_scopes)
+         VALUES ($1,$2,$3,$4,$5,'dynamic','native',$6,$7,$8,$9,'none',true,true,$10)
+         RETURNING id`,
+        [
+          environment.workspace_id,
+          environment.id,
+          input.client_name,
+          slug,
+          clientId,
+          input.client_uri ? `Dynamically registered by ${input.client_uri}` : "MCP OAuth client",
+          input.redirect_uris,
+          input.grant_types,
+          input.response_types,
+          allowedScopes,
+        ],
+      );
+      const applicationId = application.rows[0]?.id;
+      if (!applicationId) throw new Error("The dynamic OAuth client was not created.");
+      await client.query(
+        `INSERT INTO audit_events
+          (workspace_id, environment_id, category, severity, event_type, summary, actor_type,
+           actor_name, source_ip, user_agent, resource_type, resource_id, changes)
+         VALUES ($1,$2,'security','info','oauth_dynamic_client_registered',$3,'oauth_client',$4,
+                 $5,$6,'application',$7,$8)`,
+        [
+          environment.workspace_id,
+          environment.id,
+          `Dynamic MCP client registered: ${input.client_name}`,
+          input.client_name,
+          request.ip,
+          request.get("user-agent") ?? null,
+          applicationId,
+          {
+            clientId,
+            clientUri: input.client_uri ?? null,
+            redirectUris: input.redirect_uris,
+            grantTypes: input.grant_types,
+          },
+        ],
+      );
+    });
+    response.status(201).json({
+      client_id: clientId,
+      client_id_issued_at: Math.floor(Date.now() / 1000),
+      client_name: input.client_name,
+      redirect_uris: input.redirect_uris,
+      grant_types: input.grant_types,
+      response_types: input.response_types,
+      token_endpoint_auth_method: "none",
+      scope: allowedScopes.join(" "),
+    });
+  }),
+);
 
 tokenRouter.post(
   "/token",
@@ -601,6 +818,7 @@ tokenRouter.post(
             application,
             String(request.body.refresh_token ?? ""),
             request.body.scope ? String(request.body.scope) : undefined,
+            request.body.resource ? String(request.body.resource) : undefined,
           );
           break;
         case "client_credentials": {

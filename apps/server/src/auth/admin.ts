@@ -34,6 +34,20 @@ const accessCookie = "authometry_admin_access";
 const refreshCookie = "authometry_admin_refresh";
 const csrfCookie = "authometry_csrf";
 
+function safeReturnTo(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
+    return undefined;
+  }
+  try {
+    const parsed = new URL(value, env.PUBLIC_ORIGIN);
+    return parsed.origin === new URL(env.PUBLIC_ORIGIN).origin
+      ? `${parsed.pathname}${parsed.search}${parsed.hash}`
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const credentialsSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(12).max(128),
@@ -175,6 +189,25 @@ export async function requireAdmin(
   }
 }
 
+export function optionalAdmin(
+  request: Request,
+): Promise<NonNullable<Request["admin"]> | undefined> {
+  return new Promise((resolve, reject) => {
+    void requireAdmin(request, {} as Response, (error?: unknown) => {
+      if (
+        error instanceof ApiError &&
+        ["authentication_required", "invalid_session"].includes(error.code)
+      ) {
+        resolve(undefined);
+        return;
+      }
+      if (error) {
+        reject(error instanceof Error ? error : new Error("Admin authentication failed."));
+      } else resolve(request.admin);
+    });
+  });
+}
+
 export function requireCsrf(
   request: Request,
   _response: Response,
@@ -203,6 +236,7 @@ async function createAdminSocialAuthorization(
   provider: SocialProvider,
   intent: "login" | "link",
   adminUserId?: string,
+  returnTo?: string,
 ): Promise<URL> {
   const state = randomToken(32);
   const nonce = randomToken(24);
@@ -219,8 +253,8 @@ async function createAdminSocialAuthorization(
   await query(
     `INSERT INTO admin_social_login_states
       (provider, state_hash, nonce_encrypted, code_verifier_encrypted, redirect_uri, intent,
-       admin_user_id, expires_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,now() + interval '10 minutes')`,
+       admin_user_id, return_to, expires_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now() + interval '10 minutes')`,
     [
       provider,
       hashToken(state),
@@ -229,6 +263,7 @@ async function createAdminSocialAuthorization(
       redirectUri,
       intent,
       adminUserId ?? null,
+      returnTo ?? null,
     ],
   );
   return target;
@@ -302,7 +337,8 @@ adminAuthRouter.get(
   "/social/:provider",
   asyncRoute(async (request, response) => {
     const provider = z.enum(["google", "github"]).parse(request.params.provider);
-    const target = await createAdminSocialAuthorization(provider, "login");
+    const returnTo = safeReturnTo(request.query.return_to);
+    const target = await createAdminSocialAuthorization(provider, "login", undefined, returnTo);
     response.redirect(target.toString());
   }),
 );
@@ -322,8 +358,10 @@ export async function completeAdminSocialLogin(
       nonce_encrypted: string;
       intent: "login" | "link";
       admin_user_id: string | null;
+      return_to: string | null;
     }>(
-      `SELECT id, redirect_uri, code_verifier_encrypted, nonce_encrypted, intent, admin_user_id
+      `SELECT id, redirect_uri, code_verifier_encrypted, nonce_encrypted, intent, admin_user_id,
+              return_to
        FROM admin_social_login_states WHERE state_hash = $1 AND provider = $2
          AND consumed_at IS NULL AND expires_at > now() FOR UPDATE`,
       [hashToken(state), provider],
@@ -489,7 +527,7 @@ export async function completeAdminSocialLogin(
     workspaceId: member.workspace_id,
     role: member.role,
   });
-  response.redirect("/overview");
+  response.redirect(loginState.return_to ?? "/overview");
   return true;
 }
 
@@ -940,13 +978,28 @@ async function seedSystemScopes(
       "Issue refresh tokens.",
       "Maintain access when you are away",
     ],
+    [
+      "mcp:read",
+      "Read Authometry with MCP",
+      "Read OAuth configuration and redacted authorization traces through the Authometry MCP server.",
+      "View applications, scopes, environments, and redacted authorization traces",
+      "sensitive",
+    ],
   ];
-  for (const [name, displayName, description, consentDescription] of scopes) {
+  for (const [name, displayName, description, consentDescription, sensitivity] of scopes) {
     await client.query(
       `INSERT INTO resource_scopes
         (workspace_id, environment_id, name, display_name, description, consent_description, sensitivity, is_system)
-       VALUES ($1,$2,$3,$4,$5,$6,'standard',true)`,
-      [workspaceId, environmentId, name, displayName, description, consentDescription],
+       VALUES ($1,$2,$3,$4,$5,$6,$7,true)`,
+      [
+        workspaceId,
+        environmentId,
+        name,
+        displayName,
+        description,
+        consentDescription,
+        sensitivity ?? "standard",
+      ],
     );
   }
 }

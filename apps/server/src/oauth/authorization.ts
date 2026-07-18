@@ -1,7 +1,7 @@
 import { compare } from "bcryptjs";
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
-import { completeAdminSocialLogin } from "../auth/admin.js";
+import { completeAdminSocialLogin, optionalAdmin, requireCsrf } from "../auth/admin.js";
 import { env } from "../env.js";
 import { query, transaction } from "../db.js";
 import {
@@ -17,6 +17,7 @@ import { evaluateAll } from "../lib/policy.js";
 import { exchangeSocialCode, socialAuthorizationUrl } from "../lib/social.js";
 import { TraceRecorder } from "../lib/trace.js";
 import { assertApplicationRoute, findApplicationByClientId } from "./common.js";
+import { mcpResourceForIssuer, resourceIndicatorsMatch } from "./resources.js";
 import {
   actionCoveredByScopes,
   findAgentForClient,
@@ -33,6 +34,51 @@ import type {
 } from "./types.js";
 
 const userSessionCookie = "authometry_user_session";
+
+interface McpAdminUser {
+  id: string;
+  email: string;
+  name: string;
+  workspace_id: string;
+  role: string;
+}
+
+function isMcpAuthorization(
+  parameters: AuthorizationParameters,
+  application: OAuthApplicationRow,
+): boolean {
+  const scopes = parameters.scope.split(" ").filter(Boolean);
+  return (
+    scopes.includes("mcp:read") &&
+    scopes.every((scope) => ["mcp:read", "offline_access"].includes(scope)) &&
+    Boolean(
+      parameters.resource &&
+      resourceIndicatorsMatch(parameters.resource, mcpResourceForIssuer(application.issuer)),
+    )
+  );
+}
+
+function oauthRedirect(
+  parameters: AuthorizationParameters,
+  error: string,
+  description?: string,
+): string {
+  const redirect = new URL(parameters.redirect_uri);
+  redirect.searchParams.set("error", error);
+  if (description) redirect.searchParams.set("error_description", description);
+  if (parameters.state) redirect.searchParams.set("state", parameters.state);
+  return redirect.toString();
+}
+
+function enforceAdminCsrf(request: Request, response: Response): Promise<void> {
+  return new Promise((resolve, reject) => {
+    requireCsrf(request, response, (error?: unknown) => {
+      if (error) {
+        reject(error instanceof Error ? error : new Error("CSRF validation failed."));
+      } else resolve();
+    });
+  });
+}
 
 const authorizationSchema = z.object({
   client_id: z.string().min(1),
@@ -210,6 +256,147 @@ async function continueAfterAuthentication(
   else response.redirect(next);
 }
 
+async function mcpAuthorizationRedirect(
+  pending: PendingAuthorizationRow,
+  application: OAuthApplicationRow,
+  admin: McpAdminUser,
+): Promise<string> {
+  const code = randomToken(32);
+  const scopes = pending.parameters.scope.split(" ").filter(Boolean);
+  const resource = mcpResourceForIssuer(application.issuer);
+  await transaction(async (client) => {
+    await client.query(
+      `INSERT INTO authorization_codes
+        (workspace_id, environment_id, application_id, user_id, admin_user_id, code_hash,
+         redirect_uri, scope, code_challenge, code_challenge_method, nonce, auth_time,
+         resource, expires_at)
+       VALUES ($1,$2,$3,NULL,$4,$5,$6,$7,$8,$9,$10,now(),$11,
+               now() + ($12 * interval '1 second'))`,
+      [
+        application.workspace_id,
+        application.environment_id,
+        application.id,
+        admin.id,
+        hashToken(code),
+        pending.parameters.redirect_uri,
+        scopes,
+        pending.parameters.code_challenge ?? null,
+        pending.parameters.code_challenge_method ?? null,
+        pending.parameters.nonce ?? null,
+        resource,
+        application.authorization_code_lifetime_seconds,
+      ],
+    );
+    await client.query(
+      `UPDATE pending_authorization_requests
+       SET status = 'completed', admin_user_id = $1, completed_at = now() WHERE id = $2`,
+      [admin.id, pending.id],
+    );
+    await client.query(
+      `UPDATE authorization_traces SET status = 'success', event_type = 'authorization_code_issued',
+         user_snapshot = $2, resource = $3,
+         steps = steps || $4::jsonb, completed_at = now(),
+         duration_ms = extract(milliseconds from now() - started_at)::integer
+       WHERE request_id = $1`,
+      [
+        pending.request_id,
+        { id: admin.id, email: admin.email, name: admin.name, principal: "admin" },
+        resource,
+        JSON.stringify([
+          {
+            id: `${pending.request_id}_step_admin_authenticated`,
+            index: 4,
+            name: "Authometry admin authenticated",
+            status: "passed",
+            summary: admin.email,
+            description: "The workspace administrator completed authentication.",
+            startedOffsetMs: 0,
+            decision: { outcome: "allowed", reason: `Authenticated with the ${admin.role} role.` },
+          },
+          {
+            id: `${pending.request_id}_step_mcp_consent`,
+            index: 5,
+            name: "MCP consent approved",
+            status: "passed",
+            summary: scopes.join(" "),
+            description: "The administrator approved access to the Authometry MCP server.",
+            startedOffsetMs: 0,
+          },
+          {
+            id: `${pending.request_id}_step_code`,
+            index: 6,
+            name: "Authorization code issued",
+            status: "passed",
+            summary: "Resource-bound one-time code created",
+            description: "The code can only be exchanged for the approved MCP resource.",
+            startedOffsetMs: 0,
+          },
+        ]),
+      ],
+    );
+  });
+  const redirect = new URL(pending.parameters.redirect_uri);
+  redirect.searchParams.set("code", code);
+  if (pending.parameters.state) redirect.searchParams.set("state", pending.parameters.state);
+  redirect.searchParams.set("iss", application.issuer);
+  return redirect.toString();
+}
+
+async function continueMcpAuthorization(
+  request: Request,
+  response: Response,
+  pending: PendingAuthorizationRow,
+  application: OAuthApplicationRow,
+): Promise<void> {
+  const principal = await optionalAdmin(request);
+  if (!principal || principal.workspaceId !== application.workspace_id) {
+    if (pending.parameters.prompt === "none") {
+      response.redirect(oauthRedirect(pending.parameters, "login_required"));
+      return;
+    }
+    const consentPath = `/authorize/consent?request_id=${encodeURIComponent(pending.request_id)}`;
+    const login = new URL("/login", env.PUBLIC_ORIGIN);
+    login.searchParams.set("returnTo", consentPath);
+    response.redirect(login.toString());
+    return;
+  }
+  const [admin] = await query<McpAdminUser>(
+    `SELECT u.id, u.email, u.name, m.workspace_id, m.role
+     FROM admin_users u JOIN workspace_memberships m ON m.admin_user_id = u.id
+     WHERE u.id = $1 AND m.workspace_id = $2 AND u.disabled_at IS NULL`,
+    [principal.userId, application.workspace_id],
+  );
+  if (!admin) {
+    response.redirect(oauthRedirect(pending.parameters, "login_required"));
+    return;
+  }
+  const resource = mcpResourceForIssuer(application.issuer);
+  const requestedScopes = pending.parameters.scope.split(" ").filter(Boolean);
+  const [consent] = await query<{ scopes: string[] }>(
+    `SELECT scopes FROM mcp_admin_consent_grants
+     WHERE environment_id = $1 AND application_id = $2 AND admin_user_id = $3
+       AND resource = $4 AND revoked_at IS NULL`,
+    [application.environment_id, application.id, admin.id, resource],
+  );
+  const consentCoversRequest = requestedScopes.every((scope) => consent?.scopes.includes(scope));
+  if (pending.parameters.prompt !== "consent" && consentCoversRequest) {
+    response.redirect(await mcpAuthorizationRedirect(pending, application, admin));
+    return;
+  }
+  if (pending.parameters.prompt === "none") {
+    response.redirect(oauthRedirect(pending.parameters, "consent_required"));
+    return;
+  }
+  await query(
+    `UPDATE pending_authorization_requests
+     SET status = 'awaiting_consent', admin_user_id = $1 WHERE id = $2`,
+    [admin.id, pending.id],
+  );
+  response.redirect(
+    `${env.PUBLIC_ORIGIN}/authorize/consent?request_id=${encodeURIComponent(pending.request_id)}`,
+  );
+}
+
 async function authorizationRedirect(
   pending: PendingAuthorizationRow,
   application: OAuthApplicationRow,
@@ -343,8 +530,10 @@ async function authorizationRedirect(
     await client.query(
       `INSERT INTO authorization_codes
         (workspace_id, environment_id, application_id, user_id, code_hash, redirect_uri, scope,
-         code_challenge, code_challenge_method, nonce, auth_time, expires_at, delegation_grant_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now() + ($12 * interval '1 second'),$13)`,
+         code_challenge, code_challenge_method, nonce, auth_time, resource, expires_at,
+         delegation_grant_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
+               now() + ($13 * interval '1 second'),$14)`,
       [
         application.workspace_id,
         application.environment_id,
@@ -357,6 +546,7 @@ async function authorizationRedirect(
         parameters.code_challenge_method ?? null,
         parameters.nonce ?? null,
         user.last_authenticated_at ?? new Date(),
+        parameters.resource ?? null,
         application.authorization_code_lifetime_seconds,
         delegationGrantId,
       ],
@@ -696,6 +886,27 @@ authorizationRouter.get(
       return;
     }
 
+    const expectedMcpResource = mcpResourceForIssuer(application.issuer);
+    if (
+      (requestedScopes.includes("mcp:read") ||
+        (parameters.resource &&
+          resourceIndicatorsMatch(parameters.resource, expectedMcpResource))) &&
+      !isMcpAuthorization(parameters, application)
+    ) {
+      trace.step(
+        "MCP resource rejected",
+        "failed",
+        parameters.resource ?? "Missing resource",
+        "MCP authorization must target this issuer's canonical MCP resource.",
+      );
+      trace.skipRemaining(["User authenticated", "Consent evaluated", "Authorization code issued"]);
+      await trace.finish("denied", { oauthError: "invalid_target" });
+      response.redirect(
+        oauthRedirect(parameters, "invalid_target", `The resource must be ${expectedMcpResource}.`),
+      );
+      return;
+    }
+
     if (
       application.require_pkce &&
       (!parameters.code_challenge || parameters.code_challenge_method !== "S256")
@@ -764,6 +975,12 @@ authorizationRouter.get(
         parameters,
       ],
     );
+
+    if (isMcpAuthorization(parameters, application)) {
+      const { pending } = await loadPending(trace.requestId);
+      await continueMcpAuthorization(request, response, pending, application);
+      return;
+    }
 
     let user = ["login", "select_account"].includes(parameters.prompt ?? "")
       ? undefined
@@ -848,7 +1065,12 @@ authorizeApiRouter.get(
     response.json({
       requestId: pending.request_id,
       status: pending.status,
-      application: { id: application.id, name: application.name, type: application.type },
+      application: {
+        id: application.id,
+        name: application.name,
+        type: application.type,
+        clientIdSource: application.client_id_source,
+      },
       workspace: await query<{ name: string }>("SELECT name FROM workspaces WHERE id = $1", [
         application.workspace_id,
       ]).then(([workspace]) => ({ name: workspace?.name ?? "this workspace" })),
@@ -875,6 +1097,14 @@ authorizeApiRouter.get(
             taskId: pending.parameters.task_id,
           }
         : {}),
+      ...(isMcpAuthorization(pending.parameters, application)
+        ? {
+            mcp: {
+              serverName: "Authometry MCP server",
+              resource: mcpResourceForIssuer(application.issuer),
+            },
+          }
+        : {}),
       scopes,
     });
   }),
@@ -892,6 +1122,9 @@ authorizeApiRouter.post(
       })
       .parse(request.body);
     const { pending, application } = await loadPending(input.requestId);
+    if (isMcpAuthorization(pending.parameters, application)) {
+      await enforceAdminCsrf(request, response);
+    }
     const [user] = await query<IdentityUserRow>(
       "SELECT * FROM identity_users WHERE workspace_id = $1 AND lower(email) = lower($2) AND status = 'active'",
       [application.workspace_id, input.email],
@@ -1174,13 +1407,28 @@ authorizeApiRouter.post(
       .object({ requestId: z.string().min(1), approved: z.boolean() })
       .parse(request.body);
     const { pending, application } = await loadPending(input.requestId);
-    if (!pending.user_id)
-      throw new ApiError(401, "login_required", "Sign in before reviewing consent.");
-    const [user] = await query<IdentityUserRow>("SELECT * FROM identity_users WHERE id = $1", [
-      pending.user_id,
-    ]);
-    if (!user)
-      throw new ApiError(401, "login_required", "The user session is no longer available.");
+    const mcpRequest = isMcpAuthorization(pending.parameters, application);
+    let mcpAdmin: McpAdminUser | undefined;
+    if (mcpRequest) {
+      await enforceAdminCsrf(request, response);
+      const principal = await optionalAdmin(request);
+      if (
+        !principal ||
+        principal.workspaceId !== application.workspace_id ||
+        (pending.admin_user_id !== null && principal.userId !== pending.admin_user_id)
+      ) {
+        throw new ApiError(401, "login_required", "Sign in before reviewing MCP access.");
+      }
+      [mcpAdmin] = await query<McpAdminUser>(
+        `SELECT u.id, u.email, u.name, m.workspace_id, m.role
+         FROM admin_users u JOIN workspace_memberships m ON m.admin_user_id = u.id
+         WHERE u.id = $1 AND m.workspace_id = $2 AND u.disabled_at IS NULL`,
+        [principal.userId, application.workspace_id],
+      );
+      if (!mcpAdmin) {
+        throw new ApiError(401, "login_required", "The admin session is unavailable.");
+      }
+    }
     if (!input.approved) {
       await transaction(async (client) => {
         await client.query(
@@ -1230,6 +1478,34 @@ authorizeApiRouter.post(
       response.json({ next: redirect.toString() });
       return;
     }
+    if (mcpRequest && mcpAdmin) {
+      const scopes = pending.parameters.scope.split(" ").filter(Boolean);
+      const resource = mcpResourceForIssuer(application.issuer);
+      await query(
+        `INSERT INTO mcp_admin_consent_grants
+          (workspace_id, environment_id, application_id, admin_user_id, resource, scopes)
+         VALUES ($1,$2,$3,$4,$5,$6)
+         ON CONFLICT (environment_id, application_id, admin_user_id, resource)
+         DO UPDATE SET scopes = EXCLUDED.scopes, granted_at = now(), revoked_at = NULL`,
+        [
+          application.workspace_id,
+          application.environment_id,
+          application.id,
+          mcpAdmin.id,
+          resource,
+          scopes,
+        ],
+      );
+      response.json({ next: await mcpAuthorizationRedirect(pending, application, mcpAdmin) });
+      return;
+    }
+    if (!pending.user_id)
+      throw new ApiError(401, "login_required", "Sign in before reviewing consent.");
+    const [user] = await query<IdentityUserRow>("SELECT * FROM identity_users WHERE id = $1", [
+      pending.user_id,
+    ]);
+    if (!user)
+      throw new ApiError(401, "login_required", "The user session is no longer available.");
     const scopes = pending.parameters.scope.split(" ");
     await query(
       `INSERT INTO consent_grants(workspace_id, environment_id, application_id, user_id, scopes)

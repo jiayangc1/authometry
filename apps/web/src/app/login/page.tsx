@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Github, LoaderCircle } from "lucide-react";
 import { Button, GoogleIcon } from "@authometry/ui";
@@ -9,13 +9,29 @@ import { AuthHeading, AuthShell, inputClass } from "@/components/auth/auth-shell
 import { apiFetch } from "@/lib/api";
 import { useHydrated } from "@/lib/use-hydrated";
 
+function localReturnTo(value: string): string {
+  if (!value.startsWith("/")) return "/overview";
+  const base = "https://authometry.local";
+  try {
+    const parsed = new URL(value, base);
+    return parsed.origin === base
+      ? `${parsed.pathname}${parsed.search}${parsed.hash}`
+      : "/overview";
+  } catch {
+    return "/overview";
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
+  const params = useSearchParams();
   const hydrated = useHydrated();
   const [bootstrapRequired, setBootstrapRequired] = useState(false);
   const [providers, setProviders] = useState({ google: false, github: false });
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
+  const returnTo = localReturnTo(params.get("returnTo") ?? "");
+  const isMcpAuthorization = returnTo.startsWith("/authorize/consent");
 
   useEffect(() => {
     void apiFetch<{ bootstrapRequired: boolean }>("/api/v1/auth/bootstrap/status")
@@ -36,7 +52,7 @@ export default function LoginPage() {
         method: "POST",
         body: JSON.stringify({ email: data.get("email"), password: data.get("password") }),
       });
-      router.push("/overview");
+      router.push(returnTo);
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Sign in failed.");
@@ -50,7 +66,11 @@ export default function LoginPage() {
       <div className="w-full">
         <AuthHeading
           title="Sign in to Authometry"
-          description="Manage clients, policies, identities, and authorization traces."
+          description={
+            isMcpAuthorization
+              ? "Sign in with your admin account to review an MCP connection request."
+              : "Manage clients, policies, identities, and authorization traces."
+          }
         />
         {bootstrapRequired && (
           <div className="mb-5 border border-[var(--info-border)] bg-[var(--info-soft)] px-3 py-2.5 text-[13px]">
@@ -117,7 +137,11 @@ export default function LoginPage() {
             <a
               aria-disabled={!providers.google}
               className={!providers.google ? "pointer-events-none opacity-50" : undefined}
-              href={providers.google ? "/api/v1/auth/social/google" : undefined}
+              href={
+                providers.google
+                  ? `/api/v1/auth/social/google?return_to=${encodeURIComponent(returnTo)}`
+                  : undefined
+              }
               title={!providers.google ? "Configure Google to enable sign-in" : undefined}
             >
               <GoogleIcon className="size-4" /> Google
@@ -127,7 +151,11 @@ export default function LoginPage() {
             <a
               aria-disabled={!providers.github}
               className={!providers.github ? "pointer-events-none opacity-50" : undefined}
-              href={providers.github ? "/api/v1/auth/social/github" : undefined}
+              href={
+                providers.github
+                  ? `/api/v1/auth/social/github?return_to=${encodeURIComponent(returnTo)}`
+                  : undefined
+              }
               title={!providers.github ? "Configure GitHub to enable sign-in" : undefined}
             >
               <Github className="size-4" /> GitHub

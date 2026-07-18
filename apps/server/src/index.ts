@@ -15,7 +15,13 @@ import { ApiError, sendApiError } from "./lib/http.js";
 import { mcpRouter } from "./mcp.js";
 import { migrate } from "./migrate.js";
 import { authorizationRouter, authorizeApiRouter } from "./oauth/authorization.js";
-import { discoveryRouter, deviceApiRouter, resourceRouter } from "./oauth/resources.js";
+import {
+  authorizationServerWellKnownRouter,
+  discoveryRouter,
+  deviceApiRouter,
+  protectedResourceRouter,
+  resourceRouter,
+} from "./oauth/resources.js";
 import { tokenRouter } from "./oauth/tokens.js";
 import { dispatchPendingWebhooks, runRetention } from "./workers.js";
 
@@ -70,6 +76,12 @@ export function createApp() {
     standardHeaders: "draft-8",
     legacyHeaders: false,
   });
+  const registrationLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: env.NODE_ENV === "test" ? 10_000 : 30,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+  });
 
   app.post(
     [
@@ -84,6 +96,18 @@ export function createApp() {
     authLimiter,
   );
   app.get("/api/v1/auth/invitation", authLimiter);
+  app.post(
+    [
+      "/oauth/register",
+      "/w/:workspaceSlug/oauth/register",
+      "/w/:workspaceSlug/:environmentSlug/oauth/register",
+      "/:environmentSlug/oauth/register",
+    ],
+    registrationLimiter,
+  );
+
+  app.use("/.well-known/oauth-protected-resource", protectedResourceRouter);
+  app.use("/.well-known/oauth-authorization-server", authorizationServerWellKnownRouter);
 
   function mountProtocol(prefix: string): void {
     app.use(`${prefix}/.well-known`, discoveryRouter);
@@ -96,6 +120,9 @@ export function createApp() {
   mountProtocol("/w/:workspaceSlug/:environmentSlug");
   mountProtocol("/:environmentSlug");
   app.use("/mcp", mcpRouter);
+  app.use("/w/:workspaceSlug/mcp", mcpRouter);
+  app.use("/w/:workspaceSlug/:environmentSlug/mcp", mcpRouter);
+  app.use("/:environmentSlug/mcp", mcpRouter);
   app.use("/api/v1/auth", adminAuthRouter);
   app.use("/api/v1/authorize", authorizeApiRouter);
   app.use("/api/v1/authorize", deviceApiRouter);

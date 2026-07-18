@@ -9,6 +9,7 @@ export interface OAuthApplicationRow {
   name: string;
   slug: string;
   client_id: string;
+  client_id_source: "auto" | "manifest" | "dynamic";
   type: "web" | "spa" | "native" | "machine" | "device";
   status: "active" | "disabled";
   redirect_uris: string[];
@@ -47,6 +48,7 @@ export interface PendingAuthorizationRow {
   request_id: string;
   parameters: AuthorizationParameters;
   user_id: string | null;
+  admin_user_id: string | null;
   status: "pending" | "awaiting_consent" | "approved" | "denied" | "completed" | "expired";
   expires_at: Date;
 }

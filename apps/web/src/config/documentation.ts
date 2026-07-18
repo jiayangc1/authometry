@@ -224,18 +224,18 @@ export const documentationPages: DocumentationPage[] = [
       "Connect an AI client to read-only environment, application, scope, and authorization-trace tools.",
     sections: [
       {
-        title: "Create a scoped token",
+        title: "Start with the MCP URL",
         paragraphs: [
-          "Create an MCP read-only token under Settings, API tokens. Authometry shows its amt_ value once and stores only its hash. The token must carry mcp:read and is sent as a Bearer value on every request.",
+          "Point the MCP client at the environment issuer followed by /mcp. Authometry returns a protected-resource challenge so the client can discover the authorization server, register as a public OAuth client when needed, and start Authorization Code with S256 PKCE.",
         ],
-        note: "Keep the token in your MCP client's secret or environment-variable facility. Do not commit it to client configuration.",
+        code: "https://auth.example.com/mcp",
       },
       {
-        title: "Connect over Streamable HTTP",
+        title: "Review and connect",
         paragraphs: [
-          "Point the MCP client at the public Authometry origin followed by /mcp. The endpoint is stateless and returns JSON responses, so it does not create resumable sessions or a server-initiated event stream.",
+          "Sign in with an Authometry admin account. The consent page identifies the MCP client, its dynamic-registration status, the canonical MCP resource, and every requested permission. Connect only when those details match the client you started from.",
         ],
-        code: "URL: https://auth.example.com/mcp\nAuthorization: Bearer amt_...",
+        note: "Access tokens are audience-bound to this MCP URL. Authometry rejects tokens issued for another API or environment.",
       },
       {
         title: "Use read-only tools",

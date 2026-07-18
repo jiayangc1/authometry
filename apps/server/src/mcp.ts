@@ -3,9 +3,16 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { Router, type NextFunction, type Request, type Response } from "express";
 import type { QueryResultRow } from "pg";
 import { z } from "zod";
-import { requireAdmin } from "./auth/admin.js";
 import { query } from "./db.js";
+import { env } from "./env.js";
 import { ApiError } from "./lib/http.js";
+import { verifyOAuthJwt } from "./lib/signing.js";
+import { findApplicationByClientId } from "./oauth/common.js";
+import {
+  defaultEnvironment,
+  mcpResourceForIssuer,
+  mcpResourceMetadataUrl,
+} from "./oauth/resources.js";
 
 const serverVersion = "0.1.1";
 const requiredScope = "mcp:read";
@@ -225,26 +232,108 @@ export function createAuthometryMcpServer(principal: McpPrincipal, execute: Quer
 
 function authenticateMcp(request: Request, response: Response, next: NextFunction): void {
   const bearer = request.get("authorization")?.match(/^Bearer (.+)$/)?.[1];
-  if (!bearer?.startsWith("amt_")) {
-    response.set("WWW-Authenticate", 'Bearer realm="authometry-mcp"');
-    next(new ApiError(401, "authentication_required", "An Authometry API token is required."));
+  const requestPath = new URL(request.originalUrl, env.PUBLIC_ORIGIN).pathname;
+  const marker = requestPath.lastIndexOf("/mcp");
+  const fallbackResource = new URL(requestPath.slice(0, marker + 4), env.PUBLIC_ORIGIN)
+    .toString()
+    .replace(/\/$/, "");
+  const challenge = (resource: string, error?: string) => {
+    response.set(
+      "WWW-Authenticate",
+      `Bearer realm="authometry-mcp", resource_metadata="${mcpResourceMetadataUrl(resource)}", scope="mcp:read"${error ? `, error="${error}"` : ""}`,
+    );
+  };
+  if (!bearer) {
+    challenge(fallbackResource);
+    next(
+      new ApiError(
+        401,
+        "authentication_required",
+        "Authorize this MCP client with Authometry to continue.",
+      ),
+    );
     return;
   }
-  void requireAdmin(request, response, (error?: unknown) => {
-    if (error) response.set("WWW-Authenticate", 'Bearer realm="authometry-mcp"');
-    next(error);
-  });
+  void (async () => {
+    try {
+      const environment = await defaultEnvironment(request);
+      const resource = mcpResourceForIssuer(environment.issuer);
+      const { payload } = await verifyOAuthJwt(bearer, environment.issuer, resource);
+      const scopes = typeof payload.scope === "string" ? payload.scope.split(" ") : [];
+      if (
+        payload.token_use !== "access" ||
+        payload.authometry_principal !== "admin" ||
+        typeof payload.sub !== "string" ||
+        typeof payload.client_id !== "string"
+      ) {
+        throw new ApiError(401, "invalid_token", "The MCP access token is invalid.");
+      }
+      if (!scopes.includes(requiredScope)) {
+        challenge(resource, "insufficient_scope");
+        throw new ApiError(
+          403,
+          "insufficient_scope",
+          `The access token requires ${requiredScope}.`,
+        );
+      }
+      if (payload.jti) {
+        const [revoked] = await query("SELECT jti FROM revoked_access_tokens WHERE jti = $1", [
+          payload.jti,
+        ]);
+        if (revoked) throw new ApiError(401, "invalid_token", "The access token was revoked.");
+      }
+      const application = await findApplicationByClientId(payload.client_id);
+      if (
+        !application ||
+        application.status !== "active" ||
+        application.environment_id !== environment.id
+      ) {
+        throw new ApiError(401, "invalid_token", "The MCP OAuth client is not active.");
+      }
+      const [admin] = await query<{
+        id: string;
+        email: string;
+        workspace_id: string;
+        role: string;
+      }>(
+        `SELECT u.id, u.email, m.workspace_id, m.role
+         FROM admin_users u JOIN workspace_memberships m ON m.admin_user_id = u.id
+         WHERE u.id = $1 AND m.workspace_id = $2 AND u.disabled_at IS NULL`,
+        [payload.sub, environment.workspace_id],
+      );
+      if (!admin || payload.workspace_id !== admin.workspace_id) {
+        throw new ApiError(401, "invalid_token", "The Authometry admin is not active.");
+      }
+      request.mcpPrincipal = {
+        userId: admin.id,
+        email: admin.email,
+        workspaceId: admin.workspace_id,
+        role: admin.role,
+      };
+      next();
+    } catch (error) {
+      if (!(error instanceof ApiError && error.status === 403)) {
+        challenge(fallbackResource, "invalid_token");
+      }
+      next(
+        error instanceof ApiError
+          ? error
+          : new ApiError(401, "invalid_token", "The MCP access token is invalid or expired."),
+      );
+    }
+  })();
 }
 
-export const mcpRouter = Router();
-mcpRouter.use(authenticateMcp);
-mcpRouter.use((request, _response, next) => {
-  if (request.admin?.tokenScopes?.includes(requiredScope)) {
-    next();
-    return;
+declare global {
+  namespace Express {
+    interface Request {
+      mcpPrincipal?: McpPrincipal;
+    }
   }
-  next(new ApiError(403, "insufficient_scope", `The API token requires ${requiredScope}.`));
-});
+}
+
+export const mcpRouter = Router({ mergeParams: true });
+mcpRouter.use(authenticateMcp);
 
 export async function handleMcpRequest(
   principal: McpPrincipal,
@@ -276,7 +365,7 @@ export async function handleMcpRequest(
 }
 
 mcpRouter.post("/", async (request, response) => {
-  await handleMcpRequest(request.admin!, request, response);
+  await handleMcpRequest(request.mcpPrincipal!, request, response);
 });
 
 for (const method of ["get", "delete"] as const) {

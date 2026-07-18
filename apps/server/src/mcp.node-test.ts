@@ -7,6 +7,12 @@ import type { QueryResultRow } from "pg";
 import request from "supertest";
 import { createApp } from "./index.js";
 import { createAuthometryMcpServer, handleMcpRequest, type McpPrincipal } from "./mcp.js";
+import {
+  mcpResourceForIssuer,
+  mcpResourceMetadataUrl,
+  resourceIndicatorsMatch,
+} from "./oauth/resources.js";
+import { dynamicRegistrationSchema } from "./oauth/tokens.js";
 
 const environment = {
   id: "environment-1",
@@ -25,11 +31,47 @@ const principal: McpPrincipal = {
   role: "owner",
 };
 
-await test("MCP rejects requests without a personal access token", async () => {
+await test("MCP challenges unauthenticated clients with OAuth resource metadata", async () => {
   const response = await request(createApp()).post("/mcp").send({}).expect(401);
 
-  assert.equal(response.headers["www-authenticate"], 'Bearer realm="authometry-mcp"');
+  assert.match(
+    response.headers["www-authenticate"] as string,
+    /^Bearer realm="authometry-mcp", resource_metadata="http:\/\/localhost:3000\/\.well-known\/oauth-protected-resource\/mcp", scope="mcp:read"$/,
+  );
   assert.equal(response.body.error.code, "authentication_required");
+});
+
+await test("MCP resource identifiers retain issuer paths and produce RFC 9728 metadata URLs", () => {
+  const resource = mcpResourceForIssuer("https://auth.example.com/w/acme");
+  assert.equal(resource, "https://auth.example.com/w/acme/mcp");
+  assert.equal(
+    mcpResourceMetadataUrl(resource),
+    "https://auth.example.com/.well-known/oauth-protected-resource/w/acme/mcp",
+  );
+  assert.equal(resourceIndicatorsMatch("https://AUTH.example.com:443/w/acme/mcp", resource), true);
+  assert.equal(resourceIndicatorsMatch("https://auth.example.com/w/other/mcp", resource), false);
+});
+
+await test("MCP dynamic registration accepts public PKCE clients and rejects unsafe callbacks", () => {
+  const registered = dynamicRegistrationSchema.parse({
+    redirect_uris: ["http://127.0.0.1:43210/callback"],
+  });
+  assert.equal(registered.client_name, "MCP client");
+  assert.deepEqual(registered.grant_types, ["authorization_code", "refresh_token"]);
+  assert.equal(registered.token_endpoint_auth_method, "none");
+
+  assert.equal(
+    dynamicRegistrationSchema.safeParse({
+      redirect_uris: ["https://user:password@client.example/callback"],
+    }).success,
+    false,
+  );
+  assert.equal(
+    dynamicRegistrationSchema.safeParse({
+      redirect_uris: ["http://client.example/callback"],
+    }).success,
+    false,
+  );
 });
 
 await test("MCP exposes read-only workspace tools and keeps queries tenant scoped", async () => {

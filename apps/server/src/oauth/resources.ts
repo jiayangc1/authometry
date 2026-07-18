@@ -9,11 +9,17 @@ import { listPublicKeys, verifyOAuthJwt } from "../lib/signing.js";
 import { assertApplicationRoute, findApplicationByClientId } from "./common.js";
 import type { IdentityUserRow } from "./types.js";
 
-async function defaultEnvironment(request?: Request) {
+export interface IssuerEnvironment {
+  id: string;
+  workspace_id: string;
+  issuer: string;
+}
+
+export async function defaultEnvironment(request?: Request): Promise<IssuerEnvironment> {
   const workspaceSlug = request?.params.workspaceSlug ?? "";
   const environmentSlug = request?.params.environmentSlug ?? "";
-  const [environment] = await query<{ id: string; issuer: string }>(
-    `SELECT e.id, e.issuer FROM environments e JOIN workspaces w ON w.id = e.workspace_id
+  const [environment] = await query<IssuerEnvironment>(
+    `SELECT e.id, e.workspace_id, e.issuer FROM environments e JOIN workspaces w ON w.id = e.workspace_id
      WHERE ($1 = '' OR w.slug = $1) AND ($2 = '' AND e.is_default = true OR $2 <> '' AND e.slug = $2)
      ORDER BY w.created_at, e.is_default DESC LIMIT 1`,
     [workspaceSlug, environmentSlug],
@@ -23,59 +29,128 @@ async function defaultEnvironment(request?: Request) {
   return environment;
 }
 
+export function mcpResourceForIssuer(issuer: string): string {
+  const resource = new URL(issuer);
+  resource.pathname = `${resource.pathname.replace(/\/$/, "")}/mcp`;
+  resource.search = "";
+  resource.hash = "";
+  return resource.toString().replace(/\/$/, "");
+}
+
+export function mcpResourceMetadataUrl(resource: string): string {
+  const parsed = new URL(resource);
+  return `${parsed.origin}/.well-known/oauth-protected-resource${parsed.pathname}`;
+}
+
+export function resourceIndicatorsMatch(candidate: string, expected: string): boolean {
+  try {
+    return new URL(candidate).href === new URL(expected).href;
+  } catch {
+    return false;
+  }
+}
+
+function authorizationServerMetadata(issuer: string) {
+  return {
+    issuer,
+    authorization_endpoint: `${issuer}/oauth/authorize`,
+    token_endpoint: `${issuer}/oauth/token`,
+    registration_endpoint: `${issuer}/oauth/register`,
+    pushed_authorization_request_endpoint: `${issuer}/oauth/par`,
+    userinfo_endpoint: `${issuer}/oauth/userinfo`,
+    jwks_uri: `${issuer}/.well-known/jwks.json`,
+    revocation_endpoint: `${issuer}/oauth/revoke`,
+    introspection_endpoint: `${issuer}/oauth/introspect`,
+    device_authorization_endpoint: `${issuer}/oauth/device/authorization`,
+    end_session_endpoint: `${issuer}/oauth/logout`,
+    response_types_supported: ["code"],
+    response_modes_supported: ["query"],
+    grant_types_supported: [
+      "authorization_code",
+      "refresh_token",
+      "client_credentials",
+      "urn:ietf:params:oauth:grant-type:device_code",
+      "urn:ietf:params:oauth:grant-type:token-exchange",
+    ],
+    subject_types_supported: ["public"],
+    id_token_signing_alg_values_supported: ["RS256"],
+    token_endpoint_auth_methods_supported: [
+      "client_secret_basic",
+      "client_secret_post",
+      "private_key_jwt",
+      "none",
+    ],
+    scopes_supported: [
+      "openid",
+      "profile",
+      "email",
+      "phone",
+      "address",
+      "offline_access",
+      "mcp:read",
+    ],
+    claims_supported: [
+      "sub",
+      "iss",
+      "aud",
+      "exp",
+      "iat",
+      "auth_time",
+      "nonce",
+      "name",
+      "email",
+      "email_verified",
+      "groups",
+    ],
+    code_challenge_methods_supported: ["S256"],
+    prompt_values_supported: ["none", "login", "consent", "select_account"],
+    authorization_details_types_supported: ["agent_action"],
+    dpop_signing_alg_values_supported: ["ES256", "RS256"],
+    require_pushed_authorization_requests: false,
+    resource_indicators_supported: true,
+  };
+}
+
 export const discoveryRouter = Router({ mergeParams: true });
 
 discoveryRouter.get(
-  "/openid-configuration",
+  ["/openid-configuration", "/oauth-authorization-server"],
   asyncRoute(async (request, response) => {
     const { issuer } = await defaultEnvironment(request);
+    response.json(authorizationServerMetadata(issuer));
+  }),
+);
+
+export const authorizationServerWellKnownRouter = Router({ mergeParams: true });
+
+authorizationServerWellKnownRouter.get(
+  ["/", "/:environmentSlug", "/w/:workspaceSlug", "/w/:workspaceSlug/:environmentSlug"],
+  asyncRoute(async (request, response) => {
+    const { issuer } = await defaultEnvironment(request);
+    response.json(authorizationServerMetadata(issuer));
+  }),
+);
+
+export const protectedResourceRouter = Router({ mergeParams: true });
+
+protectedResourceRouter.get(
+  [
+    "/",
+    "/mcp",
+    "/:environmentSlug/mcp",
+    "/w/:workspaceSlug/mcp",
+    "/w/:workspaceSlug/:environmentSlug/mcp",
+  ],
+  asyncRoute(async (request, response) => {
+    const environment = await defaultEnvironment(request);
+    const resource = mcpResourceForIssuer(environment.issuer);
     response.json({
-      issuer,
-      authorization_endpoint: `${issuer}/oauth/authorize`,
-      token_endpoint: `${issuer}/oauth/token`,
-      pushed_authorization_request_endpoint: `${issuer}/oauth/par`,
-      userinfo_endpoint: `${issuer}/oauth/userinfo`,
-      jwks_uri: `${issuer}/.well-known/jwks.json`,
-      revocation_endpoint: `${issuer}/oauth/revoke`,
-      introspection_endpoint: `${issuer}/oauth/introspect`,
-      device_authorization_endpoint: `${issuer}/oauth/device/authorization`,
-      end_session_endpoint: `${issuer}/oauth/logout`,
-      response_types_supported: ["code"],
-      response_modes_supported: ["query"],
-      grant_types_supported: [
-        "authorization_code",
-        "refresh_token",
-        "client_credentials",
-        "urn:ietf:params:oauth:grant-type:device_code",
-        "urn:ietf:params:oauth:grant-type:token-exchange",
-      ],
-      subject_types_supported: ["public"],
-      id_token_signing_alg_values_supported: ["RS256"],
-      token_endpoint_auth_methods_supported: [
-        "client_secret_basic",
-        "client_secret_post",
-        "private_key_jwt",
-        "none",
-      ],
-      scopes_supported: ["openid", "profile", "email", "phone", "address", "offline_access"],
-      claims_supported: [
-        "sub",
-        "iss",
-        "aud",
-        "exp",
-        "iat",
-        "auth_time",
-        "nonce",
-        "name",
-        "email",
-        "email_verified",
-        "groups",
-      ],
-      code_challenge_methods_supported: ["S256"],
-      prompt_values_supported: ["none", "login", "consent", "select_account"],
-      authorization_details_types_supported: ["agent_action"],
-      dpop_signing_alg_values_supported: ["ES256", "RS256"],
-      require_pushed_authorization_requests: false,
+      resource,
+      resource_name: "Authometry MCP server",
+      authorization_servers: [environment.issuer],
+      scopes_supported: ["mcp:read"],
+      bearer_methods_supported: ["header"],
+      resource_documentation: `${env.PUBLIC_ORIGIN}/docs/mcp`,
     });
   }),
 );

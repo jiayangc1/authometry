@@ -3,13 +3,22 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight, Bot, Clock3, MapPin, ShieldCheck, UserRound } from "lucide-react";
+import {
+  ArrowRight,
+  Bot,
+  Cable,
+  Clock3,
+  MapPin,
+  ServerCog,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { Button, StatusBadge } from "@authometry/ui";
 import { AuthorizationShell } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
 
 interface ConsentRequest {
-  application: { name: string };
+  application: { name: string; clientIdSource: "auto" | "manifest" | "dynamic" };
   agent?: {
     id: string;
     displayName: string;
@@ -19,6 +28,7 @@ interface ConsentRequest {
     maximumAuthorizationSeconds: number;
   };
   resource?: string;
+  mcp?: { serverName: string; resource: string };
   purpose?: string;
   taskId?: string;
   authorizationDetails?: Array<{
@@ -43,6 +53,7 @@ export default function ConsentPage() {
   });
   const [loading, setLoading] = useState(false);
   const isAgentRequest = Boolean(query.data?.agent);
+  const isMcpRequest = Boolean(query.data?.mcp);
   async function decide(approved: boolean) {
     setLoading(true);
     const result = await apiFetch<{ next: string }>("/api/v1/authorize/consent", {
@@ -56,7 +67,11 @@ export default function ConsentPage() {
       <div className="w-full">
         <header className="mb-8 text-center">
           <h1 className="text-[28px] leading-9 font-medium tracking-[-0.035em]">
-            {isAgentRequest ? "Authorize this task" : "Review access"}
+            {isAgentRequest
+              ? "Authorize this task"
+              : isMcpRequest
+                ? "Connect to Authometry MCP"
+                : "Review access"}
           </h1>
           <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
             {isAgentRequest ? (
@@ -65,6 +80,13 @@ export default function ConsentPage() {
                   {query.data?.agent?.displayName}
                 </span>{" "}
                 wants to perform one approved task
+              </>
+            ) : isMcpRequest ? (
+              <>
+                <span className="font-medium text-[var(--text-primary)]">
+                  {query.data?.application.name ?? "This MCP client"}
+                </span>{" "}
+                is asking to use the Authometry MCP server
               </>
             ) : (
               <>
@@ -76,6 +98,41 @@ export default function ConsentPage() {
             )}
           </p>
         </header>
+        {query.data?.mcp && (
+          <div className="mb-5 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--surface-subtle)]">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-4">
+              <div className="min-w-0 text-center">
+                <Cable className="mx-auto mb-1.5 size-4 text-[var(--accent)]" />
+                <p className="text-[10px] font-semibold tracking-[0.1em] text-[var(--text-tertiary)] uppercase">
+                  MCP client
+                </p>
+                <p className="mt-1 truncate text-xs font-medium">{query.data.application.name}</p>
+                {query.data.application.clientIdSource === "dynamic" && (
+                  <p className="mt-1 text-[10px] text-[var(--text-tertiary)]">
+                    Name supplied by client
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-1 text-[var(--text-tertiary)]">
+                <span className="h-px w-4 bg-[var(--border-strong)]" />
+                <ArrowRight className="size-3.5" />
+                <span className="h-px w-4 bg-[var(--border-strong)]" />
+              </div>
+              <div className="min-w-0 text-center">
+                <ServerCog className="mx-auto mb-1.5 size-4 text-[var(--accent)]" />
+                <p className="text-[10px] font-semibold tracking-[0.1em] text-[var(--text-tertiary)] uppercase">
+                  Protected resource
+                </p>
+                <p className="mt-1 truncate text-xs font-medium">{query.data.mcp.serverName}</p>
+              </div>
+            </div>
+            <div className="border-t border-[var(--border)] px-3 py-2 text-center">
+              <p className="technical-value truncate text-[var(--text-tertiary)]">
+                {query.data.mcp.resource}
+              </p>
+            </div>
+          </div>
+        )}
         {query.data?.agent && (
           <>
             <div className="mb-5 grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] p-3">
@@ -180,6 +237,11 @@ export default function ConsentPage() {
                 : " It cannot delegate this authority to another agent."}
             </p>
           </div>
+        ) : isMcpRequest ? (
+          <p className="mt-4 text-xs leading-5 text-[var(--text-secondary)]">
+            Access is limited to this MCP server and the permissions shown above. You can disable
+            this client later from Applications.
+          </p>
         ) : (
           <p className="mt-4 text-xs leading-5 text-[var(--text-secondary)]">
             You can revoke this access later from your account sessions.
@@ -199,7 +261,7 @@ export default function ConsentPage() {
             onClick={() => void decide(true)}
             variant="primary"
           >
-            {isAgentRequest ? "Approve task" : "Allow access"}
+            {isAgentRequest ? "Approve task" : isMcpRequest ? "Connect" : "Allow access"}
           </Button>
         </div>
       </div>

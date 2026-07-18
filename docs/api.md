@@ -37,7 +37,7 @@ curl \
   https://auth.example.com/api/v1/config/status
 ```
 
-Personal tokens begin with `amt_`, are shown once, stored only as hashes, and may have an expiry. Configuration endpoints enforce `config:read` on GET/HEAD and `config:write` on mutations. The read-only MCP endpoint requires `mcp:read`. Personal tokens do not require cookie CSRF.
+Personal tokens begin with `amt_`, are shown once, stored only as hashes, and may have an expiry. Configuration endpoints enforce `config:read` on GET/HEAD and `config:write` on mutations. Personal tokens do not require cookie CSRF. The MCP endpoint uses its separate OAuth admin-consent flow rather than personal tokens.
 
 ## Environment selection
 
