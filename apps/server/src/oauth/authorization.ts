@@ -50,7 +50,7 @@ function isMcpAuthorization(
   const scopes = parameters.scope.split(" ").filter(Boolean);
   return (
     scopes.includes("mcp:read") &&
-    scopes.every((scope) => ["mcp:read", "offline_access"].includes(scope)) &&
+    scopes.every((scope) => ["mcp:read", "mcp:write", "offline_access"].includes(scope)) &&
     Boolean(
       parameters.resource &&
       resourceIndicatorsMatch(parameters.resource, mcpResourceForIssuer(application.issuer)),
@@ -888,7 +888,7 @@ authorizationRouter.get(
 
     const expectedMcpResource = mcpResourceForIssuer(application.issuer);
     if (
-      (requestedScopes.includes("mcp:read") ||
+      (requestedScopes.some((scope) => ["mcp:read", "mcp:write"].includes(scope)) ||
         (parameters.resource &&
           resourceIndicatorsMatch(parameters.resource, expectedMcpResource))) &&
       !isMcpAuthorization(parameters, application)

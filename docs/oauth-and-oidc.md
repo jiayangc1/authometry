@@ -4,9 +4,9 @@ Authometry is an OAuth 2.0 authorization server and OpenID Provider. Each enviro
 
 ## MCP authorization
 
-The environment's MCP resource is `<issuer>/mcp`. It publishes RFC 9728 protected-resource metadata, challenges unauthenticated clients with `mcp:read`, and advertises Dynamic Client Registration through authorization-server metadata. Public MCP clients use Authorization Code with mandatory S256 PKCE and include the exact MCP `resource` in authorization, token, and refresh requests. They can request `offline_access` when refresh tokens are needed.
+The environment's MCP resource is `<issuer>/mcp`. It publishes RFC 9728 protected-resource metadata, challenges unauthenticated clients with `mcp:read mcp:write`, and advertises Dynamic Client Registration through authorization-server metadata. Public MCP clients use Authorization Code with mandatory S256 PKCE and include the exact MCP `resource` in authorization, token, and refresh requests. They can request `offline_access` when refresh tokens are needed.
 
-MCP authorization uses the Authometry administrator account rather than an application identity user because the tools expose workspace configuration and redacted operational traces. The consent screen identifies the MCP client and canonical resource before approval. Issued access tokens contain `authometry_principal=admin`, the approving workspace and role, and an audience equal to the MCP resource. `/mcp` validates all of those bindings on every request.
+MCP authorization uses the Authometry administrator account rather than an application identity user because the tools expose workspace configuration, management operations, and redacted operational traces. The consent screen identifies the MCP client, canonical resource, and separate `mcp:read` and `mcp:write` permissions before approval. Issued access tokens contain `authometry_principal=admin`, the approving workspace and role, and an audience equal to the MCP resource. `/mcp` validates all of those bindings on every request, and management tools additionally require `mcp:write`.
 
 ## Discover an issuer
 

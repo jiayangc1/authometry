@@ -221,7 +221,7 @@ export const documentationPages: DocumentationPage[] = [
     group: "Operate",
     title: "MCP server",
     summary:
-      "Connect an AI client to read-only environment, application, scope, and authorization-trace tools.",
+      "Connect an AI client to inspect and manage Authometry with separately approved read and write access.",
     sections: [
       {
         title: "Start with the MCP URL",
@@ -238,7 +238,7 @@ export const documentationPages: DocumentationPage[] = [
         note: "Access tokens are audience-bound to this MCP URL. Authometry rejects tokens issued for another API or environment.",
       },
       {
-        title: "Use read-only tools",
+        title: "Inspect Authometry",
         bullets: [
           "list_environments returns environments in the token's workspace.",
           "list_applications searches non-secret OAuth client configuration.",
@@ -247,6 +247,18 @@ export const documentationPages: DocumentationPage[] = [
           "get_authorization_trace returns one redacted trace with its explanation and steps.",
         ],
         note: "Pass an environment slug or UUID when needed. Omitting it selects the workspace's default environment.",
+      },
+      {
+        title: "Manage through the dashboard API",
+        paragraphs: [
+          "Approve mcp:write to let the client create services, edit applications, manage scopes and policies, rotate or revoke credentials, apply configuration, and perform the other operations available in the dashboard.",
+        ],
+        bullets: [
+          "list_management_operations returns every supported method and path template.",
+          "management_api_read calls any supported dashboard GET operation.",
+          "management_api_write sends POST, PATCH, or DELETE operations through the same API handlers as the website.",
+        ],
+        note: "Existing connections remain read-only until you reconnect and approve mcp:write. Dashboard role checks, tenant boundaries, optimistic versions, audit logs, and destructive confirmations still apply.",
       },
     ],
   },

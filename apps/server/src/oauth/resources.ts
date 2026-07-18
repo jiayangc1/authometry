@@ -88,6 +88,7 @@ function authorizationServerMetadata(issuer: string) {
       "address",
       "offline_access",
       "mcp:read",
+      "mcp:write",
     ],
     claims_supported: [
       "sub",
@@ -148,7 +149,7 @@ protectedResourceRouter.get(
       resource,
       resource_name: "Authometry MCP server",
       authorization_servers: [environment.issuer],
-      scopes_supported: ["mcp:read"],
+      scopes_supported: ["mcp:read", "mcp:write"],
       bearer_methods_supported: ["header"],
       resource_documentation: `${env.PUBLIC_ORIGIN}/docs/mcp`,
     });

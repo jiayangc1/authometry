@@ -29,6 +29,7 @@ const principal: McpPrincipal = {
   email: "owner@example.com",
   workspaceId: "workspace-1",
   role: "owner",
+  scopes: ["mcp:read", "mcp:write"],
 };
 
 await test("MCP challenges unauthenticated clients with OAuth resource metadata", async () => {
@@ -36,7 +37,7 @@ await test("MCP challenges unauthenticated clients with OAuth resource metadata"
 
   assert.match(
     response.headers["www-authenticate"] as string,
-    /^Bearer realm="authometry-mcp", resource_metadata="http:\/\/localhost:3000\/\.well-known\/oauth-protected-resource\/mcp", scope="mcp:read"$/,
+    /^Bearer realm="authometry-mcp", resource_metadata="http:\/\/localhost:3000\/\.well-known\/oauth-protected-resource\/mcp", scope="mcp:read mcp:write"$/,
   );
   assert.equal(response.body.error.code, "authentication_required");
 });
@@ -74,7 +75,7 @@ await test("MCP dynamic registration accepts public PKCE clients and rejects uns
   );
 });
 
-await test("MCP exposes read-only workspace tools and keeps queries tenant scoped", async () => {
+await test("MCP exposes workspace and management tools and keeps queries tenant scoped", async () => {
   const calls: { text: string; values: unknown[] }[] = [];
   const execute = async <T extends QueryResultRow>(text: string, values: unknown[] = []) => {
     calls.push({ text, values });
@@ -111,9 +112,28 @@ await test("MCP exposes read-only workspace tools and keeps queries tenant scope
         "list_scopes",
         "list_authorization_traces",
         "get_authorization_trace",
+        "list_management_operations",
+        "management_api_read",
+        "management_api_write",
       ],
     );
-    assert.ok(tools.tools.every((tool) => tool.annotations?.readOnlyHint === true));
+    assert.ok(
+      tools.tools
+        .filter(({ name }) => name !== "management_api_write")
+        .every((tool) => tool.annotations?.readOnlyHint === true),
+    );
+    assert.equal(
+      tools.tools.find(({ name }) => name === "management_api_write")?.annotations?.destructiveHint,
+      true,
+    );
+    const operations = await client.callTool({
+      name: "list_management_operations",
+      arguments: {},
+    });
+    assert.match(JSON.stringify(operations), /Create an OAuth application or machine service/);
+    assert.match(JSON.stringify(operations), /DELETE/);
+    assert.match(JSON.stringify(operations), /\/settings\/danger\/workspace/);
+    assert.match(JSON.stringify(operations), /exact workspace name/);
 
     const result = await client.callTool({
       name: "list_applications",
@@ -136,6 +156,126 @@ await test("MCP exposes read-only workspace tools and keeps queries tenant scope
     });
     assert.deepEqual(calls[0]?.values, ["workspace-1", "production"]);
     assert.deepEqual(calls[1]?.values, ["environment-1", "Example", "", "", 10]);
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
+
+await test("MCP management tools dispatch supported reads and writes with the approving principal", async () => {
+  const dispatched: Array<{
+    principal: McpPrincipal;
+    request: {
+      method: string;
+      path: string;
+      environment?: string;
+      query?: Record<string, unknown>;
+      body?: Record<string, unknown>;
+    };
+  }> = [];
+  const server = createAuthometryMcpServer(
+    principal,
+    async <T extends QueryResultRow>() => [] as T[],
+    async (approvedPrincipal, managementRequest) => {
+      dispatched.push({ principal: approvedPrincipal as McpPrincipal, request: managementRequest });
+      return { status: managementRequest.method === "GET" ? 200 : 201, data: { id: "created-1" } };
+    },
+  );
+  const client = new Client({ name: "authometry-management-test", version: "1.0.0" });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  try {
+    const read = await client.callTool({
+      name: "management_api_read",
+      arguments: {
+        path: "/users",
+        environment: "staging",
+        query: { q: "alex" },
+      },
+    });
+    assert.equal(read.isError, undefined);
+    const write = await client.callTool({
+      name: "management_api_write",
+      arguments: {
+        method: "POST",
+        path: "/applications",
+        environment: "production",
+        body: {
+          name: "Worker service",
+          slug: "worker-service",
+          type: "machine",
+          redirectUris: [],
+        },
+      },
+    });
+    assert.equal(write.isError, undefined);
+    assert.deepEqual(dispatched, [
+      {
+        principal,
+        request: {
+          method: "GET",
+          path: "/users",
+          environment: "staging",
+          query: { q: "alex" },
+        },
+      },
+      {
+        principal,
+        request: {
+          method: "POST",
+          path: "/applications",
+          environment: "production",
+          body: {
+            name: "Worker service",
+            slug: "worker-service",
+            type: "machine",
+            redirectUris: [],
+          },
+        },
+      },
+    ]);
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
+
+await test("MCP management writes require mcp:write and reject routes outside the dashboard API", async () => {
+  let dispatchCount = 0;
+  const server = createAuthometryMcpServer(
+    { ...principal, scopes: ["mcp:read"] },
+    async <T extends QueryResultRow>() => [] as T[],
+    async () => {
+      dispatchCount += 1;
+      return {};
+    },
+  );
+  const client = new Client({ name: "authometry-read-only-test", version: "1.0.0" });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  try {
+    const write = await client.callTool({
+      name: "management_api_write",
+      arguments: { method: "POST", path: "/applications", body: {} },
+    });
+    assert.equal(write.isError, true);
+    assert.match(JSON.stringify(write), /mcp:write/);
+
+    const unsupported = await client.callTool({
+      name: "management_api_read",
+      arguments: { path: "/auth/bootstrap/status" },
+    });
+    assert.equal(unsupported.isError, true);
+    const traversal = await client.callTool({
+      name: "management_api_read",
+      arguments: { path: "/applications/%2e%2e" },
+    });
+    assert.equal(traversal.isError, true);
+    assert.equal(dispatchCount, 0);
   } finally {
     await client.close();
     await server.close();
@@ -180,7 +320,7 @@ await test("MCP serves stateless Streamable HTTP JSON responses", async () => {
     .set(headers)
     .send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })
     .expect(200);
-  assert.equal(listed.body.result.tools.length, 5);
+  assert.equal(listed.body.result.tools.length, 8);
 
   const called = await request(app)
     .post("/mcp")

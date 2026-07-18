@@ -83,7 +83,7 @@ function csrfCookieOptions() {
   };
 }
 
-function createCsrfToken(): string {
+export function createCsrfToken(): string {
   const nonce = randomToken(24);
   const signature = createHmac("sha256", env.CSRF_SECRET).update(nonce).digest("base64url");
   return `${nonce}.${signature}`;
@@ -984,6 +984,13 @@ async function seedSystemScopes(
       "Read OAuth configuration and redacted authorization traces through the Authometry MCP server.",
       "View applications, scopes, environments, and redacted authorization traces",
       "sensitive",
+    ],
+    [
+      "mcp:write",
+      "Manage Authometry with MCP",
+      "Create and change Authometry resources through the MCP server using the dashboard's management API controls.",
+      "Create, edit, rotate, revoke, and delete Authometry resources",
+      "restricted",
     ],
   ];
   for (const [name, displayName, description, consentDescription, sensitivity] of scopes) {

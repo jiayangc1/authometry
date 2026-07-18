@@ -708,6 +708,7 @@ tokenRouter.post(
     const clientId = randomId("amt_mcp_client", 18);
     const allowedScopes = [
       "mcp:read",
+      "mcp:write",
       ...(input.grant_types.includes("refresh_token") ? ["offline_access"] : []),
     ];
     await transaction(async (client) => {

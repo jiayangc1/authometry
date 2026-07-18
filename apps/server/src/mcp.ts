@@ -7,6 +7,16 @@ import { query } from "./db.js";
 import { env } from "./env.js";
 import { ApiError } from "./lib/http.js";
 import { verifyOAuthJwt } from "./lib/signing.js";
+import {
+  assertManagementOperation,
+  dispatchManagementRequest,
+  managementOperationInputs,
+  managementOperations,
+  managementQuerySchema,
+  mcpReadScope,
+  mcpWriteScope,
+  type ManagementDispatcher,
+} from "./mcp-management.js";
 import { findApplicationByClientId } from "./oauth/common.js";
 import {
   defaultEnvironment,
@@ -15,7 +25,7 @@ import {
 } from "./oauth/resources.js";
 
 const serverVersion = "0.1.1";
-const requiredScope = "mcp:read";
+const requestedScopes = `${mcpReadScope} ${mcpWriteScope}`;
 
 type Query = <T extends QueryResultRow>(text: string, values?: unknown[]) => Promise<T[]>;
 
@@ -24,6 +34,9 @@ export interface McpPrincipal {
   email: string;
   workspaceId: string;
   role: string;
+  scopes: string[];
+  sourceIp?: string;
+  userAgent?: string;
 }
 
 interface EnvironmentRow extends QueryResultRow {
@@ -70,7 +83,18 @@ const readOnlyAnnotations = {
   openWorldHint: false,
 };
 
-export function createAuthometryMcpServer(principal: McpPrincipal, execute: Query = query) {
+const writeAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: false,
+};
+
+export function createAuthometryMcpServer(
+  principal: McpPrincipal,
+  execute: Query = query,
+  dispatch: ManagementDispatcher = dispatchManagementRequest,
+) {
   const server = new McpServer({
     name: "authometry",
     title: "Authometry",
@@ -227,6 +251,104 @@ export function createAuthometryMcpServer(principal: McpPrincipal, execute: Quer
     },
   );
 
+  server.registerTool(
+    "list_management_operations",
+    {
+      title: "List management operations",
+      description:
+        "List every dashboard management API operation available through MCP, including the method, path template, purpose, and required MCP scope.",
+      annotations: readOnlyAnnotations,
+    },
+    async () =>
+      jsonResult({
+        data: managementOperations.map(({ method, path, purpose }) => ({
+          method,
+          path,
+          purpose,
+          requiredScope: method === "GET" ? mcpReadScope : mcpWriteScope,
+          input:
+            managementOperationInputs[`${method} ${path}`] ??
+            (method === "GET"
+              ? "No JSON body. Supply supported filters through query."
+              : "No JSON body."),
+        })),
+        total: managementOperations.length,
+      }),
+  );
+
+  server.registerTool(
+    "management_api_read",
+    {
+      title: "Read from the management API",
+      description:
+        "Call any MCP-enabled GET operation used by the Authometry dashboard. Use list_management_operations for supported paths and pass path parameters as concrete IDs.",
+      inputSchema: {
+        path: z
+          .string()
+          .trim()
+          .min(1)
+          .max(500)
+          .describe("Management path such as /users or /policies/{policy UUID}"),
+        environment: z.string().trim().min(1).optional().describe("Environment slug or UUID"),
+        query: managementQuerySchema.describe("Optional query parameters"),
+      },
+      annotations: readOnlyAnnotations,
+    },
+    async ({ path, environment, query: queryValues }) => {
+      assertManagementOperation("GET", path);
+      return jsonResult(
+        await dispatch(principal, {
+          method: "GET",
+          path,
+          ...(environment ? { environment } : {}),
+          ...(Object.keys(queryValues).length ? { query: queryValues } : {}),
+        }),
+      );
+    },
+  );
+
+  server.registerTool(
+    "management_api_write",
+    {
+      title: "Write through the management API",
+      description:
+        "Create, edit, revoke, rotate, verify, apply, or delete through any MCP-enabled Authometry dashboard operation. Use list_management_operations for paths. The same validation, optimistic version checks, role controls, tenant boundaries, audit logging, and one-time secret responses as the website apply. Requires mcp:write.",
+      inputSchema: {
+        method: z.enum(["POST", "PATCH", "DELETE"]),
+        path: z
+          .string()
+          .trim()
+          .min(1)
+          .max(500)
+          .describe("Management path such as /applications or /applications/{application UUID}"),
+        environment: z.string().trim().min(1).optional().describe("Environment slug or UUID"),
+        query: managementQuerySchema.describe("Optional query parameters"),
+        body: z
+          .record(z.string(), z.unknown())
+          .optional()
+          .describe("JSON request body required by the selected operation"),
+      },
+      annotations: writeAnnotations,
+    },
+    async ({ method, path, environment, query: queryValues, body }) => {
+      if (!principal.scopes.includes(mcpWriteScope)) {
+        throw new Error(
+          `This MCP connection does not have ${mcpWriteScope}. Reconnect and approve write access before changing Authometry.`,
+        );
+      }
+      assertManagementOperation(method, path);
+      return jsonResult(
+        await dispatch(principal, {
+          method,
+          path,
+          ...(environment ? { environment } : {}),
+          ...(Object.keys(queryValues).length ? { query: queryValues } : {}),
+          ...(body ? { body } : {}),
+        }),
+      );
+    },
+  );
+
   return server;
 }
 
@@ -240,7 +362,7 @@ function authenticateMcp(request: Request, response: Response, next: NextFunctio
   const challenge = (resource: string, error?: string) => {
     response.set(
       "WWW-Authenticate",
-      `Bearer realm="authometry-mcp", resource_metadata="${mcpResourceMetadataUrl(resource)}", scope="mcp:read"${error ? `, error="${error}"` : ""}`,
+      `Bearer realm="authometry-mcp", resource_metadata="${mcpResourceMetadataUrl(resource)}", scope="${requestedScopes}"${error ? `, error="${error}"` : ""}`,
     );
   };
   if (!bearer) {
@@ -268,13 +390,9 @@ function authenticateMcp(request: Request, response: Response, next: NextFunctio
       ) {
         throw new ApiError(401, "invalid_token", "The MCP access token is invalid.");
       }
-      if (!scopes.includes(requiredScope)) {
+      if (!scopes.includes(mcpReadScope)) {
         challenge(resource, "insufficient_scope");
-        throw new ApiError(
-          403,
-          "insufficient_scope",
-          `The access token requires ${requiredScope}.`,
-        );
+        throw new ApiError(403, "insufficient_scope", `The access token requires ${mcpReadScope}.`);
       }
       if (payload.jti) {
         const [revoked] = await query("SELECT jti FROM revoked_access_tokens WHERE jti = $1", [
@@ -304,11 +422,16 @@ function authenticateMcp(request: Request, response: Response, next: NextFunctio
       if (!admin || payload.workspace_id !== admin.workspace_id) {
         throw new ApiError(401, "invalid_token", "The Authometry admin is not active.");
       }
+      const sourceIp = request.ip;
+      const userAgent = request.get("user-agent");
       request.mcpPrincipal = {
         userId: admin.id,
         email: admin.email,
         workspaceId: admin.workspace_id,
         role: admin.role,
+        scopes,
+        ...(sourceIp ? { sourceIp } : {}),
+        ...(userAgent ? { userAgent } : {}),
       };
       next();
     } catch (error) {
