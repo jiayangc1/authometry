@@ -39,7 +39,7 @@ test.beforeAll(async ({ request }) => {
 
 test("landing and login surfaces are accessible", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "OAuth you can see." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Authometry" })).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
   await page.goto("/login");
