@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button, StatusBadge } from "@authometry/ui";
 import { inputClass } from "@/components/auth/auth-shell";
+import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { apiFetch } from "@/lib/api";
 
@@ -46,6 +47,16 @@ export default function DangerPage() {
     onError: (error) => toast.error(error.message),
   });
   const disabled = query.data?.environment_status === "disabled";
+  if (query.isLoading) return <PageSkeleton rows={3} />;
+  if (query.isError)
+    return (
+      <ErrorState
+        description="Authometry could not load environment controls. Check your connection, then retry."
+        headingLevel="h2"
+        onRetry={() => void query.refetch()}
+        title="Unable to Load Danger Zone"
+      />
+    );
   return (
     <div className="rounded-lg border border-[var(--danger-border)] px-5">
       <SettingsSection
@@ -53,13 +64,28 @@ export default function DangerPage() {
         footer={
           <Button
             disabled={status.isPending}
-            onClick={() => status.mutate(disabled ? "active" : "disabled")}
+            onClick={() => {
+              if (
+                disabled ||
+                window.confirm(
+                  "Disable this environment? New authorization and token issuance will stop.",
+                )
+              ) {
+                status.mutate(disabled ? "active" : "disabled");
+              }
+            }}
             variant={disabled ? "primary" : "danger"}
           >
-            {disabled ? "Enable environment" : "Disable environment"}
+            {status.isPending
+              ? disabled
+                ? "Enabling…"
+                : "Disabling…"
+              : disabled
+                ? "Enable Environment"
+                : "Disable Environment"}
           </Button>
         }
-        title="Environment status"
+        title="Environment Status"
       >
         <div className="flex items-center gap-2">
           <StatusBadge
@@ -79,18 +105,21 @@ export default function DangerPage() {
             onClick={() => remove.mutate()}
             variant="danger"
           >
-            Delete workspace
+            {remove.isPending ? "Deleting…" : "Delete Workspace"}
           </Button>
         }
-        title="Delete workspace"
+        title="Delete Workspace"
       >
         <label className="block">
           <span className="mb-1.5 block text-xs font-medium">
             Type <strong>{query.data?.workspace_name ?? "the workspace name"}</strong> to confirm
           </span>
           <input
+            autoComplete="off"
             className={inputClass}
+            name="workspaceConfirmation"
             onChange={(event) => setConfirmation(event.target.value)}
+            spellCheck={false}
             value={confirmation}
           />
         </label>

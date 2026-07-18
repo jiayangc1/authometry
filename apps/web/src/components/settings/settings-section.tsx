@@ -14,7 +14,7 @@ export function SettingsSection({
   return (
     <section className="grid gap-5 border-t border-[var(--border)] py-7 first:border-0 first:pt-0 lg:grid-cols-[240px_1fr]">
       <div>
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 className="text-sm font-semibold text-balance">{title}</h2>
         <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{description}</p>
       </div>
       <div>

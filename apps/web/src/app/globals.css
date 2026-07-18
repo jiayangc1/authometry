@@ -4,6 +4,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #18181b;
   --surface: #fafafa;
@@ -42,6 +43,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: #0a0a0a;
   --foreground: #ededed;
   --surface: #111111;
@@ -118,6 +120,16 @@ textarea {
 button,
 a {
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.scroll-anchor {
+  scroll-margin-top: 5rem;
+}
+
+.virtualized-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
 }
 
 .technical-value {

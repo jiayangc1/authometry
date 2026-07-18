@@ -8,6 +8,7 @@ import {
   Bot,
   Cable,
   Clock3,
+  LoaderCircle,
   MapPin,
   ServerCog,
   ShieldCheck,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button, StatusBadge } from "@authometry/ui";
 import { AuthorizationShell } from "@/components/auth/auth-shell";
+import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { apiFetch } from "@/lib/api";
 
 interface ConsentRequest {
@@ -52,16 +54,44 @@ export default function ConsentPage() {
     enabled: Boolean(requestId),
   });
   const [loading, setLoading] = useState(false);
+  const [decision, setDecision] = useState<"approve" | "deny">();
+  const [error, setError] = useState<string>();
   const isAgentRequest = Boolean(query.data?.agent);
   const isMcpRequest = Boolean(query.data?.mcp);
   async function decide(approved: boolean) {
     setLoading(true);
-    const result = await apiFetch<{ next: string }>("/api/v1/authorize/consent", {
-      method: "POST",
-      body: JSON.stringify({ requestId, approved }),
-    });
-    window.location.assign(result.next);
+    setDecision(approved ? "approve" : "deny");
+    setError(undefined);
+    try {
+      const result = await apiFetch<{ next: string }>("/api/v1/authorize/consent", {
+        method: "POST",
+        body: JSON.stringify({ requestId, approved }),
+      });
+      window.location.assign(result.next);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "The consent decision could not be saved.",
+      );
+      setLoading(false);
+      setDecision(undefined);
+    }
   }
+  if (query.isLoading)
+    return (
+      <AuthorizationShell>
+        <PageSkeleton rows={3} />
+      </AuthorizationShell>
+    );
+  if (!requestId || query.isError || !query.data)
+    return (
+      <AuthorizationShell>
+        <ErrorState
+          description="The authorization request is missing, expired, or unavailable. Return to the application and start again."
+          {...(requestId ? { onRetry: () => void query.refetch() } : {})}
+          title="Authorization Request Unavailable"
+        />
+      </AuthorizationShell>
+    );
   return (
     <AuthorizationShell>
       <div className="w-full">
@@ -252,20 +282,41 @@ export default function ConsentPage() {
         <div className="mt-7 grid grid-cols-2 gap-2.5">
           <Button
             className="h-10 rounded-full text-sm"
-            disabled={loading}
+            disabled={loading || !query.data}
             onClick={() => void decide(false)}
           >
-            Deny
+            {loading && decision === "deny" ? (
+              <>
+                <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> Denying…
+              </>
+            ) : (
+              "Deny"
+            )}
           </Button>
           <Button
             className="h-10 rounded-full text-sm"
-            disabled={loading}
+            disabled={loading || !query.data}
             onClick={() => void decide(true)}
             variant="primary"
           >
-            {isAgentRequest ? "Approve task" : isMcpRequest ? "Connect" : "Allow access"}
+            {loading && decision === "approve" ? (
+              <>
+                <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> Saving…
+              </>
+            ) : isAgentRequest ? (
+              "Approve Task"
+            ) : isMcpRequest ? (
+              "Connect"
+            ) : (
+              "Allow Access"
+            )}
           </Button>
         </div>
+        {error && (
+          <p className="mt-3 text-center text-xs text-[var(--danger)]" role="alert">
+            {error} Try again or return to the requesting application.
+          </p>
+        )}
       </div>
     </AuthorizationShell>
   );

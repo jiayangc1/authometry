@@ -4,8 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button, StatusBadge } from "@authometry/ui";
+import { Button, EmptyState, StatusBadge } from "@authometry/ui";
 import { inputClass } from "@/components/auth/auth-shell";
+import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { apiFetch } from "@/lib/api";
 
@@ -53,7 +54,7 @@ export default function MembersPage() {
   return (
     <SettingsSection
       description="Members can access workspace environments according to their assigned role."
-      title="Workspace members"
+      title="Workspace Members"
     >
       <div className="flex justify-end">
         <Button
@@ -61,11 +62,12 @@ export default function MembersPage() {
           onClick={() => setInviting((value) => !value)}
           title={providers.data?.smtp.enabled ? undefined : "Configure SMTP to invite members"}
         >
-          <UserPlus className="size-3.5" /> Invite member
+          <UserPlus aria-hidden="true" className="size-3.5" /> Invite Member
         </Button>
       </div>
       {inviting && (
         <form
+          autoComplete="off"
           className="grid gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 sm:grid-cols-2"
           onSubmit={(event) => {
             event.preventDefault();
@@ -79,11 +81,18 @@ export default function MembersPage() {
         >
           <label>
             <span className="mb-1.5 block text-xs font-medium">Name</span>
-            <input className={inputClass} name="name" required />
+            <input autoComplete="off" className={inputClass} name="name" required />
           </label>
           <label>
             <span className="mb-1.5 block text-xs font-medium">Email</span>
-            <input className={inputClass} name="email" required type="email" />
+            <input
+              autoComplete="email"
+              className={inputClass}
+              name="email"
+              required
+              spellCheck={false}
+              type="email"
+            />
           </label>
           <label>
             <span className="mb-1.5 block text-xs font-medium">Role</span>
@@ -96,42 +105,60 @@ export default function MembersPage() {
             </select>
           </label>
           <Button className="self-end" disabled={invite.isPending} type="submit" variant="primary">
-            Send invitation
+            {invite.isPending ? "Sending…" : "Send Invitation"}
           </Button>
         </form>
       )}
-      <div className="border-y border-[var(--border)]">
-        {query.data?.data.map((member) => (
-          <div
-            className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 last:border-0 sm:grid-cols-[1fr_220px]"
-            key={member.id}
-          >
-            <div>
-              <p className="text-[13px] font-medium">{member.name}</p>
-              <p className="text-xs text-[var(--text-secondary)]">{member.email}</p>
+      {query.isLoading ? (
+        <PageSkeleton rows={5} />
+      ) : query.isError ? (
+        <ErrorState
+          description="Authometry could not load workspace members. Check your connection, then retry."
+          headingLevel="h3"
+          onRetry={() => void query.refetch()}
+          title="Unable to Load Members"
+        />
+      ) : query.data?.data.length ? (
+        <div className="border-y border-[var(--border)]">
+          {query.data.data.map((member) => (
+            <div
+              className="virtualized-row grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 last:border-0 sm:grid-cols-[1fr_220px]"
+              key={member.id}
+            >
+              <div>
+                <p className="text-[13px] font-medium">{member.name}</p>
+                <p className="text-xs text-[var(--text-secondary)]">{member.email}</p>
+              </div>
+              {member.role === "owner" ? (
+                <StatusBadge label="Owner" tone="info" />
+              ) : (
+                <select
+                  aria-label={`Role for ${member.name}`}
+                  className="h-8 rounded border border-[var(--border)] bg-[var(--surface-raised)] px-2 text-xs text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:outline-none"
+                  disabled={update.isPending}
+                  onChange={(event) =>
+                    update.mutate({ id: member.id, role: event.target.value as Member["role"] })
+                  }
+                  value={member.role}
+                >
+                  {roles.map((role) => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
-            {member.role === "owner" ? (
-              <StatusBadge label="Owner" tone="info" />
-            ) : (
-              <select
-                aria-label={`Role for ${member.name}`}
-                className="h-8 rounded border border-[var(--border)] bg-[var(--surface-raised)] px-2 text-xs"
-                disabled={update.isPending}
-                onChange={(event) =>
-                  update.mutate({ id: member.id, role: event.target.value as Member["role"] })
-                }
-                value={member.role}
-              >
-                {roles.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          description="Invite a teammate to give them access to this workspace."
+          headingLevel="h3"
+          icon={UserPlus}
+          title="No Workspace Members"
+        />
+      )}
       <p className="text-xs text-[var(--text-tertiary)]">
         Invitations are single-use, expire after 24 hours, and require configured SMTP delivery.
       </p>

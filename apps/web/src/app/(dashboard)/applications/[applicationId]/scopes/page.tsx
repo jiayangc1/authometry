@@ -3,10 +3,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button, Checkbox, StatusBadge } from "@authometry/ui";
+import { Button, Checkbox, EmptyState, StatusBadge } from "@authometry/ui";
 import { useApplication } from "@/components/applications/application-context";
+import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { SectionHeader } from "@/components/layout/page";
 import { apiFetch } from "@/lib/api";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
 interface ScopeRow {
   id: string;
@@ -25,18 +27,30 @@ export default function ApplicationScopesPage() {
   });
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<string[]>();
+  const [saving, setSaving] = useState(false);
+  const values = selected ?? application?.allowed_scopes ?? [];
+  const dirty = Boolean(
+    editing &&
+    application &&
+    JSON.stringify([...values].sort()) !== JSON.stringify([...application.allowed_scopes].sort()),
+  );
+  useUnsavedChanges(dirty);
   if (!application) return null;
   const app = application;
-  const values = selected ?? app.allowed_scopes;
   async function save() {
-    await apiFetch(`/api/v1/applications/${app.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ allowedScopes: values, version: app.version }),
-    });
-    await refetch();
-    setEditing(false);
-    setSelected(undefined);
-    toast.success("Application scopes saved.");
+    setSaving(true);
+    try {
+      await apiFetch(`/api/v1/applications/${app.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ allowedScopes: values, version: app.version }),
+      });
+      await refetch();
+      setEditing(false);
+      setSelected(undefined);
+      toast.success("Application scopes saved.");
+    } finally {
+      setSaving(false);
+    }
   }
   return (
     <section>
@@ -44,56 +58,78 @@ export default function ApplicationScopesPage() {
         actions={
           <Button
             onClick={() => {
-              setSelected(application.allowed_scopes);
-              setEditing(!editing);
+              if (editing) {
+                setEditing(false);
+                setSelected(undefined);
+              } else {
+                setSelected([...application.allowed_scopes]);
+                setEditing(true);
+              }
             }}
           >
-            {editing ? "Cancel" : "Manage scopes"}
+            {editing ? "Cancel" : "Manage Scopes"}
           </Button>
         }
         description="Permissions this application may request during authorization."
-        title="Assigned scopes"
+        title="Assigned Scopes"
       />
-      <div className="border-y border-[var(--border)]">
-        {scopes.data?.data.map((scope) => {
-          const checked = values.includes(scope.name);
-          if (!editing && !checked) return null;
-          return (
-            <label
-              className="flex min-h-14 items-center gap-3 border-b border-[var(--border-subtle)] px-2 py-2.5 last:border-0"
-              key={scope.id}
-            >
-              {editing && (
-                <Checkbox
-                  checked={checked}
-                  disabled={scope.name === "openid"}
-                  onChange={(event) =>
-                    setSelected(
-                      event.target.checked
-                        ? [...values, scope.name]
-                        : values.filter((value) => value !== scope.name),
-                    )
-                  }
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <code className="technical-value font-medium">{scope.name}</code>
-                  {scope.name === "openid" && <StatusBadge label="Required" tone="info" />}
-                  {scope.sensitivity !== "standard" && (
-                    <StatusBadge label={scope.sensitivity} tone="warning" />
-                  )}
+      {scopes.isLoading ? (
+        <PageSkeleton rows={5} />
+      ) : scopes.isError ? (
+        <ErrorState
+          description="Authometry could not load available scopes. Check your connection, then retry."
+          headingLevel="h3"
+          onRetry={() => void scopes.refetch()}
+          title="Unable to Load Scopes"
+        />
+      ) : scopes.data?.data.some((scope) => editing || values.includes(scope.name)) ? (
+        <div className="border-y border-[var(--border)]">
+          {scopes.data.data.map((scope) => {
+            const checked = values.includes(scope.name);
+            if (!editing && !checked) return null;
+            return (
+              <label
+                className="flex min-h-14 items-center gap-3 border-b border-[var(--border-subtle)] px-2 py-2.5 last:border-0"
+                key={scope.id}
+              >
+                {editing && (
+                  <Checkbox
+                    checked={checked}
+                    disabled={scope.name === "openid"}
+                    onChange={(event) =>
+                      setSelected(
+                        event.target.checked
+                          ? [...values, scope.name]
+                          : values.filter((value) => value !== scope.name),
+                      )
+                    }
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <code className="technical-value font-medium">{scope.name}</code>
+                    {scope.name === "openid" && <StatusBadge label="Required" tone="info" />}
+                    {scope.sensitivity !== "standard" && (
+                      <StatusBadge label={scope.sensitivity} tone="warning" />
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-[var(--text-secondary)]">{scope.description}</p>
                 </div>
-                <p className="mt-0.5 text-xs text-[var(--text-secondary)]">{scope.description}</p>
-              </div>
-            </label>
-          );
-        })}
-      </div>
+              </label>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState
+          description="Choose Manage Scopes to assign permissions to this application."
+          headingLevel="h3"
+          title="No Assigned Scopes"
+        />
+      )}
       {editing && (
         <div className="mt-4 flex justify-end">
-          <Button onClick={() => void save()} variant="primary">
-            Save scopes
+          <Button disabled={!dirty || saving} onClick={() => void save()} variant="primary">
+            {saving ? "Saving…" : "Save Scopes"}
           </Button>
         </div>
       )}

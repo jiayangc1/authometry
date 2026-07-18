@@ -2,73 +2,82 @@ import Link from "next/link";
 import { ArrowRight, Github } from "lucide-react";
 import { AuthometryLogo, Button } from "@authometry/ui";
 import { LegalFooter } from "@/components/legal/legal-page";
+import { SkipLink } from "@/components/layout/skip-link";
 
 export default function LandingPage() {
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-[var(--background)]">
-      <header className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
+    <div className="relative min-h-dvh overflow-hidden bg-[var(--background)] pt-[env(safe-area-inset-top)]">
+      <SkipLink />
+      <header className="mx-auto flex h-16 max-w-6xl items-center justify-between pr-[max(1.25rem,env(safe-area-inset-right))] pl-[max(1.25rem,env(safe-area-inset-left))]">
         <AuthometryLogo />
         <nav className="flex items-center gap-1" aria-label="Primary">
           <Button asChild variant="ghost">
             <a href="https://github.com/jiayangc1/authometry" rel="noreferrer">
-              <Github className="size-4" /> GitHub
+              <Github aria-hidden="true" className="size-4" /> GitHub
             </a>
           </Button>
           <Button asChild>
-            <Link href="/login">Open dashboard</Link>
+            <Link href="/login">Open Dashboard</Link>
           </Button>
         </nav>
       </header>
-      <section className="mx-auto grid max-w-6xl items-center gap-16 px-5 py-20 lg:grid-cols-[0.82fr_1.18fr] lg:py-32">
-        <div>
-          <p className="mb-5 text-xs font-medium text-[var(--text-secondary)]">
-            Transparent OAuth 2.0 and OpenID Connect infrastructure
-          </p>
-          <h1 className="max-w-xl text-[48px] leading-[1.02] font-semibold tracking-[-0.055em] sm:text-[64px]">
-            Authometry
-          </h1>
-          <p className="mt-4 text-[24px] leading-8 font-medium tracking-[-0.025em]">
-            OAuth you can see.
-          </p>
-          <p className="mt-6 max-w-lg text-[15px] leading-6 text-[var(--text-secondary)]">
-            Authometry is an authorization server and administration dashboard that lets people
-            securely sign in to applications with email, Google, or GitHub. Developers use it to
-            register OAuth clients, issue OpenID Connect tokens, manage scopes and policies, and
-            inspect every authorization decision.
-          </p>
-          <div className="mt-8 flex items-center gap-2">
-            <Button asChild variant="primary">
-              <Link href="/login">
-                Open dashboard <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-            <Button asChild>
-              <a href="https://github.com/jiayangc1/authometry">View source</a>
-            </Button>
+      <main id="main-content" tabIndex={-1}>
+        <section className="mx-auto grid max-w-6xl items-center gap-16 py-20 pr-[max(1.25rem,env(safe-area-inset-right))] pl-[max(1.25rem,env(safe-area-inset-left))] lg:grid-cols-[0.82fr_1.18fr] lg:py-32">
+          <div>
+            <p className="mb-5 text-xs font-medium text-[var(--text-secondary)]">
+              Transparent OAuth 2.0 and OpenID Connect infrastructure
+            </p>
+            <h1 className="max-w-xl text-[48px] leading-[1.02] font-semibold tracking-[-0.055em] text-balance sm:text-[64px]">
+              Authometry
+            </h1>
+            <p className="mt-4 text-[24px] leading-8 font-medium tracking-[-0.025em]">
+              OAuth you can see.
+            </p>
+            <p className="mt-6 max-w-lg text-[15px] leading-6 text-[var(--text-secondary)]">
+              Authometry is an authorization server and administration dashboard that lets people
+              securely sign in to applications with email, Google, or GitHub. Developers use it to
+              register OAuth clients, issue OpenID Connect tokens, manage scopes and policies, and
+              inspect every authorization decision.
+            </p>
+            <div className="mt-8 flex items-center gap-2">
+              <Button asChild variant="primary">
+                <Link href="/login">
+                  Open Dashboard <ArrowRight aria-hidden="true" className="size-4" />
+                </Link>
+              </Button>
+              <Button asChild>
+                <a href="https://github.com/jiayangc1/authometry" rel="noreferrer">
+                  View Source
+                </a>
+              </Button>
+            </div>
           </div>
-        </div>
-        <TraceThesis />
-      </section>
-      <section
-        aria-labelledby="authometry-purpose"
-        className="mx-auto max-w-6xl border-t border-[var(--border)] px-5 py-16"
-      >
-        <div className="max-w-3xl">
-          <p className="text-xs font-medium text-[var(--text-secondary)]">Application purpose</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.035em]" id="authometry-purpose">
-            What Authometry does
-          </h2>
-          <p className="mt-4 text-[15px] leading-7 text-[var(--text-secondary)]">
-            Authometry provides authentication and authorization infrastructure for web
-            applications. It verifies user identities, issues OAuth 2.0 and OpenID Connect tokens,
-            enforces application access policies, and gives administrators a clear audit trail of
-            sign-in and consent decisions. Google and GitHub profile information is used only to
-            authenticate the user and identify their Authometry account.
-          </p>
-        </div>
-      </section>
+          <TraceThesis />
+        </section>
+        <section
+          aria-labelledby="authometry-purpose"
+          className="mx-auto max-w-6xl border-t border-[var(--border)] pt-16 pr-[max(1.25rem,env(safe-area-inset-right))] pb-16 pl-[max(1.25rem,env(safe-area-inset-left))]"
+        >
+          <div className="max-w-3xl">
+            <p className="text-xs font-medium text-[var(--text-secondary)]">Application purpose</p>
+            <h2
+              className="scroll-anchor mt-3 text-3xl font-semibold tracking-[-0.035em] text-balance"
+              id="authometry-purpose"
+            >
+              What Authometry Does
+            </h2>
+            <p className="mt-4 text-[15px] leading-7 text-[var(--text-secondary)]">
+              Authometry provides authentication and authorization infrastructure for web
+              applications. It verifies user identities, issues OAuth 2.0 and OpenID Connect tokens,
+              enforces application access policies, and gives administrators a clear audit trail of
+              sign-in and consent decisions. Google and GitHub profile information is used only to
+              authenticate the user and identify their Authometry account.
+            </p>
+          </div>
+        </section>
+      </main>
       <LegalFooter />
-    </main>
+    </div>
   );
 }
 

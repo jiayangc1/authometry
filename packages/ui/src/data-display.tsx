@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from "react";
+import type { AriaAttributes, ComponentType, ReactNode } from "react";
 import { AlertTriangle, Check, CircleDashed, CircleX, Info } from "lucide-react";
 import { cn } from "./utils";
 
@@ -12,7 +12,12 @@ const statusStyles: Record<StatusTone, string> = {
   neutral: "border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-secondary)]",
 };
 
-const statusIcons: Record<StatusTone, ComponentType<{ className?: string }>> = {
+type DecorativeIcon = ComponentType<{
+  className?: string;
+  "aria-hidden"?: AriaAttributes["aria-hidden"];
+}>;
+
+const statusIcons: Record<StatusTone, DecorativeIcon> = {
   success: Check,
   danger: CircleX,
   warning: AlertTriangle,
@@ -29,7 +34,7 @@ export function StatusBadge({ label, tone = "neutral" }: { label: string; tone?:
         statusStyles[tone],
       )}
     >
-      <Icon className="size-3" />
+      <Icon aria-hidden="true" className="size-3" />
       {label}
     </span>
   );
@@ -37,21 +42,25 @@ export function StatusBadge({ label, tone = "neutral" }: { label: string; tone?:
 
 export function EmptyState({
   description,
+  headingLevel = "h2",
   icon: Icon = CircleDashed,
   primaryAction,
   secondaryAction,
   title,
 }: {
-  icon?: ComponentType<{ className?: string }>;
+  icon?: DecorativeIcon;
   title: string;
   description: string;
+  headingLevel?: "h2" | "h3";
   primaryAction?: ReactNode;
   secondaryAction?: ReactNode;
 }) {
+  const Heading = headingLevel;
+
   return (
     <div className="flex min-h-64 flex-col items-center justify-center border-y border-[var(--border-subtle)] px-6 py-12 text-center">
-      <Icon className="mb-4 size-6 text-[var(--text-tertiary)]" />
-      <h3 className="text-sm font-semibold">{title}</h3>
+      <Icon aria-hidden="true" className="mb-4 size-6 text-[var(--text-tertiary)]" />
+      <Heading className="text-sm font-semibold text-balance">{title}</Heading>
       <p className="mt-1 max-w-md text-[13px] leading-5 text-[var(--text-secondary)]">
         {description}
       </p>

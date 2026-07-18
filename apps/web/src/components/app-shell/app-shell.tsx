@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, ChevronDown, Menu, MessageSquareText, Moon, Search, Sun, X } from "lucide-react";
+import { ChevronDown, Menu, MessageSquareText, Moon, Search, Sun, X } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { AuthometryLogo, Button, cn } from "@authometry/ui";
 import { navigation, utilityNavigation } from "@/config/navigation";
 import { apiFetch } from "@/lib/api";
+import { SkipLink } from "@/components/layout/skip-link";
 import { CommandMenu } from "./command-menu";
 
 interface MeResponse {
@@ -124,6 +125,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     onClick={() => setMobileOpen(false)}
                   >
                     <Icon
+                      aria-hidden="true"
                       className={cn("size-4", selected && "text-[var(--accent)]")}
                       strokeWidth={1.75}
                     />
@@ -140,7 +142,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           const Icon = item.icon;
           const content = (
             <>
-              <Icon className="size-4" strokeWidth={1.75} /> {item.label}
+              <Icon aria-hidden="true" className="size-4" strokeWidth={1.75} /> {item.label}
             </>
           );
           const className =
@@ -168,13 +170,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="h-dvh overflow-hidden bg-[var(--background)]">
-      <a
-        className="fixed top-2 left-2 z-[100] -translate-y-16 rounded bg-[var(--foreground)] px-3 py-2 text-xs text-[var(--background)] focus:translate-y-0"
-        href="#main-content"
-      >
-        Skip to content
-      </a>
-      <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b border-[var(--border)] bg-[var(--background)] px-3 sm:px-4">
+      <SkipLink />
+      <header className="fixed inset-x-0 top-0 z-40 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center border-b border-[var(--border)] bg-[var(--background)] px-[max(.75rem,env(safe-area-inset-left))] pt-[env(safe-area-inset-top)] pr-[max(.75rem,env(safe-area-inset-right))] sm:px-4">
         <div className="flex w-full min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <Button
@@ -184,7 +181,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               size="icon"
               variant="ghost"
             >
-              <Menu className="size-4" />
+              <Menu aria-hidden="true" className="size-4" />
             </Button>
             <Link
               className="mr-2 shrink-0 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
@@ -204,7 +201,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     {me?.workspaces.find(({ id }) => id === me.activeWorkspaceId)?.name ??
                       "Workspace"}
                   </span>
-                  <ChevronDown className="size-3" />
+                  <ChevronDown aria-hidden="true" className="size-3" />
                 </Button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
@@ -249,7 +246,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     )}
                   />
                   {selectedEnvironment?.name ?? "Environment"}
-                  <ChevronDown className="size-3" />
+                  <ChevronDown aria-hidden="true" className="size-3" />
                 </Button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
@@ -280,17 +277,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               onClick={() => setCommandOpen(true)}
               variant="ghost"
             >
-              <Search className="size-4" />
+              <Search aria-hidden="true" className="size-4" />
               <span className="text-xs">Search</span>
               <kbd className="ml-2 rounded border border-[var(--border)] px-1.5 font-sans text-[10px] text-[var(--text-tertiary)]">
-                ⌘ K
+                {"⌘\u00a0K"}
               </kbd>
             </Button>
-            <Button aria-label="Send feedback" size="icon" variant="ghost">
-              <MessageSquareText className="size-4" />
-            </Button>
-            <Button aria-label="Notifications" size="icon" variant="ghost">
-              <Bell className="size-4" />
+            <Button asChild size="icon" variant="ghost">
+              <a
+                aria-label="Send feedback"
+                href="mailto:auth@cams.ch3n.cc?subject=Authometry%20feedback"
+              >
+                <MessageSquareText aria-hidden="true" className="size-4" />
+              </a>
             </Button>
             <Button
               aria-label="Toggle theme"
@@ -298,7 +297,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               size="icon"
               variant="ghost"
             >
-              {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+              {resolvedTheme === "dark" ? (
+                <Sun aria-hidden="true" className="size-4" />
+              ) : (
+                <Moon aria-hidden="true" className="size-4" />
+              )}
             </Button>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
@@ -345,7 +348,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <aside className="fixed top-14 bottom-0 left-0 hidden w-[232px] border-r border-[var(--border)] lg:block">
+      <aside className="fixed top-[calc(3.5rem+env(safe-area-inset-top))] bottom-0 left-0 hidden w-[232px] border-r border-[var(--border)] lg:block">
         {sidebar}
       </aside>
       <Dialog.Root onOpenChange={setMobileOpen} open={mobileOpen}>
@@ -353,14 +356,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Dialog.Overlay className="fixed inset-0 z-50 bg-black/30" />
           <Dialog.Content
             aria-describedby={undefined}
-            className="fixed inset-y-0 left-0 z-50 w-[280px] border-r border-[var(--border)] bg-[var(--surface)] shadow-xl"
+            className="fixed inset-y-0 left-0 z-50 w-[calc(280px+env(safe-area-inset-left))] overscroll-contain border-r border-[var(--border)] bg-[var(--surface)] pl-[env(safe-area-inset-left)] shadow-xl"
           >
             <Dialog.Title className="sr-only">Navigation</Dialog.Title>
             <div className="flex h-14 items-center justify-between border-b border-[var(--border)] px-4">
               <AuthometryLogo />
               <Dialog.Close asChild>
                 <Button aria-label="Close navigation" size="icon" variant="ghost">
-                  <X className="size-4" />
+                  <X aria-hidden="true" className="size-4" />
                 </Button>
               </Dialog.Close>
             </div>
@@ -369,7 +372,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Dialog.Portal>
       </Dialog.Root>
       <main
-        className="h-[calc(100dvh-56px)] overflow-y-auto pt-14 lg:ml-[232px]"
+        className="h-dvh overflow-y-auto pt-[calc(3.5rem+env(safe-area-inset-top))] lg:ml-[232px] lg:pt-0"
         id="main-content"
         tabIndex={-1}
       >

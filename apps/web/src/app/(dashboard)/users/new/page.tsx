@@ -7,10 +7,13 @@ import { Button } from "@authometry/ui";
 import { inputClass } from "@/components/auth/auth-shell";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
 import { apiFetch } from "@/lib/api";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
 export default function NewUserPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  useUnsavedChanges(dirty && !loading);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
@@ -44,9 +47,9 @@ export default function NewUserPage() {
     <PageContainer size="settings">
       <PageHeader
         description="Create a local identity with a one-time initial password."
-        title="Add user"
+        title="Add User"
       />
-      <form className="space-y-7" onSubmit={submit}>
+      <form className="space-y-7" onChange={() => setDirty(true)} onSubmit={submit}>
         <section>
           <SectionHeader title="Identity" />
           <div className="grid gap-4">
@@ -61,6 +64,7 @@ export default function NewUserPage() {
                 className={inputClass}
                 name="email"
                 required
+                spellCheck={false}
                 type="email"
               />
             </label>
@@ -80,7 +84,12 @@ export default function NewUserPage() {
             </label>
             <label>
               <span className="mb-1.5 block text-xs font-medium">Groups</span>
-              <input className={inputClass} name="groups" placeholder="engineering, admin" />
+              <input
+                autoComplete="off"
+                className={inputClass}
+                name="groups"
+                placeholder="engineering, admin…"
+              />
             </label>
           </div>
         </section>
@@ -89,7 +98,7 @@ export default function NewUserPage() {
             Cancel
           </Button>
           <Button disabled={loading} type="submit" variant="primary">
-            {loading ? "Creating…" : "Create user"}
+            {loading ? "Creating…" : "Create User"}
           </Button>
         </div>
       </form>

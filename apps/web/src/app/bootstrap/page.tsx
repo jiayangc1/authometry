@@ -48,7 +48,7 @@ export default function BootstrapPage() {
     <AuthShell>
       <div className="w-full">
         <AuthHeading
-          title="Set up Authometry"
+          title="Set Up Authometry"
           description="Create the first owner and workspace for this installation."
         />
         <form className="space-y-4" method="post" onSubmit={submit}>
@@ -58,11 +58,24 @@ export default function BootstrapPage() {
           </label>
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium">Email address</span>
-            <input autoComplete="email" className={inputClass} name="email" required type="email" />
+            <input
+              autoComplete="email"
+              className={inputClass}
+              name="email"
+              required
+              spellCheck={false}
+              type="email"
+            />
           </label>
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium">Workspace name</span>
-            <input className={inputClass} defaultValue="Acme" name="workspaceName" required />
+            <input
+              autoComplete="off"
+              className={inputClass}
+              defaultValue="Acme"
+              name="workspaceName"
+              required
+            />
           </label>
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium">Password</span>
@@ -89,7 +102,7 @@ export default function BootstrapPage() {
             type="submit"
             variant="primary"
           >
-            {loading ? "Creating workspace…" : "Create workspace"}
+            {loading ? "Creating Workspace…" : "Create Workspace"}
           </Button>
         </form>
       </div>

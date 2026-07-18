@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Github } from "lucide-react";
+import { Github, LoaderCircle } from "lucide-react";
 import { Button, GoogleIcon } from "@authometry/ui";
 import { AuthorizationShell, inputClass } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
@@ -53,7 +53,9 @@ export default function AuthorizationLoginPage() {
     <AuthorizationShell>
       <div className="w-full">
         <header className="mb-8 text-center">
-          <h1 className="text-[28px] leading-9 font-medium tracking-[-0.035em]">Sign in</h1>
+          <h1 className="text-[28px] leading-9 font-medium tracking-[-0.035em] text-balance">
+            Sign In
+          </h1>
           <p className="mt-2 text-sm text-[var(--text-secondary)]">
             {linkToken ? (
               <>Confirm your password to link {linkProvider}</>
@@ -119,6 +121,7 @@ export default function AuthorizationLoginPage() {
               className={`${inputClass} h-11 rounded-lg`}
               name="email"
               required
+              spellCheck={false}
               type="email"
             />
           </label>
@@ -143,7 +146,15 @@ export default function AuthorizationLoginPage() {
             type="submit"
             variant="primary"
           >
-            {loading ? "Signing in…" : linkToken ? `Link ${linkProvider} and continue` : "Continue"}
+            {loading ? (
+              <>
+                <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> Signing in…
+              </>
+            ) : linkToken ? (
+              `Link ${linkProvider} & Continue`
+            ) : (
+              "Sign In & Continue"
+            )}
           </Button>
         </form>
       </div>

@@ -16,11 +16,11 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useDeferredValue, type ComponentType } from "react";
 import { Button, EmptyState, StatusBadge } from "@authometry/ui";
+import { RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { SearchInput, selectClass } from "@/components/data-display/search-input";
 import { PageContainer, PageHeader } from "@/components/layout/page";
 import { apiFetch } from "@/lib/api";
-import { relativeTime } from "@/lib/format";
 
 interface ApplicationRow {
   id: string;
@@ -67,7 +67,8 @@ export default function ApplicationsPage() {
     const next = new URLSearchParams(parameters);
     if (value) next.set(key, value);
     else next.delete(key);
-    router.replace(`${pathname}?${next.toString()}`);
+    const queryString = next.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname);
   }
   return (
     <PageContainer>
@@ -75,13 +76,13 @@ export default function ApplicationsPage() {
         actions={
           <>
             <Button asChild>
-              <a href="/docs/applications">
-                <BookOpen className="size-3.5" /> Documentation
-              </a>
+              <Link href="/docs/applications">
+                <BookOpen aria-hidden="true" className="size-3.5" /> Documentation
+              </Link>
             </Button>
             <Button asChild variant="primary">
               <Link href="/applications/new">
-                <Plus className="size-3.5" /> Add application
+                <Plus aria-hidden="true" className="size-3.5" /> Add Application
               </Link>
             </Button>
           </>
@@ -95,11 +96,12 @@ export default function ApplicationsPage() {
           defaultValue={query}
           key={query}
           onChange={(event) => update("q", event.target.value)}
-          placeholder="Search applications"
+          placeholder="Search applications…"
         />
         <select
           aria-label="Application type"
           className={selectClass}
+          name="type"
           onChange={(event) => update("type", event.target.value)}
           value={type}
         >
@@ -113,6 +115,7 @@ export default function ApplicationsPage() {
         <select
           aria-label="Status"
           className={selectClass}
+          name="status"
           onChange={(event) => update("status", event.target.value)}
           value={status}
         >
@@ -125,9 +128,10 @@ export default function ApplicationsPage() {
         <PageSkeleton rows={6} />
       ) : applications.isError ? (
         <ErrorState
-          title="Unable to load applications"
           description="Authometry could not reach the API. Check the connection and try again."
+          headingLevel="h2"
           onRetry={() => void applications.refetch()}
+          title="Unable to Load Applications"
         />
       ) : applications.data?.data.length ? (
         <div className="border-y border-[var(--border)]">
@@ -135,12 +139,12 @@ export default function ApplicationsPage() {
             const Icon = typeIcons[application.type];
             return (
               <Link
-                className="group grid min-h-[76px] grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 py-3 transition-colors last:border-0 hover:bg-[var(--surface-hover)] sm:grid-cols-[36px_minmax(180px,1fr)_minmax(180px,1fr)_150px_130px_20px]"
+                className="virtualized-row group grid min-h-[76px] grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 py-3 transition-colors last:border-0 hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:outline-none focus-visible:ring-inset sm:grid-cols-[36px_minmax(180px,1fr)_minmax(180px,1fr)_150px_130px_20px]"
                 href={`/applications/${application.id}`}
                 key={application.id}
               >
                 <span className="flex size-9 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-raised)]">
-                  <Icon className="size-4 text-[var(--text-secondary)]" />
+                  <Icon aria-hidden="true" className="size-4 text-[var(--text-secondary)]" />
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-[13px] font-medium">{application.name}</p>
@@ -166,9 +170,16 @@ export default function ApplicationsPage() {
                   )}
                 </div>
                 <p className="hidden text-xs text-[var(--text-tertiary)] sm:block">
-                  {application.last_used_at ? relativeTime(application.last_used_at) : "Never used"}
+                  {application.last_used_at ? (
+                    <RelativeTime value={application.last_used_at} />
+                  ) : (
+                    "Never used"
+                  )}
                 </p>
-                <ArrowRight className="size-3.5 text-[var(--text-tertiary)] opacity-0 transition-opacity group-hover:opacity-100" />
+                <ArrowRight
+                  aria-hidden="true"
+                  className="size-3.5 text-[var(--text-tertiary)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                />
               </Link>
             );
           })}
@@ -183,19 +194,19 @@ export default function ApplicationsPage() {
           icon={query ? Boxes : AppWindow}
           primaryAction={
             <Button asChild variant="primary">
-              <Link href="/applications/new">Add application</Link>
+              <Link href="/applications/new">Add Application</Link>
             </Button>
           }
           secondaryAction={
             query ? (
-              <Button onClick={() => update("q", "")}>Clear filters</Button>
+              <Button onClick={() => update("q", "")}>Clear Filters</Button>
             ) : (
               <Button asChild>
-                <a href="/docs/applications">Read the application guide</a>
+                <Link href="/docs/applications">Read the Application Guide</Link>
               </Button>
             )
           }
-          title={query ? "No search results" : "Create your first application"}
+          title={query ? "No Search Results" : "Create Your First Application"}
         />
       )}
     </PageContainer>
