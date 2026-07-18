@@ -44,7 +44,9 @@ export function PageHeader({
     <header className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
       <div className="min-w-0">
         {eyebrow && <div className="mb-2 text-xs text-[var(--text-secondary)]">{eyebrow}</div>}
-        <h1 className="text-2xl leading-8 font-semibold tracking-[-0.035em]">{title}</h1>
+        <h1 className="text-2xl leading-8 font-semibold tracking-[-0.035em] text-balance break-words">
+          {title}
+        </h1>
         {description && (
           <p className="mt-1 max-w-3xl text-sm leading-[22px] text-[var(--text-secondary)]">
             {description}
@@ -68,7 +70,7 @@ export function SectionHeader({
   return (
     <div className="mb-4 flex items-start justify-between gap-4">
       <div>
-        <h2 className="text-base leading-6 font-semibold">{title}</h2>
+        <h2 className="text-base leading-6 font-semibold text-balance">{title}</h2>
         {description && (
           <p className="mt-0.5 text-[13px] text-[var(--text-secondary)]">{description}</p>
         )}

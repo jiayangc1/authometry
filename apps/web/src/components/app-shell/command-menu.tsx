@@ -13,8 +13,9 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@authometry/ui";
 import { apiFetch } from "@/lib/api";
 
@@ -26,6 +27,7 @@ export function CommandMenu({
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const { data } = useQuery({
     queryKey: ["command-search", search],
@@ -51,26 +53,34 @@ export function CommandMenu({
         <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-[1px]" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed top-[15vh] left-1/2 z-[60] w-[calc(100%-24px)] max-w-xl -translate-x-1/2 overflow-hidden rounded-[10px] border border-[var(--border-strong)] bg-[var(--surface-raised)] shadow-[0_24px_70px_rgba(0,0,0,0.18)]"
+          className="fixed top-[15vh] left-1/2 z-[60] w-[calc(100%-24px)] max-w-xl -translate-x-1/2 overflow-hidden overscroll-contain rounded-[10px] border border-[var(--border-strong)] bg-[var(--surface-raised)] shadow-[0_24px_70px_rgba(0,0,0,0.18)]"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            if (window.matchMedia("(min-width: 768px)").matches) inputRef.current?.focus();
+          }}
         >
           <Dialog.Title className="sr-only">Search Authometry</Dialog.Title>
           <Command loop shouldFilter>
-            <div className="flex h-12 items-center gap-3 border-b border-[var(--border)] px-4">
-              <Search className="size-4 text-[var(--text-tertiary)]" />
+            <div className="flex h-12 items-center gap-3 border-b border-[var(--border)] px-4 focus-within:ring-2 focus-within:ring-[var(--focus)] focus-within:ring-inset">
+              <Search aria-hidden="true" className="size-4 text-[var(--text-tertiary)]" />
               <Command.Input
-                autoFocus
+                aria-label="Search applications, traces, and navigation"
+                autoComplete="off"
                 className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--text-tertiary)]"
+                name="command-search"
                 onValueChange={setSearch}
                 placeholder="Search applications, traces, and navigation…"
+                ref={inputRef}
+                spellCheck={false}
                 value={search}
               />
               <Dialog.Close asChild>
                 <Button aria-label="Close search" size="icon" variant="ghost">
-                  <X className="size-4" />
+                  <X aria-hidden="true" className="size-4" />
                 </Button>
               </Dialog.Close>
             </div>
-            <Command.List className="max-h-[420px] scrollbar-thin overflow-y-auto p-2">
+            <Command.List className="max-h-[420px] scrollbar-thin overflow-y-auto overscroll-contain p-2">
               <Command.Empty className="px-3 py-10 text-center text-[13px] text-[var(--text-secondary)]">
                 No results found.
               </Command.Empty>
@@ -80,13 +90,23 @@ export function CommandMenu({
               >
                 {destinations.map(([label, href, Icon]) => (
                   <Command.Item
-                    className="flex cursor-default items-center gap-3 rounded-md px-2 py-2 text-[13px] aria-selected:bg-[var(--surface-hover)]"
+                    className="cursor-default rounded-md text-[13px] aria-selected:bg-[var(--surface-hover)]"
                     key={String(href)}
                     onSelect={() => go(String(href))}
                     value={String(label)}
                   >
-                    <Icon className="size-4 text-[var(--text-secondary)]" /> {String(label)}
-                    <ArrowRight className="ml-auto size-3 text-[var(--text-tertiary)]" />
+                    <Link
+                      className="flex w-full items-center gap-3 px-2 py-2"
+                      href={String(href)}
+                      onClick={() => onOpenChange(false)}
+                    >
+                      <Icon aria-hidden="true" className="size-4 text-[var(--text-secondary)]" />{" "}
+                      {String(label)}
+                      <ArrowRight
+                        aria-hidden="true"
+                        className="ml-auto size-3 text-[var(--text-tertiary)]"
+                      />
+                    </Link>
                   </Command.Item>
                 ))}
               </Command.Group>
@@ -97,7 +117,7 @@ export function CommandMenu({
                 >
                   {data.data.map((result) => (
                     <Command.Item
-                      className="flex cursor-default items-center gap-3 rounded-md px-2 py-2 text-[13px] aria-selected:bg-[var(--surface-hover)]"
+                      className="cursor-default rounded-md text-[13px] aria-selected:bg-[var(--surface-hover)]"
                       key={result.id}
                       onSelect={() =>
                         go(
@@ -108,17 +128,27 @@ export function CommandMenu({
                       }
                       value={`${result.name} ${result.slug}`}
                     >
-                      {result.type === "application" ? (
-                        <AppWindow className="size-4" />
-                      ) : (
-                        <ListTree className="size-4" />
-                      )}
-                      <span>
-                        <span className="block">{result.name}</span>
-                        <span className="technical-value block text-[var(--text-tertiary)]">
-                          {result.slug}
+                      <Link
+                        className="flex w-full min-w-0 items-center gap-3 px-2 py-2"
+                        href={
+                          result.type === "application"
+                            ? `/applications/${result.id}`
+                            : `/traces/${result.id}`
+                        }
+                        onClick={() => onOpenChange(false)}
+                      >
+                        {result.type === "application" ? (
+                          <AppWindow aria-hidden="true" className="size-4 shrink-0" />
+                        ) : (
+                          <ListTree aria-hidden="true" className="size-4 shrink-0" />
+                        )}
+                        <span className="min-w-0">
+                          <span className="block truncate">{result.name}</span>
+                          <span className="technical-value block truncate text-[var(--text-tertiary)]">
+                            {result.slug}
+                          </span>
                         </span>
-                      </span>
+                      </Link>
                     </Command.Item>
                   ))}
                 </Command.Group>

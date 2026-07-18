@@ -34,6 +34,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                   "bg-[var(--surface-hover)] font-medium text-[var(--text-primary)]",
               )}
               href={href!}
+              aria-current={pathname === href ? "page" : undefined}
               key={href}
             >
               {label}

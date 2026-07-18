@@ -117,13 +117,13 @@ export function TraceTimeline({ steps }: { steps: TraceStep[] }) {
           <Dialog.Overlay className="fixed inset-0 z-50 bg-black/30 lg:hidden" />
           <Dialog.Content
             aria-describedby={undefined}
-            className="fixed right-0 bottom-0 left-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-[10px] border border-[var(--border)] bg-[var(--surface-raised)] p-4 shadow-2xl lg:hidden"
+            className="fixed right-0 bottom-0 left-0 z-50 max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-[10px] border border-[var(--border)] bg-[var(--surface-raised)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl lg:hidden"
           >
             <div className="mb-3 flex items-center justify-between">
               <Dialog.Title className="text-sm font-semibold">Step details</Dialog.Title>
               <Dialog.Close asChild>
                 <Button aria-label="Close details" size="icon" variant="ghost">
-                  <X className="size-4" />
+                  <X aria-hidden="true" className="size-4" />
                 </Button>
               </Dialog.Close>
             </div>

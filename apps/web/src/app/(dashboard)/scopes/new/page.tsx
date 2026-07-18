@@ -7,10 +7,13 @@ import { Button } from "@authometry/ui";
 import { inputClass } from "@/components/auth/auth-shell";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
 import { apiFetch } from "@/lib/api";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
 export default function NewScopePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  useUnsavedChanges(dirty && !loading);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
@@ -35,8 +38,13 @@ export default function NewScopePage() {
   }
   return (
     <PageContainer size="settings">
-      <PageHeader description="Create a permission applications can request." title="New scope" />
-      <form className="space-y-7" onSubmit={submit}>
+      <PageHeader description="Create a permission applications can request." title="New Scope" />
+      <form
+        autoComplete="off"
+        className="space-y-7"
+        onChange={() => setDirty(true)}
+        onSubmit={submit}
+      >
         <section>
           <SectionHeader
             description="Scope values are stable protocol identifiers and cannot be renamed."
@@ -46,27 +54,42 @@ export default function NewScopePage() {
             <label>
               <span className="mb-1.5 block text-xs font-medium">Scope value</span>
               <input
+                autoComplete="off"
                 className={`${inputClass} technical-value`}
                 name="name"
                 pattern="[a-zA-Z0-9._:-]+"
-                placeholder="orders:read"
+                placeholder="orders:read…"
                 required
+                spellCheck={false}
               />
             </label>
             <label>
               <span className="mb-1.5 block text-xs font-medium">Display name</span>
-              <input className={inputClass} name="displayName" placeholder="Read orders" required />
+              <input
+                autoComplete="off"
+                className={inputClass}
+                name="displayName"
+                placeholder="Read orders…"
+                required
+              />
             </label>
             <label>
               <span className="mb-1.5 block text-xs font-medium">Description</span>
-              <textarea className={inputClass} name="description" required rows={3} />
+              <textarea
+                autoComplete="off"
+                className={inputClass}
+                name="description"
+                required
+                rows={3}
+              />
             </label>
             <label>
               <span className="mb-1.5 block text-xs font-medium">Consent description</span>
               <input
                 className={inputClass}
+                autoComplete="off"
                 name="consentDescription"
-                placeholder="View your orders"
+                placeholder="View your orders…"
                 required
               />
             </label>
@@ -85,7 +108,7 @@ export default function NewScopePage() {
             Cancel
           </Button>
           <Button disabled={loading} type="submit" variant="primary">
-            {loading ? "Creating…" : "Create scope"}
+            {loading ? "Creating…" : "Create Scope"}
           </Button>
         </div>
       </form>

@@ -4,10 +4,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Bot, Stamp, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button, EmptyState, StatusBadge } from "@authometry/ui";
+import { RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader } from "@/components/layout/page";
 import { apiFetch } from "@/lib/api";
-import { relativeTime } from "@/lib/format";
 
 interface GrantRow {
   id: string;
@@ -33,6 +33,9 @@ export default function AgentGrantsPage() {
   });
 
   async function revoke(grant: GrantRow) {
+    if (!window.confirm(`Revoke the ${grant.agent_name} grant? This action cannot be undone.`)) {
+      return;
+    }
     await apiFetch(`/api/v1/agent-grants/${grant.id}/revoke`, {
       method: "POST",
       body: JSON.stringify({ reason: "dashboard_revocation" }),
@@ -45,21 +48,22 @@ export default function AgentGrantsPage() {
     <PageContainer>
       <PageHeader
         description="Every row is a task authorization—not a login session. Subject, actor, resource, purpose, limits, and lifetime remain independently visible."
-        title="Agent grants"
+        title="Agent Grants"
       />
       {grants.isLoading ? (
         <PageSkeleton rows={7} />
       ) : grants.isError ? (
         <ErrorState
-          description="Authometry could not load agent authorization grants."
+          description="Authometry could not load agent authorization grants. Check your connection, then retry."
+          headingLevel="h2"
           onRetry={() => void grants.refetch()}
-          title="Unable to load grants"
+          title="Unable to Load Grants"
         />
       ) : grants.data?.data.length ? (
         <div className="border-y border-[var(--border)]">
           {grants.data.data.map((grant) => (
             <article
-              className="border-b border-[var(--border-subtle)] px-2 py-5 last:border-0"
+              className="virtualized-row border-b border-[var(--border-subtle)] px-2 py-5 last:border-0"
               key={grant.id}
             >
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
@@ -73,24 +77,28 @@ export default function AgentGrantsPage() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="inline-flex items-center gap-1.5 text-[var(--text-secondary)]">
-                      <UserRound className="size-3.5" /> {grant.subject_name}
+                      <UserRound aria-hidden="true" className="size-3.5" /> {grant.subject_name}
                     </span>
-                    <ArrowRight className="size-3 text-[var(--text-tertiary)]" />
+                    <ArrowRight aria-hidden="true" className="size-3 text-[var(--text-tertiary)]" />
                     <span className="inline-flex items-center gap-1.5 font-medium">
-                      <Bot className="size-3.5" /> {grant.agent_name}
+                      <Bot aria-hidden="true" className="size-3.5" /> {grant.agent_name}
                     </span>
-                    <ArrowRight className="size-3 text-[var(--text-tertiary)]" />
+                    <ArrowRight aria-hidden="true" className="size-3 text-[var(--text-tertiary)]" />
                     <span className="technical-value max-w-full truncate">{grant.resource}</span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    {grant.scopes.map((scope) => (
-                      <span
-                        className="technical-value rounded border border-[var(--border)] bg-[var(--surface-subtle)] px-1.5 py-0.5"
-                        key={scope}
-                      >
-                        {scope}
-                      </span>
-                    ))}
+                    {grant.scopes.length ? (
+                      grant.scopes.map((scope) => (
+                        <span
+                          className="technical-value rounded border border-[var(--border)] bg-[var(--surface-subtle)] px-1.5 py-0.5"
+                          key={scope}
+                        >
+                          {scope}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-[var(--text-tertiary)]">No scopes</span>
+                    )}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-4 text-xs">
@@ -102,7 +110,9 @@ export default function AgentGrantsPage() {
                   </div>
                   <div className="min-w-24 text-right">
                     <p className="text-[var(--text-tertiary)]">Expires</p>
-                    <p className="font-medium">{relativeTime(grant.expires_at)}</p>
+                    <p className="font-medium">
+                      <RelativeTime value={grant.expires_at} />
+                    </p>
                   </div>
                   <Button
                     disabled={grant.status !== "active"}
@@ -121,7 +131,7 @@ export default function AgentGrantsPage() {
         <EmptyState
           description="Approved agent tasks will appear here with their human subject, actor, resource, constraints, and expiration."
           icon={Stamp}
-          title="No agent grants"
+          title="No Agent Grants"
         />
       )}
     </PageContainer>

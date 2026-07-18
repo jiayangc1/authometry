@@ -65,7 +65,7 @@ export default function LoginPage() {
     <AuthShell>
       <div className="w-full">
         <AuthHeading
-          title="Sign in to Authometry"
+          title="Sign In to Authometry"
           description={
             isMcpAuthorization
               ? "Sign in with your admin account to review an MCP connection request."
@@ -86,7 +86,14 @@ export default function LoginPage() {
         <form className="space-y-4" method="post" onSubmit={submit}>
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium">Email address</span>
-            <input autoComplete="email" className={inputClass} name="email" required type="email" />
+            <input
+              autoComplete="email"
+              className={inputClass}
+              name="email"
+              required
+              spellCheck={false}
+              type="email"
+            />
           </label>
           <label className="block">
             <span className="mb-1.5 flex items-center justify-between text-xs font-medium">

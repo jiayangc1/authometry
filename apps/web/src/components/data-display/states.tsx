@@ -6,22 +6,25 @@ import { Button, cn } from "@authometry/ui";
 export function ErrorState({
   title,
   description,
+  headingLevel = "h1",
   onRetry,
 }: {
   title: string;
   description: string;
+  headingLevel?: "h1" | "h2" | "h3";
   onRetry?: () => void;
 }) {
+  const Heading = headingLevel;
   return (
     <div className="flex min-h-72 flex-col items-center justify-center border-y border-[var(--border)] px-6 text-center">
-      <AlertCircle className="mb-4 size-6 text-[var(--danger)]" />
-      <h2 className="text-sm font-semibold">{title}</h2>
+      <AlertCircle aria-hidden="true" className="mb-4 size-6 text-[var(--danger)]" />
+      <Heading className="text-sm font-semibold text-balance">{title}</Heading>
       <p className="mt-1 max-w-md text-[13px] leading-5 text-[var(--text-secondary)]">
         {description}
       </p>
       {onRetry && (
         <Button className="mt-5" onClick={onRetry}>
-          <RotateCw className="size-3.5" /> Retry
+          <RotateCw aria-hidden="true" className="size-3.5" /> Retry
         </Button>
       )}
     </div>
@@ -39,7 +42,7 @@ export function Skeleton({ className }: { className?: string }) {
 
 export function PageSkeleton({ rows = 5 }: { rows?: number }) {
   return (
-    <div aria-label="Loading" className="space-y-6" role="status">
+    <div aria-label="Loading…" className="space-y-6" role="status">
       <div>
         <Skeleton className="h-7 w-48" />
         <Skeleton className="mt-2 h-4 w-96 max-w-full" />

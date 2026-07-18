@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button, EmptyState, StatusBadge } from "@authometry/ui";
 import { inputClass } from "@/components/auth/auth-shell";
+import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { apiFetch } from "@/lib/api";
 
@@ -64,7 +65,7 @@ export default function DomainsPage() {
     >
       <div className="flex justify-end">
         <Button onClick={() => setAdding((value) => !value)}>
-          <Plus className="size-3.5" /> Add domain
+          <Plus aria-hidden="true" className="size-3.5" /> Add Domain
         </Button>
       </div>
       {adding && (
@@ -75,27 +76,41 @@ export default function DomainsPage() {
             add.mutate();
           }}
         >
-          <input
-            autoFocus
-            className={inputClass}
-            onChange={(event) => setHostname(event.target.value)}
-            placeholder="login.example.com"
-            required
-            value={hostname}
-          />
+          <label className="min-w-0 flex-1">
+            <span className="sr-only">Domain hostname</span>
+            <input
+              autoComplete="off"
+              className={inputClass}
+              name="hostname"
+              onChange={(event) => setHostname(event.target.value)}
+              placeholder="login.example.com…"
+              required
+              spellCheck={false}
+              value={hostname}
+            />
+          </label>
           <Button disabled={add.isPending} type="submit" variant="primary">
-            Add
+            {add.isPending ? "Adding…" : "Add Domain"}
           </Button>
         </form>
       )}
-      {query.data?.data.length ? (
+      {query.isLoading ? (
+        <PageSkeleton rows={4} />
+      ) : query.isError ? (
+        <ErrorState
+          description="Authometry could not load custom domains. Check your connection, then retry."
+          headingLevel="h3"
+          onRetry={() => void query.refetch()}
+          title="Unable to Load Domains"
+        />
+      ) : query.data?.data.length ? (
         <div className="border-y border-[var(--border)]">
           {query.data.data.map((domain) => (
             <div
-              className="flex min-h-14 items-center gap-3 border-b border-[var(--border-subtle)] px-2 last:border-0"
+              className="virtualized-row flex min-h-14 items-center gap-3 border-b border-[var(--border-subtle)] px-2 last:border-0"
               key={domain.id}
             >
-              <Globe2 className="size-4 text-[var(--text-secondary)]" />
+              <Globe2 aria-hidden="true" className="size-4 text-[var(--text-secondary)]" />
               <div className="flex-1">
                 <p className="technical-value">{domain.hostname}</p>
                 {domain.is_primary && (
@@ -122,8 +137,9 @@ export default function DomainsPage() {
       ) : (
         <EmptyState
           description="Add a domain, publish the provided TXT record, and verify it before activation."
+          headingLevel="h3"
           icon={Globe2}
-          title="No custom domains"
+          title="No Custom Domains"
         />
       )}
       {verification && (
@@ -144,7 +160,7 @@ export default function DomainsPage() {
               size="icon"
               variant="ghost"
             >
-              <Copy className="size-3.5" />
+              <Copy aria-hidden="true" className="size-3.5" />
             </Button>
             <dt>Value</dt>
             <dd className="technical-value break-all">{verification.verification.value}</dd>
@@ -154,7 +170,7 @@ export default function DomainsPage() {
               size="icon"
               variant="ghost"
             >
-              <Copy className="size-3.5" />
+              <Copy aria-hidden="true" className="size-3.5" />
             </Button>
           </dl>
         </div>

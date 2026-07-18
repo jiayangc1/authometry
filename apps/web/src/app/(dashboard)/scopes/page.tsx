@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { KeyRound, Plus } from "lucide-react";
 import Link from "next/link";
 import { Button, EmptyState, StatusBadge } from "@authometry/ui";
-import { PageSkeleton } from "@/components/data-display/states";
+import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader } from "@/components/layout/page";
 import { apiFetch } from "@/lib/api";
 
@@ -29,7 +29,7 @@ export default function ScopesPage() {
         actions={
           <Button asChild>
             <Link href="/scopes/new">
-              <Plus className="size-3.5" /> New scope
+              <Plus aria-hidden="true" className="size-3.5" /> New Scope
             </Link>
           </Button>
         }
@@ -38,11 +38,18 @@ export default function ScopesPage() {
       />
       {query.isLoading ? (
         <PageSkeleton />
+      ) : query.isError ? (
+        <ErrorState
+          description="Authometry could not load scopes. Check your connection, then retry."
+          headingLevel="h2"
+          onRetry={() => void query.refetch()}
+          title="Unable to Load Scopes"
+        />
       ) : query.data?.data.length ? (
         <div className="border-y border-[var(--border)]">
           {query.data.data.map((scope) => (
             <div
-              className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 py-2.5 last:border-0 sm:grid-cols-[minmax(160px,.8fr)_minmax(220px,1.3fr)_110px_110px_120px]"
+              className="virtualized-row grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 py-2.5 last:border-0 sm:grid-cols-[minmax(160px,.8fr)_minmax(220px,1.3fr)_110px_110px_120px]"
               key={scope.id}
             >
               <div className="flex items-center gap-2">
@@ -71,7 +78,7 @@ export default function ScopesPage() {
         <EmptyState
           description="Create a custom scope when your API requires permissions beyond the standard OpenID Connect scopes."
           icon={KeyRound}
-          title="No custom scopes"
+          title="No Custom Scopes"
         />
       )}
     </PageContainer>

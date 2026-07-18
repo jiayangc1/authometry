@@ -14,11 +14,13 @@ import { useParams } from "next/navigation";
 import type { AuthorizationTrace } from "@authometry/domain";
 import { Button, StatusBadge } from "@authometry/ui";
 import { CopyableValue } from "@/components/data-display/copyable-value";
+import { FullDateTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer } from "@/components/layout/page";
 import { TraceTimeline } from "@/components/traces/trace-timeline";
 import { apiFetch } from "@/lib/api";
-import { duration, fullDateTime } from "@/lib/format";
+import { duration } from "@/lib/format";
+import { toast } from "sonner";
 
 interface TraceResponse {
   id: string;
@@ -59,7 +61,7 @@ export default function TraceDetailPage() {
     return (
       <PageContainer size="trace">
         <ErrorState
-          title="Trace not found"
+          title="Trace Not Found"
           description="This trace may have expired, been deleted, or belong to another environment."
           onRetry={() => void trace.refetch()}
         />
@@ -89,13 +91,15 @@ export default function TraceDetailPage() {
         <Link className="hover:text-[var(--text-primary)]" href="/traces">
           Authorization traces
         </Link>
-        <ChevronRight className="size-3" />
+        <ChevronRight aria-hidden="true" className="size-3" />
         <span className="technical-value">{data.request_id}</span>
       </div>
       <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="technical-value text-xl font-semibold">{data.request_id}</h1>
+            <h1 className="technical-value text-xl font-semibold text-balance break-words">
+              {data.request_id}
+            </h1>
             <StatusBadge
               label={
                 data.status === "success"
@@ -109,15 +113,21 @@ export default function TraceDetailPage() {
             )}
           </div>
           <p className="mt-2 text-xs text-[var(--text-secondary)]">
-            {fullDateTime(data.started_at)} · completed in {duration(data.duration_ms)}
+            <FullDateTime value={data.started_at} /> · completed in {duration(data.duration_ms)}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => void navigator.clipboard.writeText(data.request_id)}>
-            <Copy className="size-3.5" /> Copy request ID
+          <Button
+            onClick={() => {
+              void navigator.clipboard
+                .writeText(data.request_id)
+                .then(() => toast.success("Request ID copied."));
+            }}
+          >
+            <Copy aria-hidden="true" className="size-3.5" /> Copy Request ID
           </Button>
           <Button onClick={download}>
-            <Download className="size-3.5" /> Export JSON
+            <Download aria-hidden="true" className="size-3.5" /> Export JSON
           </Button>
         </div>
       </header>
@@ -147,7 +157,10 @@ export default function TraceDetailPage() {
       {data.explanation && (
         <section className="mb-7 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-soft)]">
           <div className="flex gap-3 border-b border-[var(--danger-border)] p-4">
-            <ShieldAlert className="mt-0.5 size-5 shrink-0 text-[var(--danger)]" />
+            <ShieldAlert
+              aria-hidden="true"
+              className="mt-0.5 size-5 shrink-0 text-[var(--danger)]"
+            />
             <div>
               <h2 className="text-sm font-semibold text-[var(--danger)]">
                 {data.explanation.title}
@@ -166,7 +179,7 @@ export default function TraceDetailPage() {
             ) : null}
           </div>
           <div className="flex flex-col items-start gap-3 border-t border-[var(--danger-border)] p-4 sm:flex-row sm:items-center">
-            <AlertTriangle className="size-4 shrink-0 text-[var(--warning)]" />
+            <AlertTriangle aria-hidden="true" className="size-4 shrink-0 text-[var(--warning)]" />
             <div className="flex-1">
               <p className="text-xs font-semibold">Suggested resolution</p>
               <p className="mt-0.5 text-xs leading-5 text-[var(--text-secondary)]">
@@ -176,7 +189,8 @@ export default function TraceDetailPage() {
             {data.explanation.action && (
               <Button asChild>
                 <Link href={data.explanation.action.href}>
-                  {data.explanation.action.label} <ExternalLink className="size-3.5" />
+                  {data.explanation.action.label}{" "}
+                  <ExternalLink aria-hidden="true" className="size-3.5" />
                 </Link>
               </Button>
             )}
@@ -184,7 +198,7 @@ export default function TraceDetailPage() {
         </section>
       )}
       <div className="mb-4">
-        <h2 className="text-base font-semibold">Execution trace</h2>
+        <h2 className="text-base font-semibold text-balance">Execution Trace</h2>
         <p className="mt-0.5 text-[13px] text-[var(--text-secondary)]">
           Select a step to inspect its inputs, decision, and output.
         </p>

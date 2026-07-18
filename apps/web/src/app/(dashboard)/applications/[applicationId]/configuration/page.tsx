@@ -9,6 +9,7 @@ import { useApplication } from "@/components/applications/application-context";
 import { inputClass } from "@/components/auth/auth-shell";
 import { DividerSection, SectionHeader } from "@/components/layout/page";
 import { apiFetch } from "@/lib/api";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
 export default function ConfigurationPage() {
   const { application, refetch } = useApplication();
@@ -25,13 +26,16 @@ export default function ConfigurationPage() {
       setUris(application.redirect_uris);
     }
   }, [application]);
+  const dirty = Boolean(
+    application &&
+    (name !== application.name ||
+      description !== (application.description ?? "") ||
+      JSON.stringify(uris) !== JSON.stringify(application.redirect_uris)),
+  );
+  useUnsavedChanges(dirty);
   if (!application) return null;
   const app = application;
   const readOnly = app.ownership === "manifest";
-  const dirty =
-    name !== app.name ||
-    description !== (app.description ?? "") ||
-    JSON.stringify(uris) !== JSON.stringify(app.redirect_uris);
   function addUri() {
     const parsed = redirectUriSchema.safeParse(nextUri);
     if (!parsed.success) {
@@ -69,14 +73,16 @@ export default function ConfigurationPage() {
       <section>
         <SectionHeader
           description="Displayed in administration interfaces and consent screens."
-          title="Application details"
+          title="Application Details"
         />
         <div className="max-w-2xl space-y-5">
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium">Name</span>
             <input
+              autoComplete="off"
               className={inputClass}
               disabled={readOnly}
+              name="applicationName"
               onChange={(event) => setName(event.target.value)}
               value={name}
             />
@@ -84,8 +90,10 @@ export default function ConfigurationPage() {
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium">Description</span>
             <textarea
+              autoComplete="off"
               className={`${inputClass} h-20 py-2`}
               disabled={readOnly}
+              name="applicationDescription"
               onChange={(event) => setDescription(event.target.value)}
               value={description}
             />
@@ -111,30 +119,41 @@ export default function ConfigurationPage() {
                 size="icon"
                 variant="ghost"
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 aria-hidden="true" className="size-3.5" />
               </Button>
             </div>
           ))}
         </div>
         {!readOnly && (
           <div className="mt-3 flex max-w-3xl gap-2">
-            <input
-              className={`${inputClass} technical-value flex-1`}
-              onChange={(event) => setNextUri(event.target.value)}
-              placeholder="https://example.com/auth/callback"
-              value={nextUri}
-            />
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">New redirect URI</span>
+              <input
+                autoComplete="off"
+                className={`${inputClass} technical-value flex-1`}
+                name="redirectUri"
+                onChange={(event) => setNextUri(event.target.value)}
+                placeholder="https://example.com/auth/callback…"
+                spellCheck={false}
+                type="url"
+                value={nextUri}
+              />
+            </label>
             <Button onClick={addUri}>
-              <Plus className="size-3.5" /> Add URI
+              <Plus aria-hidden="true" className="size-3.5" /> Add URI
             </Button>
           </div>
         )}
-        {error && <p className="mt-2 text-xs text-[var(--danger)]">{error}</p>}
+        {error && (
+          <p aria-live="polite" className="mt-2 text-xs text-[var(--danger)]" role="alert">
+            {error} Check the URI and try again.
+          </p>
+        )}
       </DividerSection>
       <DividerSection>
         <SectionHeader
           description="Secure defaults reduce the chance of protocol downgrade or token leakage."
-          title="OAuth security"
+          title="OAuth Security"
         />
         <dl className="max-w-3xl divide-y divide-[var(--border-subtle)] border-y border-[var(--border)]">
           {[
@@ -160,7 +179,7 @@ export default function ConfigurationPage() {
           onClick={() => void save()}
           variant="primary"
         >
-          {saving ? "Saving…" : "Save changes"}
+          {saving ? "Saving…" : "Save Changes"}
         </Button>
       </div>
     </div>

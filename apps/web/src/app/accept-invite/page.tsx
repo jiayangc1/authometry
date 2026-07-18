@@ -55,7 +55,7 @@ export default function AcceptInvitePage() {
               ? `${query.data.name}, join ${query.data.workspace_name} as ${query.data.role}.`
               : "Confirm your workspace membership and choose a password."
           }
-          title="Accept invitation"
+          title="Accept Invitation"
         />
         {query.data && (
           <div className="mb-5 flex items-center justify-between border-y border-[var(--border)] py-3">
@@ -100,7 +100,7 @@ export default function AcceptInvitePage() {
               type="submit"
               variant="primary"
             >
-              {loading ? "Joining…" : "Join workspace"}
+              {loading ? "Joining…" : "Join Workspace"}
             </Button>
           </form>
         )}

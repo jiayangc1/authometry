@@ -6,6 +6,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button, EmptyState, StatusBadge } from "@authometry/ui";
 import { inputClass } from "@/components/auth/auth-shell";
+import { ErrorState, PageSkeleton } from "@/components/data-display/states";
+import { CopyableValue } from "@/components/data-display/copyable-value";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { apiFetch } from "@/lib/api";
 
@@ -52,11 +54,12 @@ export default function WebhooksPage() {
     >
       <div className="flex justify-end">
         <Button onClick={() => setAdding((value) => !value)}>
-          <Plus className="size-3.5" /> Add webhook
+          <Plus aria-hidden="true" className="size-3.5" /> Add Webhook
         </Button>
       </div>
       {adding && (
         <form
+          autoComplete="off"
           className="grid gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4"
           onSubmit={(event) => {
             event.preventDefault();
@@ -68,14 +71,15 @@ export default function WebhooksPage() {
         >
           <label>
             <span className="mb-1.5 block text-xs font-medium">Name</span>
-            <input className={inputClass} name="name" required />
+            <input autoComplete="off" className={inputClass} name="name" required />
           </label>
           <label>
             <span className="mb-1.5 block text-xs font-medium">HTTPS endpoint</span>
             <input
               className={inputClass}
+              autoComplete="off"
               name="url"
-              placeholder="https://example.com/authometry"
+              placeholder="https://example.com/authometry…"
               required
               type="url"
             />
@@ -86,27 +90,38 @@ export default function WebhooksPage() {
             type="submit"
             variant="primary"
           >
-            Create webhook
+            {add.isPending ? "Creating…" : "Create Webhook"}
           </Button>
         </form>
       )}
       {secret && (
         <div className="border border-[var(--warning-border)] bg-[var(--warning-soft)] p-3">
           <p className="text-xs font-semibold">Copy the signing secret now</p>
-          <code className="technical-value mt-2 block break-all select-all">{secret}</code>
+          <div className="mt-2">
+            <CopyableValue value={secret} />
+          </div>
           <p className="mt-2 text-xs text-[var(--text-secondary)]">
             It will not be displayed again.
           </p>
         </div>
       )}
-      {query.data?.data.length ? (
+      {query.isLoading ? (
+        <PageSkeleton rows={4} />
+      ) : query.isError ? (
+        <ErrorState
+          description="Authometry could not load webhooks. Check your connection, then retry."
+          headingLevel="h3"
+          onRetry={() => void query.refetch()}
+          title="Unable to Load Webhooks"
+        />
+      ) : query.data?.data.length ? (
         <div className="border-y border-[var(--border)]">
           {query.data.data.map((webhook) => (
             <div
-              className="grid min-h-16 grid-cols-[28px_1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 last:border-0"
+              className="virtualized-row grid min-h-16 grid-cols-[28px_1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 last:border-0"
               key={webhook.id}
             >
-              <RadioTower className="size-4 text-[var(--text-secondary)]" />
+              <RadioTower aria-hidden="true" className="size-4 text-[var(--text-secondary)]" />
               <div className="min-w-0">
                 <p className="text-[13px] font-medium">{webhook.name}</p>
                 <p className="technical-value truncate text-[var(--text-tertiary)]">
@@ -123,8 +138,9 @@ export default function WebhooksPage() {
       ) : (
         <EmptyState
           description="Add a webhook to receive signed Authometry events."
+          headingLevel="h3"
           icon={RadioTower}
-          title="No webhooks"
+          title="No Webhooks"
         />
       )}
     </SettingsSection>

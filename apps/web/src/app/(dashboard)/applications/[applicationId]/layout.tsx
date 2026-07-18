@@ -40,8 +40,8 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
     return (
       <PageContainer>
         <ErrorState
-          title="Application not found"
-          description="This application may have been deleted or belong to another environment."
+          title="Application Not Found"
+          description="This application may have been deleted or belong to another environment. Check the application URL, then retry."
           onRetry={() => void refetch()}
         />
       </PageContainer>
@@ -77,13 +77,13 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
         <Link className="hover:text-[var(--text-primary)]" href="/applications">
           Applications
         </Link>
-        <ChevronRight className="size-3" />
+        <ChevronRight aria-hidden="true" className="size-3" />
         <span className="truncate">{application.name}</span>
       </div>
       <header className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl leading-8 font-semibold tracking-[-0.035em]">
+            <h1 className="text-2xl leading-8 font-semibold tracking-[-0.035em] text-balance break-words">
               {application.name}
             </h1>
             <StatusBadge
@@ -99,19 +99,19 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
         <div className="flex gap-2">
           <Button asChild>
             <Link href={playgroundHref}>
-              <FlaskConical className="size-3.5" /> Test authorization
+              <FlaskConical aria-hidden="true" className="size-3.5" /> Test Authorization
             </Link>
           </Button>
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <Button aria-label="More actions" size="icon">
-                <MoreHorizontal className="size-4" />
+                <MoreHorizontal aria-hidden="true" className="size-4" />
               </Button>
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
               <DropdownMenu.Content
                 align="end"
-                className="z-50 min-w-48 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.10)]"
+                className="z-50 min-w-48 overscroll-contain rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.10)]"
                 sideOffset={6}
               >
                 <DropdownMenu.Item asChild>
@@ -119,8 +119,11 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
                     className="flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-[13px] outline-none focus:bg-[var(--surface-hover)]"
                     href={`/applications/${application.id}/configuration`}
                   >
-                    <Settings className="size-3.5 text-[var(--text-secondary)]" /> Edit
-                    configuration
+                    <Settings
+                      aria-hidden="true"
+                      className="size-3.5 text-[var(--text-secondary)]"
+                    />{" "}
+                    Edit Configuration
                   </Link>
                 </DropdownMenu.Item>
                 <DropdownMenu.Item asChild>
@@ -128,7 +131,11 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
                     className="flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-[13px] outline-none focus:bg-[var(--surface-hover)]"
                     href={`/applications/${application.id}/activity`}
                   >
-                    <Activity className="size-3.5 text-[var(--text-secondary)]" /> View activity
+                    <Activity
+                      aria-hidden="true"
+                      className="size-3.5 text-[var(--text-secondary)]"
+                    />{" "}
+                    View Activity
                   </Link>
                 </DropdownMenu.Item>
                 <DropdownMenu.Separator className="my-1 h-px bg-[var(--border)]" />
@@ -136,7 +143,8 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
                   className="flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-[13px] outline-none focus:bg-[var(--surface-hover)]"
                   onSelect={() => void copyClientId()}
                 >
-                  <Clipboard className="size-3.5 text-[var(--text-secondary)]" /> Copy client ID
+                  <Clipboard aria-hidden="true" className="size-3.5 text-[var(--text-secondary)]" />{" "}
+                  Copy Client ID
                 </DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
@@ -145,7 +153,7 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
       </header>
       {application.ownership === "manifest" && (
         <div className="mb-5 flex items-center gap-3 border border-[var(--info-border)] bg-[var(--info-soft)] px-3 py-2.5 text-[13px]">
-          <GitBranch className="size-4 text-[var(--info)]" />
+          <GitBranch aria-hidden="true" className="size-4 text-[var(--info)]" />
           <span className="flex-1">
             Configuration is managed by{" "}
             <code className="technical-value">
@@ -154,7 +162,7 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
             .
           </span>
           <Button asChild size="compact">
-            <Link href={`/applications/${application.id}/configuration`}>View configuration</Link>
+            <Link href={`/applications/${application.id}/configuration`}>View Configuration</Link>
           </Button>
         </div>
       )}
@@ -172,6 +180,7 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
                   "font-medium text-[var(--text-primary)] after:absolute after:right-0 after:bottom-[-1px] after:left-0 after:h-0.5 after:bg-[var(--accent)]",
               )}
               href={href}
+              aria-current={active ? "page" : undefined}
               key={href}
             >
               {label}

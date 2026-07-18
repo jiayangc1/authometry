@@ -15,14 +15,14 @@ export default function ComponentShowcasePage() {
     <PageContainer>
       <PageHeader
         description="Internal development route for visual-system states and regression checks."
-        title="Component showcase"
+        title="Component Showcase"
       />
       <div className="space-y-10">
         <section>
           <SectionHeader title="Buttons" />
           <div className="flex flex-wrap gap-2">
             <Button variant="primary">
-              <Plus className="size-3.5" /> Primary
+              <Plus aria-hidden="true" className="size-3.5" /> Primary
             </Button>
             <Button>Secondary</Button>
             <Button variant="ghost">Ghost</Button>
@@ -33,7 +33,7 @@ export default function ComponentShowcasePage() {
         <section className="border-t border-[var(--border)] pt-7">
           <SectionHeader
             description="Branded entry points for applications that delegate sign-in to Authometry."
-            title="OAuth provider buttons"
+            title="OAuth Provider Buttons"
           />
           <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] p-5">
             <AuthometryProviderButton />
@@ -53,25 +53,36 @@ export default function ComponentShowcasePage() {
           </div>
         </section>
         <section className="border-t border-[var(--border)] pt-7">
-          <SectionHeader title="Form controls" />
+          <SectionHeader title="Form Controls" />
           <div className="grid max-w-2xl gap-4 sm:grid-cols-2">
             <label>
               <span className="mb-1.5 block text-xs font-medium">Client ID</span>
               <input
+                autoComplete="off"
                 className={`${inputClass} technical-value`}
                 defaultValue="amt_client_M9bA2f7Jq"
+                name="clientId"
+                spellCheck={false}
               />
             </label>
             <label>
               <span className="mb-1.5 block text-xs font-medium">Disabled</span>
-              <input className={inputClass} disabled value="Managed by Git" readOnly />
+              <input
+                className={inputClass}
+                disabled
+                name="disabledExample"
+                value="Managed by Git"
+                readOnly
+              />
             </label>
             <label className="sm:col-span-2">
               <span className="mb-1.5 block text-xs font-medium">Validation error</span>
               <input
                 aria-invalid
+                autoComplete="off"
                 className={`${inputClass} border-[var(--danger)]`}
                 defaultValue="http://production.example.com"
+                name="validationExample"
               />
               <span className="mt-1 block text-xs text-[var(--danger)]">
                 Use HTTPS unless the host is localhost.
@@ -88,7 +99,7 @@ export default function ComponentShowcasePage() {
                 key={label}
                 style={{ background, borderColor: border }}
               >
-                <Icon className="size-4" />
+                <Icon aria-hidden="true" className="size-4" />
                 {label}
               </div>
             ))}
@@ -98,8 +109,8 @@ export default function ComponentShowcasePage() {
           <EmptyState
             description="Applications represent websites, mobile apps, APIs, and services that use Authometry."
             icon={AppWindow}
-            primaryAction={<Button variant="primary">Add application</Button>}
-            title="Create your first application"
+            primaryAction={<Button variant="primary">Add Application</Button>}
+            title="Create Your First Application"
           />
         </section>
       </div>

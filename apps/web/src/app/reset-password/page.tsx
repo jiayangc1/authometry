@@ -42,7 +42,7 @@ export default function ResetPasswordPage() {
     <AuthShell>
       <div className="w-full">
         <AuthHeading
-          title="Choose a new password"
+          title="Choose a New Password"
           description="The reset link is single-use and expires after 30 minutes."
         />
         {message ? (
@@ -51,7 +51,7 @@ export default function ResetPasswordPage() {
               {message}
             </p>
             <Button asChild className="w-full" variant="primary">
-              <Link href="/login">Sign in</Link>
+              <Link href="/login">Sign In</Link>
             </Button>
           </div>
         ) : (
@@ -89,7 +89,7 @@ export default function ResetPasswordPage() {
               type="submit"
               variant="primary"
             >
-              {loading ? "Resetting…" : "Reset password"}
+              {loading ? "Resetting…" : "Reset Password"}
             </Button>
           </form>
         )}

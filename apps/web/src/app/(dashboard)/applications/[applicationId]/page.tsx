@@ -1,29 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 import { Check, Copy } from "lucide-react";
 import { AuthometryProviderButton, Button } from "@authometry/ui";
 import { useApplication } from "@/components/applications/application-context";
 import { CopyableValue } from "@/components/data-display/copyable-value";
+import { RelativeTime } from "@/components/data-display/formatted-time";
 import { DividerSection, SectionHeader } from "@/components/layout/page";
-import { relativeTime } from "@/lib/format";
 
 export default function ApplicationOverviewPage() {
   const { application } = useApplication();
-  const [framework, setFramework] = useState("Next.js");
-  const [buttonAppearance, setButtonAppearance] = useState<"light" | "dark" | "brand">("light");
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const framework = searchParams.get("framework") ?? "Next.js";
+  const appearanceParam = searchParams.get("appearance");
+  const buttonAppearance: "light" | "dark" | "brand" =
+    appearanceParam === "dark" || appearanceParam === "brand" ? appearanceParam : "light";
   const [buttonCopied, setButtonCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [issuer, setIssuer] = useState("https://authometry.ch3n.cc");
+  useEffect(() => setIssuer(window.location.origin), []);
   if (!application) return null;
-  const metadata: Array<[string, string]> = [
+  const metadata: Array<[string, ReactNode]> = [
     ["Application ID", application.slug],
     ["Client ID", application.client_id],
     ["Application type", application.type],
-    ["Created", relativeTime(application.created_at)],
-    ["Last used", application.last_used_at ? relativeTime(application.last_used_at) : "Never"],
+    ["Created", <RelativeTime key="created" value={application.created_at} />],
+    [
+      "Last used",
+      application.last_used_at ? (
+        <RelativeTime key="last-used" value={application.last_used_at} />
+      ) : (
+        "Never"
+      ),
+    ],
   ];
   const code = `import { Authometry } from "@authometry/next";\n\nexport const auth = new Authometry({\n  issuer: process.env.AUTHOMETRY_ISSUER!,\n  clientId: process.env.AUTHOMETRY_CLIENT_ID!,\n  clientSecret: process.env.AUTHOMETRY_CLIENT_SECRET!,\n});`;
-  const issuer =
-    typeof window === "undefined" ? "https://authometry.ch3n.cc" : window.location.origin;
   const endpoints: Array<[string, string]> = [
     ["Issuer", issuer],
     ["Discovery", `${issuer}/.well-known/openid-configuration`],
@@ -33,7 +47,7 @@ export default function ApplicationOverviewPage() {
     ["JWKS", `${issuer}/.well-known/jwks.json`],
   ];
   const buttonMarkup = `<a class="authometry-button" href="/auth/login">
-  <img src="${issuer}/brand/authometry-icon-192.png" alt="" />
+  <img src="${issuer}/brand/authometry-icon-192.png" alt="" width="24" height="24" />
   Continue with Authometry
 </a>
 
@@ -54,19 +68,35 @@ export default function ApplicationOverviewPage() {
     setButtonCopied(true);
     window.setTimeout(() => setButtonCopied(false), 1800);
   };
+  const copyCode = async () => {
+    await navigator.clipboard.writeText(code);
+    setCodeCopied(true);
+    window.setTimeout(() => setCodeCopied(false), 1800);
+  };
+  function updateParam(name: string, value: string, defaultValue: string) {
+    const next = new URLSearchParams(searchParams);
+    if (value === defaultValue) next.delete(name);
+    else next.set(name, value);
+    const queryString = next.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname);
+  }
   return (
     <div className="space-y-8">
       <section>
         <SectionHeader
           description="Stable identifiers and protocol metadata for this client."
-          title="Application details"
+          title="Application Details"
         />
         <dl className="divide-y divide-[var(--border-subtle)] border-y border-[var(--border)]">
           {metadata.map(([label, value]) => (
             <div className="grid gap-1 py-3 sm:grid-cols-[180px_1fr]" key={label}>
               <dt className="text-xs text-[var(--text-secondary)]">{label}</dt>
               <dd className="text-[13px]">
-                {label.includes("ID") ? <CopyableValue value={value} /> : value}
+                {label.includes("ID") && typeof value === "string" ? (
+                  <CopyableValue value={value} />
+                ) : (
+                  value
+                )}
               </dd>
             </div>
           ))}
@@ -75,14 +105,21 @@ export default function ApplicationOverviewPage() {
       <DividerSection>
         <SectionHeader
           description="Use these values to connect your application."
-          title="Connect your application"
+          title="Connect Your Application"
         />
-        <div className="flex gap-1 overflow-x-auto border-b border-[var(--border)]">
+        <div
+          aria-label="Framework"
+          className="flex gap-1 overflow-x-auto border-b border-[var(--border)]"
+          role="tablist"
+        >
           {["Next.js", "React", "Express", "Go", "Other"].map((item) => (
             <button
-              className={`border-b-2 px-3 py-2 text-xs ${framework === item ? "border-[var(--accent)] font-medium" : "border-transparent text-[var(--text-secondary)]"}`}
+              aria-selected={framework === item}
+              className={`border-b-2 px-3 py-2 text-xs hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:outline-none ${framework === item ? "border-[var(--accent)] font-medium" : "border-transparent text-[var(--text-secondary)]"}`}
               key={item}
-              onClick={() => setFramework(item)}
+              onClick={() => updateParam("framework", item, "Next.js")}
+              role="tab"
+              type="button"
             >
               {item}
             </button>
@@ -93,8 +130,13 @@ export default function ApplicationOverviewPage() {
             <span className="technical-value text-[var(--text-secondary)]">
               TypeScript · {framework}
             </span>
-            <Button size="compact" variant="ghost">
-              Copy
+            <Button
+              aria-live="polite"
+              onClick={() => void copyCode()}
+              size="compact"
+              variant="ghost"
+            >
+              {codeCopied ? "Copied" : "Copy Code"}
             </Button>
           </div>
           <pre className="scrollbar-thin overflow-x-auto p-4 text-[13px] leading-5">
@@ -105,7 +147,7 @@ export default function ApplicationOverviewPage() {
       <DividerSection>
         <SectionHeader
           description="Add a recognizable entry point to your application. Its route should start Authorization Code with PKCE on your server."
-          title="Sign-in button"
+          title="Sign-In Button"
         />
         <div className="grid overflow-hidden rounded-xl border border-[var(--border)] lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
           <div
@@ -117,7 +159,7 @@ export default function ApplicationOverviewPage() {
                 <button
                   className={`rounded-md px-2.5 py-1 text-xs capitalize ${buttonAppearance === appearance ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}
                   key={appearance}
-                  onClick={() => setButtonAppearance(appearance)}
+                  onClick={() => updateParam("appearance", appearance, "light")}
                   type="button"
                 >
                   {appearance}
@@ -128,11 +170,16 @@ export default function ApplicationOverviewPage() {
           <div className="min-w-0 border-t border-[var(--border)] bg-[var(--surface-raised)] lg:border-t-0 lg:border-l">
             <div className="flex h-10 items-center justify-between border-b border-[var(--border)] px-3">
               <span className="technical-value text-[var(--text-secondary)]">HTML + CSS</span>
-              <Button onClick={() => void copyButtonMarkup()} size="compact" variant="ghost">
+              <Button
+                aria-live="polite"
+                onClick={() => void copyButtonMarkup()}
+                size="compact"
+                variant="ghost"
+              >
                 {buttonCopied ? (
-                  <Check className="size-3 text-[var(--success)]" />
+                  <Check aria-hidden="true" className="size-3 text-[var(--success)]" />
                 ) : (
-                  <Copy className="size-3" />
+                  <Copy aria-hidden="true" className="size-3" />
                 )}
                 {buttonCopied ? "Copied" : "Copy"}
               </Button>

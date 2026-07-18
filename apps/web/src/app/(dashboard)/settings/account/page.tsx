@@ -5,7 +5,8 @@ import { Github } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { Button, GoogleIcon, StatusBadge } from "@authometry/ui";
+import { Button, EmptyState, GoogleIcon, StatusBadge } from "@authometry/ui";
+import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { apiFetch } from "@/lib/api";
 
@@ -71,68 +72,103 @@ export default function AccountSettingsPage() {
     <div>
       <SettingsSection
         description="Your dashboard profile and local sign-in identity."
-        title="My account"
+        title="My Account"
       >
-        <dl className="divide-y divide-[var(--border-subtle)] border-y border-[var(--border)]">
-          <div className="grid gap-1 py-3 sm:grid-cols-[140px_1fr]">
-            <dt className="text-xs text-[var(--text-secondary)]">Name</dt>
-            <dd className="text-[13px]">{me.data?.user.name ?? "—"}</dd>
-          </div>
-          <div className="grid gap-1 py-3 sm:grid-cols-[140px_1fr]">
-            <dt className="text-xs text-[var(--text-secondary)]">Email</dt>
-            <dd className="text-[13px]">{me.data?.user.email ?? "—"}</dd>
-          </div>
-          <div className="grid gap-1 py-3 sm:grid-cols-[140px_1fr]">
-            <dt className="text-xs text-[var(--text-secondary)]">Password sign-in</dt>
-            <dd>
-              <StatusBadge label="Enabled" tone="success" />
-            </dd>
-          </div>
-        </dl>
+        {me.isLoading ? (
+          <PageSkeleton rows={3} />
+        ) : me.isError ? (
+          <ErrorState
+            description="Authometry could not load your account. Check your connection, then retry."
+            headingLevel="h3"
+            onRetry={() => void me.refetch()}
+            title="Unable to Load Your Account"
+          />
+        ) : (
+          <dl className="divide-y divide-[var(--border-subtle)] border-y border-[var(--border)]">
+            <div className="grid gap-1 py-3 sm:grid-cols-[140px_1fr]">
+              <dt className="text-xs text-[var(--text-secondary)]">Name</dt>
+              <dd className="text-[13px]">{me.data?.user.name ?? "—"}</dd>
+            </div>
+            <div className="grid gap-1 py-3 sm:grid-cols-[140px_1fr]">
+              <dt className="text-xs text-[var(--text-secondary)]">Email</dt>
+              <dd className="text-[13px]">{me.data?.user.email ?? "—"}</dd>
+            </div>
+            <div className="grid gap-1 py-3 sm:grid-cols-[140px_1fr]">
+              <dt className="text-xs text-[var(--text-secondary)]">Password sign-in</dt>
+              <dd>
+                <StatusBadge label="Enabled" tone="success" />
+              </dd>
+            </div>
+          </dl>
+        )}
       </SettingsSection>
 
       <SettingsSection
         description="Connect a provider once, then use either your password or that provider to reach this same dashboard account."
-        title="Social sign-in"
+        title="Social Sign-In"
       >
-        <div className="divide-y divide-[var(--border-subtle)] border-y border-[var(--border)]">
-          {(connections.data?.data ?? []).map((connection) => {
-            const { label, Icon } = providerDetails[connection.provider];
-            const pending =
-              (connect.isPending && connect.variables === connection.provider) ||
-              (disconnect.isPending && disconnect.variables === connection.provider);
-            return (
-              <div className="flex min-h-16 items-center gap-3 py-3" key={connection.provider}>
-                <div className="flex size-8 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-raised)]">
-                  <Icon className="size-4" />
+        {connections.isLoading ? (
+          <PageSkeleton rows={2} />
+        ) : connections.isError ? (
+          <ErrorState
+            description="Authometry could not load connected accounts. Check your connection, then retry."
+            headingLevel="h3"
+            onRetry={() => void connections.refetch()}
+            title="Unable to Load Social Sign-In"
+          />
+        ) : connections.data?.data.length ? (
+          <div className="divide-y divide-[var(--border-subtle)] border-y border-[var(--border)]">
+            {connections.data.data.map((connection) => {
+              const { label, Icon } = providerDetails[connection.provider];
+              const pending =
+                (connect.isPending && connect.variables === connection.provider) ||
+                (disconnect.isPending && disconnect.variables === connection.provider);
+              return (
+                <div className="flex min-h-16 items-center gap-3 py-3" key={connection.provider}>
+                  <div className="flex size-8 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-raised)]">
+                    <Icon aria-hidden="true" className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-medium">{label}</p>
+                    <p className="truncate text-xs text-[var(--text-secondary)]">
+                      {connection.linked
+                        ? connection.email || "Connected"
+                        : connection.configured
+                          ? "Not connected"
+                          : "Provider is not configured"}
+                    </p>
+                  </div>
+                  {connection.linked ? (
+                    <Button
+                      disabled={pending}
+                      onClick={() => {
+                        if (window.confirm(`Disconnect ${label}? You can reconnect it later.`)) {
+                          disconnect.mutate(connection.provider);
+                        }
+                      }}
+                    >
+                      {pending ? "Disconnecting…" : "Disconnect"}
+                    </Button>
+                  ) : (
+                    <Button
+                      disabled={!connection.configured || pending}
+                      onClick={() => connect.mutate(connection.provider)}
+                      variant="primary"
+                    >
+                      {pending ? "Connecting…" : "Connect"}
+                    </Button>
+                  )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-medium">{label}</p>
-                  <p className="truncate text-xs text-[var(--text-secondary)]">
-                    {connection.linked
-                      ? connection.email || "Connected"
-                      : connection.configured
-                        ? "Not connected"
-                        : "Provider is not configured"}
-                  </p>
-                </div>
-                {connection.linked ? (
-                  <Button disabled={pending} onClick={() => disconnect.mutate(connection.provider)}>
-                    {pending ? "Disconnecting…" : "Disconnect"}
-                  </Button>
-                ) : (
-                  <Button
-                    disabled={!connection.configured || pending}
-                    onClick={() => connect.mutate(connection.provider)}
-                    variant="primary"
-                  >
-                    {pending ? "Connecting…" : "Connect"}
-                  </Button>
-                )}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyState
+            description="Configure a social provider to connect it to your dashboard account."
+            headingLevel="h3"
+            title="No Social Providers"
+          />
+        )}
       </SettingsSection>
     </div>
   );

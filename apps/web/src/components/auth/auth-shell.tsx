@@ -3,8 +3,8 @@ import { AuthometryLogo, AuthometryMark } from "@authometry/ui";
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="grid min-h-dvh bg-[var(--background)] lg:grid-cols-[1fr_0.92fr]">
-      <section className="flex min-h-dvh flex-col px-6 py-6 sm:px-10 lg:px-14">
+    <main className="grid min-h-dvh bg-[var(--background)] pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] lg:grid-cols-[1fr_0.92fr]">
+      <section className="flex min-h-0 flex-col px-6 py-6 sm:px-10 lg:px-14">
         <Link
           href="/"
           className="w-fit rounded-md focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
@@ -32,7 +32,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           <p className="technical-value mb-5 text-[var(--text-tertiary)]">
             AUTHORIZATION TRACE / LIVE
           </p>
-          <h2 className="max-w-md text-3xl leading-10 font-semibold tracking-[-0.04em]">
+          <h2 className="max-w-md text-3xl leading-10 font-semibold tracking-[-0.04em] text-balance">
             Every decision leaves evidence.
           </h2>
           <p className="mt-4 max-w-md text-sm leading-6 text-[var(--text-secondary)]">
@@ -66,7 +66,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
 export function AuthorizationShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="flex min-h-dvh flex-col bg-[var(--surface)] px-5 py-6 sm:justify-center sm:py-10">
+    <main className="flex min-h-dvh flex-col bg-[var(--surface)] pt-[max(1.5rem,env(safe-area-inset-top))] pr-[max(1.25rem,env(safe-area-inset-right))] pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1.25rem,env(safe-area-inset-left))] sm:justify-center sm:py-10">
       <section className="mx-auto flex w-full max-w-[450px] flex-1 flex-col justify-center sm:flex-none sm:rounded-[24px] sm:border sm:border-[var(--border-strong)] sm:bg-[var(--background)] sm:px-10 sm:py-10 sm:shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
         <Link
           href="/"
@@ -85,11 +85,11 @@ export function AuthorizationShell({ children }: { children: React.ReactNode }) 
 export function AuthHeading({ title, description }: { title: string; description: string }) {
   return (
     <div className="mb-7">
-      <h1 className="text-2xl font-semibold tracking-[-0.035em]">{title}</h1>
+      <h1 className="text-2xl font-semibold tracking-[-0.035em] text-balance">{title}</h1>
       <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{description}</p>
     </div>
   );
 }
 
 export const inputClass =
-  "h-9 w-full rounded-[6px] border border-[var(--border-strong)] bg-[var(--surface-raised)] px-3 text-sm shadow-[0_1px_1px_rgba(0,0,0,0.02)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--focus)] focus:ring-2 focus:ring-[var(--accent-soft)] focus:outline-none";
+  "h-9 w-full rounded-[6px] border border-[var(--border-strong)] bg-[var(--surface-raised)] px-3 text-sm text-[var(--text-primary)] shadow-[0_1px_1px_rgba(0,0,0,0.02)] placeholder:text-[var(--text-tertiary)] focus-visible:border-[var(--focus)] focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)] focus-visible:outline-none";

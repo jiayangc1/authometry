@@ -6,9 +6,11 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button, EmptyState } from "@authometry/ui";
 import { inputClass } from "@/components/auth/auth-shell";
+import { RelativeTime } from "@/components/data-display/formatted-time";
+import { ErrorState, PageSkeleton } from "@/components/data-display/states";
+import { CopyableValue } from "@/components/data-display/copyable-value";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { apiFetch } from "@/lib/api";
-import { relativeTime } from "@/lib/format";
 
 interface Token {
   id: string;
@@ -58,7 +60,7 @@ export default function TokensPage() {
     >
       <div className="flex justify-end">
         <Button onClick={() => setAdding((value) => !value)}>
-          <Plus className="size-3.5" /> Create token
+          <Plus aria-hidden="true" className="size-3.5" /> Create Token
         </Button>
       </div>
       {adding && (
@@ -70,39 +72,59 @@ export default function TokensPage() {
             if (typeof name === "string") create.mutate(name);
           }}
         >
-          <input
-            autoFocus
-            className={inputClass}
-            name="name"
-            placeholder="Deployment CLI"
-            required
-          />
+          <label className="min-w-0 flex-1">
+            <span className="sr-only">Token name</span>
+            <input
+              autoComplete="off"
+              className={inputClass}
+              name="name"
+              placeholder="Deployment CLI…"
+              required
+            />
+          </label>
           <Button disabled={create.isPending} type="submit" variant="primary">
-            Create
+            {create.isPending ? "Creating…" : "Create Token"}
           </Button>
         </form>
       )}
       {rawToken && (
         <div className="border border-[var(--warning-border)] bg-[var(--warning-soft)] p-3">
           <p className="text-xs font-semibold">Copy this token now</p>
-          <code className="technical-value mt-2 block break-all select-all">{rawToken}</code>
+          <div className="mt-2">
+            <CopyableValue value={rawToken} />
+          </div>
           <p className="mt-2 text-xs text-[var(--text-secondary)]">
             It will not be displayed again.
           </p>
         </div>
       )}
-      {query.data?.data.length ? (
+      {query.isLoading ? (
+        <PageSkeleton rows={4} />
+      ) : query.isError ? (
+        <ErrorState
+          description="Authometry could not load API tokens. Check your connection, then retry."
+          headingLevel="h3"
+          onRetry={() => void query.refetch()}
+          title="Unable to Load API Tokens"
+        />
+      ) : query.data?.data.length ? (
         <div className="border-y border-[var(--border)]">
           {query.data.data.map((token) => (
             <div
-              className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 last:border-0"
+              className="virtualized-row grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 last:border-0"
               key={token.id}
             >
               <div>
                 <p className="text-[13px] font-medium">{token.name}</p>
                 <p className="technical-value text-[var(--text-tertiary)]">
                   {token.prefix}… ·{" "}
-                  {token.last_used_at ? `used ${relativeTime(token.last_used_at)}` : "never used"}
+                  {token.last_used_at ? (
+                    <>
+                      used <RelativeTime value={token.last_used_at} />
+                    </>
+                  ) : (
+                    "never used"
+                  )}
                 </p>
                 <p className="technical-value text-[var(--text-tertiary)]">
                   {token.scopes.join(", ")}
@@ -110,7 +132,13 @@ export default function TokensPage() {
               </div>
               <Button
                 disabled={revoke.isPending}
-                onClick={() => revoke.mutate(token.id)}
+                onClick={() => {
+                  if (
+                    window.confirm(`Revoke the ${token.name} token? This action cannot be undone.`)
+                  ) {
+                    revoke.mutate(token.id);
+                  }
+                }}
                 size="compact"
                 variant="ghost"
               >
@@ -122,6 +150,7 @@ export default function TokensPage() {
       ) : (
         <EmptyState
           description="Create a scoped token to use validate, plan, apply, and status from CI or your terminal."
+          headingLevel="h3"
           icon={KeyRound}
           title="No API tokens"
         />

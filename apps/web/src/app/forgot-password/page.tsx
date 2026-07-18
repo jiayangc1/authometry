@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
     <AuthShell>
       <div className="w-full">
         <AuthHeading
-          title="Reset your password"
+          title="Reset Your Password"
           description="Enter your email address. If an account exists, Authometry will send a reset link."
         />
         {sent ? (
@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
               Check your inbox. The reset link expires in 30 minutes.
             </p>
             <Button asChild className="w-full" variant="ghost">
-              <Link href="/login">Return to sign in</Link>
+              <Link href="/login">Return to Sign In</Link>
             </Button>
           </div>
         ) : (
@@ -45,14 +45,15 @@ export default function ForgotPasswordPage() {
                 className={inputClass}
                 name="email"
                 required
+                spellCheck={false}
                 type="email"
               />
             </label>
             <Button className="w-full" disabled={loading} type="submit" variant="primary">
-              {loading ? "Sending…" : "Send reset link"}
+              {loading ? "Sending…" : "Send Reset Link"}
             </Button>
             <Button asChild className="w-full" variant="ghost">
-              <Link href="/login">Return to sign in</Link>
+              <Link href="/login">Return to Sign In</Link>
             </Button>
           </form>
         )}

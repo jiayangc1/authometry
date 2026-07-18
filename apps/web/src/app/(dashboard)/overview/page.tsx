@@ -5,10 +5,11 @@ import { ArrowRight, ExternalLink, Play, ShieldCheck, TriangleAlert, XCircle } f
 import Link from "next/link";
 import { Button } from "@authometry/ui";
 import { RequestChart } from "@/components/dashboard/request-chart";
+import { RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
 import { apiFetch } from "@/lib/api";
-import { compactNumber, duration, relativeTime } from "@/lib/format";
+import { compactNumber, duration, hourLabel, percentage } from "@/lib/format";
 
 interface OverviewResponse {
   metrics: {
@@ -46,22 +47,22 @@ export default function OverviewPage() {
     return (
       <PageContainer>
         <ErrorState
-          title="Unable to load authentication activity"
           description="Authometry could not reach the API. Check the connection and try again."
           onRetry={() => void overview.refetch()}
+          title="Unable to Load Authentication Activity"
         />
       </PageContainer>
     );
   const data = overview.data;
   const metrics = [
     ["Authorization requests", compactNumber(data.metrics.authorizationRequests), "Last 24 hours"],
-    ["Success rate", `${data.metrics.successRate.toFixed(1)}%`, "Last 24 hours"],
+    ["Success rate", percentage(data.metrics.successRate, 1), "Last 24 hours"],
     ["Active sessions", compactNumber(data.metrics.activeSessions), "Currently valid"],
     [
       "Failed requests",
       compactNumber(data.metrics.failedRequests),
       data.metrics.authorizationRequests
-        ? `${((data.metrics.failedRequests / data.metrics.authorizationRequests) * 100).toFixed(2)}% of requests`
+        ? `${percentage((data.metrics.failedRequests / data.metrics.authorizationRequests) * 100, 2)} of requests`
         : "No failed requests",
     ],
   ];
@@ -71,13 +72,13 @@ export default function OverviewPage() {
         actions={
           <>
             <Button asChild>
-              <a href="/docs" target="_blank">
-                View documentation <ExternalLink className="size-3.5" />
-              </a>
+              <Link href="/docs">
+                View Documentation <ExternalLink aria-hidden="true" className="size-3.5" />
+              </Link>
             </Button>
             <Button asChild variant="primary">
               <Link href="/developer/playground">
-                <Play className="size-3.5" /> Open playground
+                <Play aria-hidden="true" className="size-3.5" /> Open Playground
               </Link>
             </Button>
           </>
@@ -118,13 +119,13 @@ export default function OverviewPage() {
             </div>
           }
           description="Successful, denied, and failed requests during the last 24 hours."
-          title="Authorization requests"
+          title="Authorization Requests"
         />
         <RequestChart
           data={
             data.chart ??
             Array.from({ length: 12 }, (_, index) => ({
-              time: `${String(index * 2).padStart(2, "0")}:00`,
+              time: hourLabel(index * 2),
               successful: 0,
               denied: 0,
               failed: 0,
@@ -138,11 +139,11 @@ export default function OverviewPage() {
             actions={
               <Button asChild size="compact" variant="ghost">
                 <Link href="/traces">
-                  View all <ArrowRight className="size-3" />
+                  View All <ArrowRight aria-hidden="true" className="size-3" />
                 </Link>
               </Button>
             }
-            title="Recent authorization activity"
+            title="Recent Authorization Activity"
           />
           <div className="border-y border-[var(--border)]">
             {data.recentTraces.length ? (
@@ -160,6 +161,7 @@ export default function OverviewPage() {
                     key={trace.id}
                   >
                     <Icon
+                      aria-hidden="true"
                       className={`size-4 ${trace.status === "success" ? "text-[var(--success)]" : trace.status === "denied" ? "text-[var(--warning)]" : "text-[var(--danger)]"}`}
                     />
                     <div className="min-w-0">
@@ -171,9 +173,9 @@ export default function OverviewPage() {
                         {duration(trace.duration_ms)}
                       </p>
                     </div>
-                    <time className="text-xs text-[var(--text-tertiary)]">
-                      {relativeTime(trace.started_at)}
-                    </time>
+                    <span className="text-xs text-[var(--text-tertiary)]">
+                      <RelativeTime value={trace.started_at} />
+                    </span>
                   </Link>
                 );
               })
@@ -185,7 +187,7 @@ export default function OverviewPage() {
           </div>
         </section>
         <section>
-          <SectionHeader title="Configuration changes" />
+          <SectionHeader title="Configuration Changes" />
           <div className="border-y border-[var(--border)]">
             {data.recentEvents.length ? (
               data.recentEvents.map((event) => (
@@ -195,7 +197,7 @@ export default function OverviewPage() {
                 >
                   <p className="text-[13px] font-medium">{event.summary}</p>
                   <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-                    {event.actor_name ?? "System"} · {relativeTime(event.created_at)}
+                    {event.actor_name ?? "System"} · <RelativeTime value={event.created_at} />
                   </p>
                 </div>
               ))

@@ -12,11 +12,12 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { StatusBadge } from "@authometry/ui";
+import { RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { SearchInput, selectClass } from "@/components/data-display/search-input";
 import { PageContainer, PageHeader } from "@/components/layout/page";
 import { apiFetch } from "@/lib/api";
-import { duration, relativeTime } from "@/lib/format";
+import { duration } from "@/lib/format";
 
 interface TraceRow {
   id: string;
@@ -49,7 +50,8 @@ export default function TracesPage() {
     const next = new URLSearchParams(parameters);
     if (value) next.set(key, value);
     else next.delete(key);
-    router.replace(`${pathname}?${next.toString()}`);
+    const queryString = next.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname);
   }
   if (traces.isLoading)
     return (
@@ -61,9 +63,9 @@ export default function TracesPage() {
     return (
       <PageContainer>
         <ErrorState
-          title="Unable to load authorization traces"
           description="Authometry could not reach the API. Check the connection and try again."
           onRetry={() => void traces.refetch()}
+          title="Unable to Load Authorization Traces"
         />
       </PageContainer>
     );
@@ -84,12 +86,13 @@ export default function TracesPage() {
     <PageContainer>
       <PageHeader
         description="Inspect each validation and policy decision in OAuth and OpenID Connect requests."
-        title="Authorization traces"
+        title="Authorization Traces"
       />
       <section className="mb-5 grid grid-cols-2 divide-x divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] sm:grid-cols-4 sm:divide-y-0">
         {summary.map(([label, value, Icon, tone]) => (
           <div className="flex items-center gap-3 p-3.5" key={label}>
             <Icon
+              aria-hidden="true"
               className={`size-4 text-[var(--${tone === "neutral" ? "text-secondary" : tone})]`}
             />
             <div>
@@ -105,11 +108,12 @@ export default function TracesPage() {
           defaultValue={q}
           key={q}
           onChange={(event) => update("q", event.target.value)}
-          placeholder="Request ID, user, client, IP address"
+          placeholder="Request ID, user, client, IP address…"
         />
         <select
           aria-label="Trace status"
           className={selectClass}
+          name="status"
           onChange={(event) => update("status", event.target.value)}
           value={status}
         >
@@ -119,9 +123,6 @@ export default function TracesPage() {
           <option value="error">Error</option>
           <option value="warning">Warning</option>
           <option value="pending">Pending</option>
-        </select>
-        <select aria-label="Time range" className={selectClass} disabled>
-          <option>Last 24 hours</option>
         </select>
       </div>
       <div className="border-y border-[var(--border)]">
@@ -137,7 +138,7 @@ export default function TracesPage() {
         {rows.length ? (
           rows.map((trace) => (
             <Link
-              className="grid min-h-16 grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 py-2.5 last:border-0 hover:bg-[var(--surface-hover)] lg:grid-cols-[100px_minmax(160px,1.4fr)_minmax(130px,1fr)_minmax(150px,1fr)_140px_80px_120px]"
+              className="virtualized-row grid min-h-16 grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 py-2.5 last:border-0 hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:outline-none focus-visible:ring-inset lg:grid-cols-[100px_minmax(160px,1.4fr)_minmax(130px,1fr)_minmax(150px,1fr)_140px_80px_120px]"
               href={`/traces/${trace.id}`}
               key={trace.id}
             >
@@ -162,7 +163,7 @@ export default function TracesPage() {
                 </p>
               </div>
               <span className="text-xs text-[var(--text-tertiary)] lg:hidden">
-                {relativeTime(trace.started_at)}
+                <RelativeTime value={trace.started_at} />
               </span>
               <span className="hidden truncate text-xs text-[var(--text-secondary)] lg:block">
                 {trace.application_name}
@@ -175,14 +176,14 @@ export default function TracesPage() {
               </span>
               <span className="technical-value hidden lg:block">{duration(trace.duration_ms)}</span>
               <span className="hidden text-xs text-[var(--text-tertiary)] lg:block">
-                {relativeTime(trace.started_at)}
+                <RelativeTime value={trace.started_at} />
               </span>
             </Link>
           ))
         ) : (
           <div className="flex min-h-60 flex-col items-center justify-center text-center">
-            <Clock3 className="mb-3 size-5 text-[var(--text-tertiary)]" />
-            <p className="text-sm font-medium">No authorization traces found</p>
+            <Clock3 aria-hidden="true" className="mb-3 size-5 text-[var(--text-tertiary)]" />
+            <h2 className="text-sm font-medium text-balance">No Authorization Traces Found</h2>
             <p className="mt-1 text-xs text-[var(--text-secondary)]">
               No requests match the selected filters.
             </p>
