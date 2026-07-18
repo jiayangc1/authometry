@@ -98,15 +98,21 @@ export function CommandMenu({
                     <Link
                       className="flex w-full items-center gap-3 px-2 py-2"
                       href={String(href)}
-                      onClick={() => onOpenChange(false)}
+                      onMouseDown={(event) => {
+                        if (event.button !== 0) event.stopPropagation();
+                      }}
+                      onClick={(event) => {
+                        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                          event.stopPropagation();
+                          onOpenChange(false);
+                          return;
+                        }
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const path = event.currentTarget.getAttribute("href");
+                        if (path) go(path);
+                      }}
                     >
-                      <Icon aria-hidden="true" className="size-4 text-[var(--text-secondary)]" />{" "}
-                      {String(label)}
-                      <ArrowRight
-                        aria-hidden="true"
-                        className="ml-auto size-3 text-[var(--text-tertiary)]"
-                      />
-                    </Link>
                   </Command.Item>
                 ))}
               </Command.Group>
