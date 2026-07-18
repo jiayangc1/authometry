@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Github } from "lucide-react";
 import { Button } from "@authometry/ui";
-import { AuthorizationLoginShell, inputClass } from "@/components/auth/auth-shell";
+import { AuthorizationShell, inputClass } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
 import { useHydrated } from "@/lib/use-hydrated";
 
@@ -47,7 +47,7 @@ export default function AuthorizationLoginPage() {
     }
   }
   return (
-    <AuthorizationLoginShell>
+    <AuthorizationShell>
       <div className="w-full">
         <header className="mb-8 text-center">
           <h1 className="text-[28px] leading-9 font-medium tracking-[-0.035em]">Sign in</h1>
@@ -129,7 +129,7 @@ export default function AuthorizationLoginPage() {
           </Button>
         </form>
       </div>
-    </AuthorizationLoginShell>
+    </AuthorizationShell>
   );
 }
 

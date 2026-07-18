@@ -64,7 +64,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AuthorizationLoginShell({ children }: { children: React.ReactNode }) {
+export function AuthorizationShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="flex min-h-dvh flex-col bg-[var(--surface)] px-5 py-6 sm:justify-center sm:py-10">
       <section className="mx-auto flex w-full max-w-[450px] flex-1 flex-col justify-center sm:flex-none sm:rounded-[24px] sm:border sm:border-[var(--border-strong)] sm:bg-[var(--background)] sm:px-10 sm:py-10 sm:shadow-[0_1px_2px_rgba(0,0,0,0.04)]">

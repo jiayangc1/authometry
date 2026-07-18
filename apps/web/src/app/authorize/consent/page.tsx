@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ArrowRight, Bot, Clock3, MapPin, ShieldCheck, UserRound } from "lucide-react";
 import { Button, StatusBadge } from "@authometry/ui";
-import { AuthHeading, AuthShell } from "@/components/auth/auth-shell";
+import { AuthorizationShell } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
 
 interface ConsentRequest {
@@ -52,19 +52,33 @@ export default function ConsentPage() {
     window.location.assign(result.next);
   }
   return (
-    <AuthShell>
+    <AuthorizationShell>
       <div className="w-full">
-        <AuthHeading
-          description={
-            isAgentRequest
-              ? `${query.data?.agent?.displayName} is asking to perform one approved task—not to sign in as you.`
-              : `${query.data?.application.name ?? "This application"} is requesting permission to access your account.`
-          }
-          title={isAgentRequest ? "Authorize this task" : "Review access"}
-        />
+        <header className="mb-8 text-center">
+          <h1 className="text-[28px] leading-9 font-medium tracking-[-0.035em]">
+            {isAgentRequest ? "Authorize this task" : "Review access"}
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+            {isAgentRequest ? (
+              <>
+                <span className="font-medium text-[var(--text-primary)]">
+                  {query.data?.agent?.displayName}
+                </span>{" "}
+                wants to perform one approved task
+              </>
+            ) : (
+              <>
+                <span className="font-medium text-[var(--text-primary)]">
+                  {query.data?.application.name ?? "This application"}
+                </span>{" "}
+                wants access to your account
+              </>
+            )}
+          </p>
+        </header>
         {query.data?.agent && (
           <>
-            <div className="mb-5 grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-3">
+            <div className="mb-5 grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] p-3">
               <div className="min-w-0 text-center">
                 <UserRound className="mx-auto mb-1 size-4 text-[var(--text-secondary)]" />
                 <p className="text-[11px] text-[var(--text-tertiary)]">Authority owner</p>
@@ -94,7 +108,7 @@ export default function ConsentPage() {
             </div>
           </>
         )}
-        <div className="border-y border-[var(--border)]">
+        <div className="overflow-hidden rounded-xl border border-[var(--border)] px-4">
           {query.data?.authorizationDetails?.map((detail, index) => (
             <div
               className="border-b border-[var(--border-subtle)] py-3"
@@ -171,15 +185,24 @@ export default function ConsentPage() {
             You can revoke this access later from your account sessions.
           </p>
         )}
-        <div className="mt-6 flex justify-end gap-2">
-          <Button disabled={loading} onClick={() => void decide(false)}>
+        <div className="mt-7 grid grid-cols-2 gap-2.5">
+          <Button
+            className="h-10 rounded-full text-sm"
+            disabled={loading}
+            onClick={() => void decide(false)}
+          >
             Deny
           </Button>
-          <Button disabled={loading} onClick={() => void decide(true)} variant="primary">
+          <Button
+            className="h-10 rounded-full text-sm"
+            disabled={loading}
+            onClick={() => void decide(true)}
+            variant="primary"
+          >
             {isAgentRequest ? "Approve task" : "Allow access"}
           </Button>
         </div>
       </div>
-    </AuthShell>
+    </AuthorizationShell>
   );
 }
