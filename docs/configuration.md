@@ -4,10 +4,17 @@ Authometry manifests make authorization-server configuration reviewable in Git. 
 
 ## CLI setup
 
-Build or run the workspace CLI, then provide a server, personal access token, and environment:
+Run the CLI directly, or install it globally:
 
 ```bash
-pnpm --filter @authometry/cli build
+npx authometry --help
+npm install --global authometry
+```
+
+Contributors can build the workspace CLI with `pnpm --filter @authometry/cli build`.
+Then provide a server, personal access token, and environment:
+
+```bash
 export AUTHOMETRY_SERVER=https://auth.example.com
 export AUTHOMETRY_TOKEN=amt_your_token
 export AUTHOMETRY_ENVIRONMENT=production

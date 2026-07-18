@@ -5,7 +5,7 @@ export default defineConfig({
   entry: ["src/index.ts"],
   clean: true,
   format: ["esm"],
-  noExternal: [/.*/],
+  noExternal: [/^@authometry\//],
   platform: "node",
   target: "node24",
 });
