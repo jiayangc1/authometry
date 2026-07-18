@@ -4,6 +4,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import chalk from "chalk";
 import { Command } from "commander";
+import packageJson from "../package.json" with { type: "json" };
 import {
   buildConfigurationPlan,
   comparableManifest,
@@ -26,7 +27,7 @@ interface GlobalOptions {
 const program = new Command()
   .name("authometry")
   .description("Validate, inspect, and apply Authometry configuration.")
-  .version("0.1.1")
+  .version(packageJson.version)
   .option(
     "--server <url>",
     "Authometry server URL",

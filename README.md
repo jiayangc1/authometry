@@ -44,6 +44,22 @@ Open `http://localhost:3000/bootstrap?token=<BOOTSTRAP_TOKEN>` and create the fi
 
 See [Getting started](docs/getting-started.md) for secret generation, first-client setup, and troubleshooting.
 
+## CLI installation
+
+Install the configuration CLI with Homebrew on macOS or Linux:
+
+```bash
+brew install jiayangc1/tap/authometry
+```
+
+Or run it without installing through npm:
+
+```bash
+npx authometry --help
+```
+
+See [Configuration as code](docs/configuration.md) for npm, pnpm, Yarn, and Bun options plus the complete command reference.
+
 ## Workspace
 
 - `apps/web` — dashboard, bootstrap, login, consent, and device UI.

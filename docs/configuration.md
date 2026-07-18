@@ -4,11 +4,25 @@ Authometry manifests make authorization-server configuration reviewable in Git. 
 
 ## CLI setup
 
-Run the CLI directly, or install it globally:
+Install with Homebrew on macOS or Linux:
+
+```bash
+brew install jiayangc1/tap/authometry
+```
+
+Alternatively, run the CLI directly through npm or install it globally:
 
 ```bash
 npx authometry --help
 npm install --global authometry
+```
+
+The same package is available through other JavaScript package managers:
+
+```bash
+pnpm dlx authometry --help
+yarn dlx authometry --help
+bunx authometry --help
 ```
 
 Contributors can build the workspace CLI with `pnpm --filter @authometry/cli build`.
