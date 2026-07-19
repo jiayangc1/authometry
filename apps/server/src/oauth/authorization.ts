@@ -13,6 +13,7 @@ import {
   sha256Base64Url,
 } from "../lib/crypto.js";
 import { ApiError, asyncRoute } from "../lib/http.js";
+import { verifyIdentityMfa } from "../lib/identity-mfa.js";
 import { evaluateAll } from "../lib/policy.js";
 import { exchangeSocialCode, socialAuthorizationUrl } from "../lib/social.js";
 import { TraceRecorder } from "../lib/trace.js";
@@ -1118,6 +1119,7 @@ authorizeApiRouter.post(
         requestId: z.string().min(1),
         email: z.string().email(),
         password: z.string().min(1),
+        mfaCode: z.string().trim().min(6).max(24).optional(),
         linkToken: z.string().min(32).optional(),
       })
       .parse(request.body);
@@ -1131,6 +1133,22 @@ authorizeApiRouter.post(
     );
     if (!user?.password_hash || !(await compare(input.password, user.password_hash))) {
       throw new ApiError(401, "invalid_credentials", "The email or password is incorrect.");
+    }
+    if (user.mfa_enabled) {
+      if (!input.mfaCode) {
+        throw new ApiError(
+          401,
+          "mfa_required",
+          "Enter a code from your authenticator app or a recovery code.",
+        );
+      }
+      if (!(await verifyIdentityMfa(user.id, user.mfa_totp_secret_encrypted, input.mfaCode))) {
+        throw new ApiError(
+          401,
+          "invalid_mfa_code",
+          "The authentication code is invalid or has already been used.",
+        );
+      }
     }
     if (input.linkToken) {
       const linkToken = input.linkToken;

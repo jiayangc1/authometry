@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { ZodError } from "zod";
 import { adminAuthRouter, requireAdmin, requireCsrf } from "./auth/admin.js";
+import { portalRouter } from "./auth/portal.js";
 import { dashboardRouter } from "./api/dashboard.js";
 import { configurationRouter } from "./api/configuration.js";
 import { settingsRouter } from "./api/settings.js";
@@ -104,6 +105,7 @@ export function createApp() {
       "/api/v1/auth/forgot-password",
       "/api/v1/auth/reset-password",
       "/api/v1/auth/invitation",
+      "/api/v1/portal/auth/login",
       "/api/v1/authorize/login",
       "/api/v1/authorize/device",
     ],
@@ -138,6 +140,7 @@ export function createApp() {
   app.use("/w/:workspaceSlug/:environmentSlug/mcp", mcpRouter);
   app.use("/:environmentSlug/mcp", mcpRouter);
   app.use("/api/v1/auth", adminAuthRouter);
+  app.use("/api/v1/portal", portalRouter);
   app.use("/api/v1/authorize", authorizeApiRouter);
   app.use("/api/v1/authorize", deviceApiRouter);
   app.use("/api/v1", requireAdmin, requireCsrf, agentsRouter);

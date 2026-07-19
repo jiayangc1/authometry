@@ -230,6 +230,8 @@ dashboardRouter.patch(
         requirePkce: z.boolean().optional(),
         requireConsent: z.boolean().optional(),
         allowedScopes: z.array(scopeNameSchema).optional(),
+        portalEnabled: z.boolean().optional(),
+        launchUri: z.string().url().nullable().optional(),
         version: z.number().int().positive(),
       })
       .parse(request.body);
@@ -252,8 +254,11 @@ dashboardRouter.patch(
         name = COALESCE($3, name), description = CASE WHEN $4::boolean THEN $5 ELSE description END,
         redirect_uris = COALESCE($6, redirect_uris), post_logout_redirect_uris = COALESCE($7, post_logout_redirect_uris),
         require_pkce = COALESCE($8, require_pkce), require_consent = COALESCE($9, require_consent),
-        allowed_scopes = COALESCE($10, allowed_scopes), version = version + 1, updated_at = now()
-       WHERE id = $1 AND environment_id = $2 AND version = $11 RETURNING *`,
+        allowed_scopes = COALESCE($10, allowed_scopes),
+        portal_enabled = COALESCE($11, portal_enabled),
+        launch_uri = CASE WHEN $12::boolean THEN $13 ELSE launch_uri END,
+        version = version + 1, updated_at = now()
+       WHERE id = $1 AND environment_id = $2 AND version = $14 RETURNING *`,
       [
         request.params.applicationId,
         request.environment!.id,
@@ -265,6 +270,9 @@ dashboardRouter.patch(
         input.requirePkce ?? null,
         input.requireConsent ?? null,
         input.allowedScopes ?? null,
+        input.portalEnabled ?? null,
+        Object.hasOwn(input, "launchUri"),
+        input.launchUri ?? null,
         input.version,
       ],
     );
@@ -499,7 +507,7 @@ dashboardRouter.get(
       [request.params.userId, request.environment!.workspaceId],
     );
     if (!user) throw new ApiError(404, "user_not_found", "The user was not found.");
-    const [sessions, socialConnections] = await Promise.all([
+    const [sessions, socialConnections, assignments, availableApplications] = await Promise.all([
       query(
         `SELECT s.*, a.name AS application_name FROM user_sessions s
          LEFT JOIN oauth_applications a ON a.id = s.application_id WHERE s.user_id = $1 ORDER BY s.last_active_at DESC`,
@@ -510,8 +518,83 @@ dashboardRouter.get(
          WHERE user_id = $1 ORDER BY provider`,
         [request.params.userId],
       ),
+      query(
+        `SELECT ua.application_id, ua.assigned_at, ua.last_launched_at, a.name, a.slug,
+                EXISTS (
+                  SELECT 1 FROM webhooks w WHERE w.environment_id = a.environment_id
+                    AND w.purpose = 'provisioning' AND w.status = 'enabled'
+                ) AS provisioning_enabled
+         FROM user_application_assignments ua
+         JOIN oauth_applications a ON a.id = ua.application_id
+         WHERE ua.user_id = $1 AND ua.environment_id = $2 ORDER BY a.name`,
+        [request.params.userId, request.environment!.id],
+      ),
+      query(
+        `SELECT a.id, a.name, a.slug, a.portal_enabled, a.launch_uri,
+                EXISTS (
+                  SELECT 1 FROM webhooks w WHERE w.environment_id = a.environment_id
+                    AND w.purpose = 'provisioning' AND w.status = 'enabled'
+                ) AS provisioning_enabled
+         FROM oauth_applications a
+         WHERE a.environment_id = $1 AND a.status = 'active' AND a.client_id_source <> 'dynamic'
+           AND a.portal_enabled = true AND a.launch_uri IS NOT NULL
+         ORDER BY a.name`,
+        [request.environment!.id],
+      ),
     ]);
-    response.json({ ...user, sessions, social_connections: socialConnections });
+    response.json({
+      ...user,
+      sessions,
+      social_connections: socialConnections,
+      application_assignments: assignments,
+      available_applications: availableApplications,
+    });
+  }),
+);
+
+dashboardRouter.put(
+  "/users/:userId/applications/:applicationId",
+  asyncRoute(async (request, response) => {
+    const environment = request.environment!;
+    const [assignment] = await query(
+      `INSERT INTO user_application_assignments
+        (workspace_id, environment_id, application_id, user_id, assigned_by)
+       SELECT $1,$2,a.id,u.id,$5
+       FROM oauth_applications a
+       JOIN identity_users u ON u.id = $3 AND u.workspace_id = $1
+       WHERE a.id = $4 AND a.environment_id = $2 AND a.portal_enabled = true
+         AND a.status = 'active' AND a.launch_uri IS NOT NULL
+       ON CONFLICT (environment_id, application_id, user_id)
+       DO UPDATE SET assigned_by = EXCLUDED.assigned_by, assigned_at = now()
+       RETURNING *`,
+      [
+        environment.workspaceId,
+        environment.id,
+        request.params.userId,
+        request.params.applicationId,
+        request.admin!.userId,
+      ],
+    );
+    if (!assignment) {
+      throw new ApiError(
+        404,
+        "portal_assignment_target_not_found",
+        "The user or portal-enabled application was not found.",
+      );
+    }
+    response.json(assignment);
+  }),
+);
+
+dashboardRouter.delete(
+  "/users/:userId/applications/:applicationId",
+  asyncRoute(async (request, response) => {
+    await query(
+      `DELETE FROM user_application_assignments
+       WHERE user_id = $1 AND application_id = $2 AND environment_id = $3`,
+      [request.params.userId, request.params.applicationId, request.environment!.id],
+    );
+    response.status(204).end();
   }),
 );
 

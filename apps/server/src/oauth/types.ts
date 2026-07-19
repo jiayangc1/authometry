@@ -38,6 +38,8 @@ export interface IdentityUserRow {
   custom_claims: Record<string, unknown>;
   email_verified_at: Date | null;
   last_authenticated_at: Date | null;
+  mfa_enabled: boolean;
+  mfa_totp_secret_encrypted: string | null;
 }
 
 export interface PendingAuthorizationRow {
