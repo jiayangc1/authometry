@@ -17,6 +17,15 @@ import {
   type ManifestDocument,
   type PlanEntry,
 } from "@authometry/config";
+import {
+  applicationCreatePayload,
+  applicationTypes,
+  provisionedApplication,
+  writeApplicationEnvironment,
+  type ApplicationCreateOptions,
+  type ApplicationType,
+  type CreatedApplicationResponse,
+} from "./applications.js";
 
 interface GlobalOptions {
   server: string;
@@ -31,7 +40,7 @@ const program = new Command()
   .option(
     "--server <url>",
     "Authometry server URL",
-    process.env.AUTHOMETRY_SERVER ?? "http://localhost:3000",
+    process.env.AUTHOMETRY_SERVER ?? "https://authometry.ch3n.cc",
   )
   .option("--token <token>", "Authometry personal access token", process.env.AUTHOMETRY_TOKEN)
   .option(
@@ -87,6 +96,100 @@ function printPlan(entries: PlanEntry[]): void {
     `\nPlan: ${summary.create} create, ${summary.update} update, ${summary.delete} delete, ${summary.unchanged} unchanged.\n`,
   );
 }
+
+function collectOption(value: string, values: string[]): string[] {
+  return [...values, value];
+}
+
+const applications = program
+  .command("apps")
+  .alias("applications")
+  .description("Provision OAuth applications on Authometry Cloud.");
+
+applications
+  .command("create")
+  .description("Create an OAuth application and return its issuer and client credentials.")
+  .requiredOption("--name <name>", "Application display name")
+  .option("--slug <slug>", "Stable application slug; defaults to the display name")
+  .option("--type <type>", `Client type: ${applicationTypes.join(", ")}`, "web")
+  .option("--description <description>", "Application description")
+  .option(
+    "--redirect-uri <uri>",
+    "Exact OAuth callback URI; repeat for additional deployments",
+    collectOption,
+    [],
+  )
+  .option(
+    "--post-logout-redirect-uri <uri>",
+    "Exact post-logout URI; repeat for additional deployments",
+    collectOption,
+    [],
+  )
+  .option("--scope <scope>", "Allowed OAuth scope; repeat for additional scopes", collectOption, [])
+  .option("--env-file <path>", "Write credentials to an environment file without printing them")
+  .option("--overwrite-env", "Replace existing Authometry values in --env-file", false)
+  .option("--json", "Print machine-readable JSON", false)
+  .action(
+    async (
+      input: {
+        name: string;
+        slug?: string;
+        type: string;
+        description?: string;
+        redirectUri: string[];
+        postLogoutRedirectUri: string[];
+        scope: string[];
+        envFile?: string;
+        overwriteEnv: boolean;
+        json: boolean;
+      },
+      command: Command,
+    ) => {
+      if (!applicationTypes.includes(input.type as ApplicationType)) {
+        throw new Error(`--type must be one of: ${applicationTypes.join(", ")}.`);
+      }
+      const createOptions: ApplicationCreateOptions = {
+        name: input.name,
+        type: input.type as ApplicationType,
+        redirectUris: input.redirectUri,
+        postLogoutRedirectUris: input.postLogoutRedirectUri,
+        scopes: input.scope,
+        ...(input.slug ? { slug: input.slug } : {}),
+        ...(input.description ? { description: input.description } : {}),
+      };
+      const payload = applicationCreatePayload(createOptions);
+      const created = await api<CreatedApplicationResponse>(
+        "/api/v1/applications",
+        globalOptions(command),
+        { method: "POST", body: JSON.stringify(payload) },
+      );
+      const result = provisionedApplication(createOptions, created);
+      const environmentFile = input.envFile
+        ? await writeApplicationEnvironment(input.envFile, created, input.overwriteEnv)
+        : undefined;
+
+      if (input.json) {
+        const output = environmentFile
+          ? { ...result, clientSecret: undefined, environmentFile }
+          : result;
+        stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+        return;
+      }
+
+      stdout.write(`${chalk.green("✓")} Created ${result.name}\n\n`);
+      stdout.write(`Application ID: ${result.applicationId}\n`);
+      stdout.write(`Issuer: ${result.issuer}\n`);
+      stdout.write(`Client ID: ${result.clientId}\n`);
+      if (environmentFile) {
+        stdout.write(`Credentials: ${environmentFile}\n`);
+      } else if (result.clientSecret) {
+        stdout.write(`Client secret: ${result.clientSecret}\n`);
+        stdout.write(chalk.yellow("Store this secret now. Authometry cannot show it again.\n"));
+      } else {
+        stdout.write("Client secret: not used by this public client\n");
+      }
+    },
+  );
 
 program
   .command("init")

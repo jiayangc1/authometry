@@ -35,7 +35,7 @@ export default function TokensPage() {
         method: "POST",
         body: JSON.stringify({
           name,
-          scopes: ["config:read", "config:write"],
+          scopes: ["config:read", "config:write", "applications:read", "applications:write"],
           expiresInDays: 90,
         }),
       }),

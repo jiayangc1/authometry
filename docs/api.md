@@ -37,7 +37,7 @@ curl \
   https://authometry.ch3n.cc/api/v1/config/status
 ```
 
-Personal tokens begin with `amt_`, are shown once, stored only as hashes, and may have an expiry. Configuration endpoints enforce `config:read` on GET/HEAD and `config:write` on mutations. Personal tokens do not require cookie CSRF. The MCP endpoint uses its separate OAuth admin-consent flow rather than personal tokens.
+Personal tokens begin with `amt_`, are shown once, stored only as hashes, and may have an expiry. Configuration endpoints enforce `config:read` on GET/HEAD and `config:write` on mutations. Application endpoints enforce `applications:read` on GET/HEAD and `applications:write` on mutations. Personal tokens do not require cookie CSRF. The MCP endpoint uses its separate OAuth admin-consent flow rather than personal tokens.
 
 ## Environment selection
 
@@ -104,7 +104,7 @@ All paths below are relative to `/api/v1` and require authentication, CSRF for c
 | ------ | --------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | GET    | `/overview`                                                     | Counts, recent activity, and request metrics.                          |
 | GET    | `/applications`                                                 | List applications in the selected environment.                         |
-| POST   | `/applications`                                                 | Create an application and optionally return its first secret.          |
+| POST   | `/applications`                                                 | Create an application and return its issuer, client ID, and optional one-time secret. |
 | POST   | `/applications/slug`                                            | Produce a normalized slug preview from a name.                         |
 | GET    | `/applications/:applicationId`                                  | Read application configuration and credentials.                        |
 | PATCH  | `/applications/:applicationId`                                  | Update dashboard-owned application fields using optimistic versioning. |

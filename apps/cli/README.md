@@ -1,6 +1,6 @@
 # Authometry CLI
 
-Configuration-as-code CLI for [Authometry](https://github.com/jiayangc1/authometry).
+Provision and manage OAuth applications on [Authometry](https://authometry.ch3n.cc).
 
 ## Install with Homebrew
 
@@ -29,12 +29,26 @@ yarn dlx authometry --help
 bunx authometry --help
 ```
 
-Set the Authometry server, personal access token, and target environment before running remote commands:
+## Provision an OAuth application
+
+Create an API token with application access, then set it for the CLI. Authometry Cloud is the default server and `production` is the default environment.
 
 ```bash
-export AUTHOMETRY_SERVER=https://authometry.ch3n.cc
 export AUTHOMETRY_TOKEN=amt_your_token
-export AUTHOMETRY_ENVIRONMENT=production
+
+authometry apps create \
+  --name "Customer Portal" \
+  --type web \
+  --redirect-uri https://app.example.com/auth/callback \
+  --post-logout-redirect-uri https://app.example.com/ \
+  --scope openid \
+  --scope profile \
+  --scope email \
+  --env-file .env.local
 ```
 
-See the [configuration documentation](https://github.com/jiayangc1/authometry/blob/main/docs/configuration.md) for manifests, commands, and CI examples.
+The command creates the Authometry application and writes its issuer, application ID, client ID, and one-time client secret directly to the environment file with mode `0600`. It refuses to replace existing Authometry values unless `--overwrite-env` is passed. Use `--json` for machine-readable output.
+
+Set `AUTHOMETRY_ENVIRONMENT` or pass `--environment` for a non-default Cloud environment. Set `AUTHOMETRY_SERVER` or pass `--server` only when targeting a self-hosted installation.
+
+See the [configuration documentation](https://github.com/jiayangc1/authometry/blob/main/docs/configuration.md) for manifest, drift, and CI workflows.

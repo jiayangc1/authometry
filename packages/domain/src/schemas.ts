@@ -38,6 +38,7 @@ export const applicationInputSchema = z.object({
   description: z.string().trim().max(500).optional(),
   redirectUris: z.array(redirectUriSchema).max(25),
   postLogoutRedirectUris: z.array(redirectUriSchema).max(25).default([]),
+  allowedScopes: z.array(scopeNameSchema).min(1).max(100).optional(),
 });
 
 export function createApplicationSlug(name: string): string {

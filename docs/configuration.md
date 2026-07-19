@@ -26,17 +26,36 @@ bunx authometry --help
 ```
 
 Contributors can build the workspace CLI with `pnpm --filter @authometry/cli build`.
-Then provide a server, personal access token, and environment:
+Authometry Cloud is the default server. Provide a personal access token and optionally select a non-default environment:
 
 ```bash
-export AUTHOMETRY_SERVER=https://authometry.ch3n.cc
 export AUTHOMETRY_TOKEN=amt_your_token
 export AUTHOMETRY_ENVIRONMENT=production
 ```
 
-The token needs `config:read` for plan, diff, status, and export, and `config:write` for apply. Settings creates tokens with those scopes by default.
+The token needs `config:read` for plan, diff, status, and export; `config:write` for apply; `applications:read` to inspect OAuth clients; and `applications:write` to provision them. Settings creates tokens with these scopes by default.
 
-Every command also accepts `--server`, `--token`, and `--environment`. The environment may be a UUID or slug and defaults to `production`.
+Every command also accepts `--server`, `--token`, and `--environment`. The server defaults to `https://authometry.ch3n.cc`; override it only for self-hosted installations. The environment may be a UUID or slug and defaults to `production`.
+
+## Agent-ready application provisioning
+
+Create a SaaS OAuth client and write its one-time credentials directly into the application's ignored environment file:
+
+```bash
+authometry apps create \
+  --name "Customer Portal" \
+  --type web \
+  --redirect-uri https://app.example.com/auth/callback \
+  --post-logout-redirect-uri https://app.example.com/ \
+  --scope openid \
+  --scope profile \
+  --scope email \
+  --scope offline_access \
+  --env-file .env.local \
+  --json
+```
+
+The command returns the selected environment's issuer with the generated client ID. Confidential `web` and `machine` applications also receive a one-time client secret. With `--env-file`, the secret is written with mode `0600` and omitted from JSON output. Existing Authometry assignments are preserved unless `--overwrite-env` is explicit.
 
 ## Workflow
 

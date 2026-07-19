@@ -11,6 +11,15 @@ import { auditMutation, requireEnvironment } from "./context.js";
 export const dashboardRouter = Router();
 dashboardRouter.use(requireEnvironment);
 dashboardRouter.use(auditMutation);
+dashboardRouter.use("/applications", (request, _response, next) => {
+  const scopes = request.admin?.tokenScopes;
+  if (!scopes) return next();
+  const required = ["GET", "HEAD", "OPTIONS"].includes(request.method)
+    ? "applications:read"
+    : "applications:write";
+  if (scopes.includes(required)) return next();
+  next(new ApiError(403, "insufficient_scope", `The API token requires ${required}.`));
+});
 dashboardRouter.use((request, _response, next) => {
   if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return next();
   if (["owner", "admin", "developer"].includes(request.admin?.role ?? "")) return next();
@@ -151,7 +160,7 @@ dashboardRouter.post(
           needsSecret ? "client_secret_basic" : "none",
           input.type !== "machine",
           defaults?.require_consent ?? true,
-          input.type === "machine" ? [] : ["openid", "profile", "email"],
+          input.allowedScopes ?? (input.type === "machine" ? [] : ["openid", "profile", "email"]),
           defaults?.default_access_token_lifetime_seconds ?? 900,
           defaults?.default_refresh_token_lifetime_seconds ?? 2_592_000,
         ],
@@ -181,9 +190,12 @@ dashboardRouter.post(
       );
       return id;
     });
-    response
-      .status(201)
-      .json({ id: result, clientId, ...(secret ? { clientSecret: secret } : {}) });
+    response.status(201).json({
+      id: result,
+      issuer: environment.issuer,
+      clientId,
+      ...(secret ? { clientSecret: secret } : {}),
+    });
   }),
 );
 
