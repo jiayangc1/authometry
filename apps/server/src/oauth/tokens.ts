@@ -48,6 +48,7 @@ async function authorizationCodeGrant(
   application: OAuthApplicationRow,
   body: Record<string, unknown>,
   request: Request,
+  trace: TraceRecorder,
 ): Promise<Record<string, unknown>> {
   const code = String(body.code ?? "");
   const redirectUri = String(body.redirect_uri ?? "");
@@ -132,6 +133,7 @@ async function authorizationCodeGrant(
       ) {
         throw new ApiError(400, "invalid_grant", "The authorization code has an invalid resource.");
       }
+      trace.identifyUser({ id: admin.id, email: admin.email, name: admin.name });
       return issueTokenSet({
         application,
         issuer: application.issuer,
@@ -158,6 +160,7 @@ async function authorizationCodeGrant(
     const user = userResult.rows[0];
     if (!user || user.status !== "active")
       throw new ApiError(400, "invalid_grant", "The user is not active.");
+    trace.identifyUser({ id: user.id, email: user.email, name: user.name });
 
     let grant: DelegationGrantRow | undefined;
     let agent: AgentIdentityRow | undefined;
@@ -237,6 +240,7 @@ async function authorizationCodeGrant(
 async function refreshTokenGrant(
   application: OAuthApplicationRow,
   rawToken: string,
+  trace: TraceRecorder,
   requestedScope?: string,
   requestedResource?: string,
 ): Promise<Record<string, unknown>> {
@@ -352,6 +356,11 @@ async function refreshTokenGrant(
       ).rows[0];
       if (!admin) throw new ApiError(400, "invalid_grant", "The Authometry admin is not active.");
     }
+    if (admin) {
+      trace.identifyUser({ id: admin.id, email: admin.email, name: admin.name });
+    } else if (user) {
+      trace.identifyUser({ id: user.id, email: user.email, name: user.name });
+    }
     const tokenSet = await issueTokenSet({
       application,
       issuer: application.issuer,
@@ -400,6 +409,7 @@ async function refreshTokenGrant(
 async function deviceCodeGrant(
   application: OAuthApplicationRow,
   rawDeviceCode: string,
+  trace: TraceRecorder,
 ): Promise<Record<string, unknown>> {
   let protocolError: ApiError | undefined;
   const tokenSet = await transaction(async (client) => {
@@ -451,6 +461,7 @@ async function deviceCodeGrant(
       ])
     ).rows[0];
     if (!user) throw new ApiError(400, "invalid_grant", "The user is no longer available.");
+    trace.identifyUser({ id: user.id, email: user.email, name: user.name });
     await client.query("UPDATE device_authorizations SET status = 'consumed' WHERE id = $1", [
       device.id,
     ]);
@@ -478,6 +489,7 @@ async function tokenExchangeGrant(
   application: OAuthApplicationRow,
   body: Record<string, unknown>,
   request: Request,
+  trace: TraceRecorder,
 ): Promise<Record<string, unknown>> {
   const subjectToken = String(body.subject_token ?? "");
   const subjectTokenType = String(body.subject_token_type ?? "");
@@ -618,6 +630,7 @@ async function tokenExchangeGrant(
   const user = userRows[0];
   if (!user || user.status !== "active")
     throw new ApiError(400, "invalid_grant", "The subject is inactive.");
+  trace.identifyUser({ id: user.id, email: user.email, name: user.name });
   const parentAct = typeof payload.act === "object" && payload.act ? payload.act : undefined;
   const expiresIn = Math.max(
     1,
@@ -812,12 +825,14 @@ tokenRouter.post(
             application,
             request.body as Record<string, unknown>,
             request,
+            trace,
           );
           break;
         case "refresh_token":
           tokens = await refreshTokenGrant(
             application,
             String(request.body.refresh_token ?? ""),
+            trace,
             request.body.scope ? String(request.body.scope) : undefined,
             request.body.resource ? String(request.body.resource) : undefined,
           );
@@ -857,13 +872,18 @@ tokenRouter.post(
           break;
         }
         case "urn:ietf:params:oauth:grant-type:device_code":
-          tokens = await deviceCodeGrant(application, String(request.body.device_code ?? ""));
+          tokens = await deviceCodeGrant(
+            application,
+            String(request.body.device_code ?? ""),
+            trace,
+          );
           break;
         case "urn:ietf:params:oauth:grant-type:token-exchange":
           tokens = await tokenExchangeGrant(
             application,
             request.body as Record<string, unknown>,
             request,
+            trace,
           );
           break;
         default:

@@ -45,6 +45,10 @@ export class TraceRecorder {
     },
   ) {}
 
+  identifyUser(user: NonNullable<AuthorizationTrace["user"]>): void {
+    this.context.user = user;
+  }
+
   step(
     name: string,
     status: TraceStepStatus,
