@@ -14,6 +14,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     ["Domains", "/settings/domains"],
     ["Signing keys", "/settings/signing-keys"],
     ["API tokens", "/settings/tokens"],
+    ["Provisioning", "/settings/provisioning"],
     ["Webhooks", "/settings/webhooks"],
     ["Audit", "/settings/audit"],
     ["Danger zone", "/settings/danger"],

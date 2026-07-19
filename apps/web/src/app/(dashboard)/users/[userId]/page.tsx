@@ -1,14 +1,16 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Users } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronRight, Trash2, Users } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import type { ReactNode } from "react";
-import { EmptyState, StatusBadge } from "@authometry/ui";
+import { useParams, useRouter } from "next/navigation";
+import { type ReactNode, useState } from "react";
+import { toast } from "sonner";
+import { Button, EmptyState, StatusBadge } from "@authometry/ui";
 import { FullDateTime, RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { apiFetch } from "@/lib/api";
 
 interface UserDetail {
@@ -38,9 +40,21 @@ interface UserDetail {
 }
 export default function UserDetailPage() {
   const { userId } = useParams<{ userId: string }>();
+  const router = useRouter();
+  const client = useQueryClient();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const query = useQuery({
     queryKey: ["user", userId],
     queryFn: () => apiFetch<UserDetail>(`/api/v1/users/${userId}`),
+  });
+  const remove = useMutation({
+    mutationFn: () => apiFetch(`/api/v1/users/${userId}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ["users"] });
+      toast.success("User deleted");
+      router.push("/users");
+    },
+    onError: (error) => toast.error(error.message),
   });
   if (!query.data) {
     return (
@@ -90,7 +104,15 @@ export default function UserDetailPage() {
         <ChevronRight aria-hidden="true" className="size-3" />
         {user.email}
       </div>
-      <PageHeader description={user.email} title={user.name} />
+      <PageHeader
+        actions={
+          <Button onClick={() => setConfirmingDelete(true)} variant="danger">
+            <Trash2 aria-hidden="true" className="size-3.5" /> Delete User
+          </Button>
+        }
+        description={user.email}
+        title={user.name}
+      />
       <div className="grid gap-10 lg:grid-cols-[1fr_1fr]">
         <section>
           <SectionHeader title="Profile" />
@@ -139,6 +161,15 @@ export default function UserDetailPage() {
           )}
         </section>
       </div>
+      <ConfirmDialog
+        actionLabel="Delete User"
+        description="Their Authometry sessions, grants, and tokens will be removed. Connected services will be notified asynchronously. This action cannot be undone."
+        onConfirm={() => remove.mutateAsync()}
+        onOpenChange={setConfirmingDelete}
+        open={confirmingDelete}
+        pendingLabel="Deleting…"
+        title={`Delete ${user.email}?`}
+      />
     </PageContainer>
   );
 }
