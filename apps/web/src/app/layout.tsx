@@ -9,8 +9,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.PUBLIC_ORIGIN ?? "http://localhost:3000"),
   applicationName: "Authometry",
-  title: { default: "Authometry", template: "%s · Authometry" },
-  description: "Transparent OAuth 2.0 and OpenID Connect infrastructure.",
+  title: { default: "Authometry — OAuth you can see", template: "%s · Authometry" },
+  description:
+    "Self-hosted OAuth 2.0 and OpenID Connect infrastructure with inspectable authorization decisions.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
@@ -20,19 +21,21 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Authometry",
-    title: "Authometry",
-    description: "Transparent OAuth 2.0 and OpenID Connect infrastructure.",
+    title: "Authometry — OAuth you can see",
+    description:
+      "Self-hosted OAuth 2.0 and OpenID Connect infrastructure with inspectable authorization decisions.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Authometry",
-    description: "Transparent OAuth 2.0 and OpenID Connect infrastructure.",
+    title: "Authometry — OAuth you can see",
+    description:
+      "Self-hosted OAuth 2.0 and OpenID Connect infrastructure with inspectable authorization decisions.",
   },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: light)", color: "#f8f7ff" },
     { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
   ],
 };

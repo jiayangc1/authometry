@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Authometry — transparent OAuth infrastructure";
+export const alt = "Authometry — OAuth you can see";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -9,44 +9,145 @@ export default function OpenGraphImage() {
     <div
       style={{
         alignItems: "center",
-        background: "#ffffff",
-        color: "#111318",
+        background: "#f8f7ff",
+        color: "#19172c",
         display: "flex",
         height: "100%",
-        justifyContent: "center",
+        overflow: "hidden",
+        padding: "74px 76px",
+        position: "relative",
         width: "100%",
       }}
     >
-      <div style={{ alignItems: "center", display: "flex", gap: 42 }}>
-        <svg height="188" viewBox="0 0 32 32" width="188">
-          <path
-            d="M14.25 3.35A12.75 12.75 0 1 0 27.55 18.75"
-            fill="none"
-            stroke="#111318"
-            strokeLinecap="round"
-            strokeWidth="2.35"
+      <div
+        style={{
+          background: "#ff7f71",
+          borderRadius: 999,
+          display: "flex",
+          height: 240,
+          left: -95,
+          position: "absolute",
+          top: -105,
+          width: 240,
+        }}
+      />
+      <div
+        style={{
+          background: "#62cfba",
+          borderRadius: 999,
+          bottom: -95,
+          display: "flex",
+          height: 210,
+          position: "absolute",
+          right: -70,
+          width: 210,
+        }}
+      />
+
+      <div style={{ display: "flex", flexDirection: "column", width: 620 }}>
+        <div style={{ alignItems: "center", display: "flex", fontSize: 24, fontWeight: 700 }}>
+          <div
+            style={{
+              background: "#625bdc",
+              borderRadius: 999,
+              display: "flex",
+              height: 17,
+              marginRight: 12,
+              width: 17,
+            }}
           />
-          <path
-            d="M17.8 3.65a12.75 12.75 0 0 1 9.65 9.2"
-            fill="none"
-            stroke="#635bff"
-            strokeLinecap="round"
-            strokeWidth="2.35"
-          />
-          <path
-            d="M23.45 11.7a8.5 8.5 0 1 0 0 8.6"
-            fill="none"
-            stroke="#111318"
-            strokeLinecap="round"
-            strokeWidth="1.9"
-          />
-          <path d="M16 16h9.2" stroke="#111318" strokeWidth="1.5" />
-          <circle cx="16" cy="16" fill="#635bff" r="2.15" />
-          <circle cx="25.2" cy="16" fill="#635bff" r="1.75" />
-        </svg>
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: 92, fontWeight: 700, letterSpacing: -5 }}>Authometry</div>
-          <div style={{ color: "#5f5f68", fontSize: 30, marginTop: 10 }}>OAuth you can see.</div>
+          Authometry
+        </div>
+        <div
+          style={{
+            color: "#625bdc",
+            display: "flex",
+            fontSize: 20,
+            fontWeight: 700,
+            letterSpacing: 1.5,
+            marginTop: 76,
+            textTransform: "uppercase",
+          }}
+        >
+          Open-source authorization
+        </div>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            fontSize: 67,
+            fontWeight: 800,
+            letterSpacing: -4,
+            lineHeight: 0.98,
+            marginTop: 18,
+          }}
+        >
+          OAuth you can
+          <span style={{ color: "#625bdc" }}>actually see.</span>
+        </div>
+        <div style={{ color: "#66627a", display: "flex", fontSize: 21, marginTop: 26 }}>
+          Inspect every policy, token, and decision.
+        </div>
+      </div>
+
+      <div
+        style={{
+          background: "#e8e5ff",
+          border: "3px solid #ffffff",
+          borderRadius: 42,
+          boxShadow: "20px 24px 50px rgba(63,54,126,0.18)",
+          display: "flex",
+          height: 410,
+          padding: 30,
+          position: "absolute",
+          right: 72,
+          transform: "rotate(2deg)",
+          width: 390,
+        }}
+      >
+        <div
+          style={{
+            background: "rgba(255,255,255,0.75)",
+            borderRadius: 27,
+            display: "flex",
+            flex: 1,
+            flexDirection: "column",
+            padding: "26px 24px",
+          }}
+        >
+          <div style={{ alignItems: "center", display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "#66627a", fontSize: 16 }}>req_a72b9c</span>
+            <span style={{ color: "#22957d", fontSize: 16, fontWeight: 700 }}>Explained</span>
+          </div>
+          {["Client verified", "Redirect matched", "PKCE validated", "Policy evaluated"].map(
+            (label, index) => (
+              <div
+                key={label}
+                style={{
+                  alignItems: "center",
+                  borderBottom: index === 3 ? "none" : "1px solid #dedaf2",
+                  display: "flex",
+                  flex: 1,
+                  fontSize: 17,
+                }}
+              >
+                <span
+                  style={{
+                    background: index === 3 ? "#ff7f71" : "#62cfba",
+                    borderRadius: 999,
+                    display: "flex",
+                    height: 11,
+                    marginRight: 15,
+                    width: 11,
+                  }}
+                />
+                {label}
+                <span style={{ color: "#8c879f", marginLeft: "auto" }}>
+                  {index === 3 ? "8 ms" : "Passed"}
+                </span>
+              </div>
+            ),
+          )}
         </div>
       </div>
     </div>,
