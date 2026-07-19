@@ -102,7 +102,7 @@ async function portalIdentity(
 ): Promise<PortalIdentityRow | undefined> {
   if (!rawToken) return undefined;
   const [identity] = await query<PortalIdentityRow>(
-    `SELECT u.id, u.workspace_id, s.environment_id, s.id AS session_id, u.email, u.name,
+    `SELECT u.id, u.workspace_id, e.id AS environment_id, s.id AS session_id, u.email, u.name,
             u.password_hash, u.status, u.groups, u.custom_claims, u.mfa_enabled,
             u.mfa_totp_secret_encrypted, w.name AS workspace_name, w.slug AS workspace_slug,
             e.name AS environment_name, ws.session_lifetime_seconds
@@ -110,7 +110,8 @@ async function portalIdentity(
      JOIN identity_users u ON u.id = s.user_id
      JOIN workspaces w ON w.id = u.workspace_id
      JOIN workspace_settings ws ON ws.workspace_id = w.id
-     JOIN environments e ON e.id = s.environment_id
+     JOIN environments e ON e.workspace_id = u.workspace_id AND e.is_default = true
+       AND e.status = 'active'
      WHERE s.session_token_hash = $1 AND s.status = 'active' AND s.expires_at > now()
        AND u.status = 'active'`,
     [hashToken(rawToken)],
@@ -215,6 +216,12 @@ portalRouter.get("/auth/providers", (_request, response) => {
   });
 });
 
+portalRouter.get("/auth/clear-session", (request, response) => {
+  response.clearCookie(sessionCookie, { path: "/" });
+  response.clearCookie(csrfCookie, { path: "/" });
+  response.redirect(safePortalReturn(request.query.return_to, "/portal/login"));
+});
+
 portalRouter.post(
   "/auth/login",
   asyncRoute(async (request, response) => {
@@ -293,6 +300,11 @@ portalRouter.get(
           "portal_authentication_required",
           "Sign in before linking an account.",
         );
+      const csrf = z.string().min(1).parse(request.query.csrf);
+      const csrfCookieValue = request.cookies[csrfCookie] as string | undefined;
+      if (!csrfCookieValue || !constantTimeEqual(csrfCookieValue, csrf)) {
+        throw new ApiError(403, "csrf_failed", "Refresh the portal and try again.");
+      }
       workspaceId = identity.workspace_id;
       userId = identity.id;
     } else {
@@ -403,6 +415,22 @@ portalRouter.get(
             `This ${provider} account is linked to another user.`,
           );
         }
+        const existingProvider = await client.query<{ provider_subject: string }>(
+          `SELECT provider_subject FROM social_identities
+           WHERE workspace_id = $1 AND user_id = $2 AND provider = $3
+           ORDER BY created_at LIMIT 1`,
+          [state.workspace_id, state.user_id, provider],
+        );
+        if (
+          existingProvider.rows[0] &&
+          existingProvider.rows[0].provider_subject !== profile.subject
+        ) {
+          throw new ApiError(
+            409,
+            "social_provider_already_linked",
+            `A different ${provider} account is already connected. Disconnect it first.`,
+          );
+        }
         await client.query(
           `INSERT INTO social_identities
             (workspace_id, user_id, provider, provider_subject, provider_email)
@@ -469,6 +497,13 @@ portalRouter.get(
   "/me",
   asyncRoute(async (request, response) => {
     const portal = request.portal!;
+    if (!request.cookies[csrfCookie]) {
+      response.cookie(
+        csrfCookie,
+        randomToken(24),
+        cookieOptions(portal.session_lifetime_seconds * 1000, false),
+      );
+    }
     const [connections, sessions] = await Promise.all([
       query<{ provider: SocialProvider; provider_email: string | null; created_at: Date }>(
         `SELECT provider, provider_email, created_at FROM social_identities
@@ -551,11 +586,26 @@ portalRouter.put(
         "UPDATE identity_users SET password_hash = $2, updated_at = now() WHERE id = $1",
         [portal.id, await hash(input.newPassword, 12)],
       );
-      await client.query(
+      const revoked = await client.query<{ refresh_family_id: string | null }>(
         `UPDATE user_sessions SET status = 'revoked', revoked_at = now()
-         WHERE user_id = $1 AND id <> $2 AND status = 'active'`,
+         WHERE user_id = $1 AND id <> $2 AND status = 'active'
+         RETURNING refresh_family_id`,
         [portal.id, portal.session_id],
       );
+      const familyIds = revoked.rows.flatMap(({ refresh_family_id: familyId }) =>
+        familyId ? [familyId] : [],
+      );
+      if (familyIds.length) {
+        await client.query(
+          `UPDATE refresh_token_families SET status = 'revoked', revoked_reason = 'password_changed'
+           WHERE id = ANY($1::uuid[])`,
+          [familyIds],
+        );
+        await client.query(
+          "UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = ANY($1::uuid[])",
+          [familyIds],
+        );
+      }
     });
     response.status(204).end();
   }),
@@ -595,7 +645,13 @@ portalRouter.post(
       .parse(request.body);
     let setup: { userId: string; secret: string; expiresAt: number };
     try {
-      setup = JSON.parse(decrypt(input.setupToken)) as typeof setup;
+      setup = z
+        .object({
+          userId: z.string().uuid(),
+          secret: z.string().regex(/^[A-Z2-7]{32}$/),
+          expiresAt: z.number().int().positive(),
+        })
+        .parse(JSON.parse(decrypt(input.setupToken)));
     } catch {
       throw new ApiError(400, "invalid_mfa_setup", "The MFA setup expired. Start again.");
     }
@@ -682,6 +738,36 @@ portalRouter.delete(
       "DELETE FROM social_identities WHERE workspace_id = $1 AND user_id = $2 AND provider = $3",
       [portal.workspace_id, portal.id, provider],
     );
+    response.status(204).end();
+  }),
+);
+
+portalRouter.delete(
+  "/sessions/:sessionId",
+  asyncRoute(async (request, response) => {
+    const portal = request.portal!;
+    if (request.params.sessionId === portal.session_id) {
+      throw new ApiError(409, "current_session", "Use Sign out to end your current session.");
+    }
+    await transaction(async (client) => {
+      const revoked = await client.query<{ refresh_family_id: string | null }>(
+        `UPDATE user_sessions SET status = 'revoked', revoked_at = now()
+         WHERE id = $1 AND user_id = $2 AND status = 'active'
+         RETURNING refresh_family_id`,
+        [request.params.sessionId, portal.id],
+      );
+      const familyId = revoked.rows[0]?.refresh_family_id;
+      if (familyId) {
+        await client.query(
+          `UPDATE refresh_token_families SET status = 'revoked', revoked_reason = 'user_session_revoked'
+           WHERE id = $1`,
+          [familyId],
+        );
+        await client.query("UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = $1", [
+          familyId,
+        ]);
+      }
+    });
     response.status(204).end();
   }),
 );

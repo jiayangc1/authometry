@@ -3,10 +3,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Github, LoaderCircle } from "lucide-react";
+import { Github, LoaderCircle, ShieldCheck } from "lucide-react";
 import { Button, GoogleIcon } from "@authometry/ui";
 import { AuthorizationShell, inputClass } from "@/components/auth/auth-shell";
-import { apiFetch } from "@/lib/api";
+import { ApiClientError, apiFetch } from "@/lib/api";
 import { useHydrated } from "@/lib/use-hydrated";
 
 export default function AuthorizationLoginPage() {
@@ -28,6 +28,7 @@ export default function AuthorizationLoginPage() {
     queryFn: () => apiFetch<{ google: boolean; github: boolean }>("/api/v1/authorize/providers"),
   });
   const [error, setError] = useState<string>();
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -40,12 +41,18 @@ export default function AuthorizationLoginPage() {
           requestId,
           email: data.get("email"),
           password: data.get("password"),
+          ...(mfaRequired ? { mfaCode: data.get("mfaCode") } : {}),
           ...(linkToken ? { linkToken } : {}),
         }),
       });
       window.location.assign(result.next);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Authentication failed.");
+      if (caught instanceof ApiClientError && caught.code === "mfa_required") {
+        setMfaRequired(true);
+        setError(undefined);
+      } else {
+        setError(caught instanceof Error ? caught.message : "Authentication failed.");
+      }
       setLoading(false);
     }
   }
@@ -125,6 +132,22 @@ export default function AuthorizationLoginPage() {
               type="email"
             />
           </label>
+          {mfaRequired && (
+            <label className="block">
+              <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium">
+                <ShieldCheck aria-hidden="true" className="size-3.5 text-[var(--accent)]" />
+                Authentication code
+              </span>
+              <input
+                autoComplete="one-time-code"
+                autoFocus
+                className={`${inputClass} h-11 rounded-lg font-mono tracking-[0.18em]`}
+                name="mfaCode"
+                placeholder="000000 or recovery code"
+                required
+              />
+            </label>
+          )}
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium">Password</span>
             <input

@@ -78,6 +78,46 @@
   --chart-neutral: #3f3f46;
 }
 
+.portal-surface {
+  --portal-canvas: #f4f5f9;
+  --portal-paper: #ffffff;
+  --portal-ink: #161722;
+  --portal-muted: #696b7b;
+  --portal-line: #e2e3ea;
+  --portal-accent: #635bff;
+  --portal-accent-soft: #eeecff;
+  --portal-ready: #0f8a65;
+  min-width: 320px;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0,
+      transparent calc(50% - 1px),
+      rgb(99 91 255 / 0.025) 50%,
+      transparent calc(50% + 1px)
+    ),
+    var(--portal-canvas);
+}
+
+.dark .portal-surface {
+  --portal-canvas: #0d0e13;
+  --portal-paper: #13141b;
+  --portal-ink: #f1f1f5;
+  --portal-muted: #a6a7b3;
+  --portal-line: #292a34;
+  --portal-accent: #928cff;
+  --portal-accent-soft: #23203e;
+  --portal-ready: #4fd5aa;
+}
+
+.portal-caption {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9px;
+  line-height: 14px;
+  letter-spacing: 0.12em;
+  color: var(--portal-muted);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

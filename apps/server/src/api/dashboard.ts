@@ -9,6 +9,21 @@ import { type IdentityUserLifecycleRow, userLifecycleData } from "../lib/user-li
 import { auditMutation, requireEnvironment } from "./context.js";
 
 export const dashboardRouter = Router();
+const launchUriSchema = z
+  .string()
+  .url()
+  .refine(
+    (value) => {
+      const target = new URL(value);
+      const local = ["localhost", "127.0.0.1", "::1"].includes(target.hostname);
+      return (
+        !target.username &&
+        !target.password &&
+        (target.protocol === "https:" || (local && target.protocol === "http:"))
+      );
+    },
+    { message: "Launch URLs must use HTTPS and cannot contain embedded credentials." },
+  );
 dashboardRouter.use(requireEnvironment);
 dashboardRouter.use(auditMutation);
 dashboardRouter.use("/applications", (request, _response, next) => {
@@ -236,12 +251,16 @@ dashboardRouter.patch(
         requireConsent: z.boolean().optional(),
         allowedScopes: z.array(scopeNameSchema).optional(),
         portalEnabled: z.boolean().optional(),
-        launchUri: z.string().url().nullable().optional(),
+        launchUri: launchUriSchema.nullable().optional(),
         version: z.number().int().positive(),
       })
       .parse(request.body);
-    const [existing] = await query<{ ownership: string }>(
-      `SELECT ownership FROM oauth_applications
+    const [existing] = await query<{
+      ownership: string;
+      portal_enabled: boolean;
+      launch_uri: string | null;
+    }>(
+      `SELECT ownership, portal_enabled, launch_uri FROM oauth_applications
        WHERE id = $1 AND environment_id = $2 AND client_id_source <> 'dynamic'`,
       [request.params.applicationId, request.environment!.id],
     );
@@ -252,6 +271,15 @@ dashboardRouter.patch(
         409,
         "manifest_managed",
         "This application is managed by a manifest and is read-only.",
+      );
+    }
+    const nextPortalEnabled = input.portalEnabled ?? existing.portal_enabled;
+    const nextLaunchUri = Object.hasOwn(input, "launchUri") ? input.launchUri : existing.launch_uri;
+    if (nextPortalEnabled && !nextLaunchUri) {
+      throw new ApiError(
+        422,
+        "launch_uri_required",
+        "Add the application's sign-in URL before enabling employee portal access.",
       );
     }
     const [updated] = await query(
