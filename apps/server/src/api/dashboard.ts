@@ -472,7 +472,7 @@ dashboardRouter.post(
       );
       return createdUser;
     });
-    response.status(201).json(user);
+    response.status(201).json({ id: user.id });
   }),
 );
 
