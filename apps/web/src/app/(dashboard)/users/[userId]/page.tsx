@@ -1,12 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Trash2, Users } from "lucide-react";
+import { AppWindow, ChevronRight, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
-import { Button, EmptyState, StatusBadge } from "@authometry/ui";
+import { Button, Checkbox, EmptyState, StatusBadge } from "@authometry/ui";
 import { FullDateTime, RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
@@ -37,6 +37,20 @@ interface UserDetail {
     last_active_at: string;
     expires_at: string;
   }>;
+  application_assignments: Array<{
+    application_id: string;
+    name: string;
+    slug: string;
+    assigned_at: string;
+    last_launched_at?: string;
+    provisioning_enabled: boolean;
+  }>;
+  available_applications: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    provisioning_enabled: boolean;
+  }>;
 }
 export default function UserDetailPage() {
   const { userId } = useParams<{ userId: string }>();
@@ -53,6 +67,19 @@ export default function UserDetailPage() {
       await client.invalidateQueries({ queryKey: ["users"] });
       toast.success("User deleted");
       router.push("/users");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const changeApplicationAccess = useMutation({
+    mutationFn: ({ applicationId, assigned }: { applicationId: string; assigned: boolean }) =>
+      apiFetch(`/api/v1/users/${userId}/applications/${applicationId}`, {
+        method: assigned ? "PUT" : "DELETE",
+      }),
+    onSuccess: async (_result, variables) => {
+      await client.invalidateQueries({ queryKey: ["user", userId] });
+      toast.success(
+        variables.assigned ? "Application access assigned" : "Application access removed",
+      );
     },
     onError: (error) => toast.error(error.message),
   });
@@ -161,6 +188,68 @@ export default function UserDetailPage() {
           )}
         </section>
       </div>
+      <section className="mt-10">
+        <SectionHeader
+          description="Assigned services appear in this employee's launch portal. Provisioning must be connected before launch is available."
+          title="Application Access"
+        />
+        {user.available_applications.length ? (
+          <div className="max-w-4xl divide-y divide-[var(--border-subtle)] border-y border-[var(--border)]">
+            {user.available_applications.map((application) => {
+              const assigned = user.application_assignments.some(
+                ({ application_id: applicationId }) => applicationId === application.id,
+              );
+              return (
+                <label
+                  className="flex cursor-pointer items-center gap-3 px-2 py-3 hover:bg-[var(--surface-hover)]"
+                  key={application.id}
+                >
+                  <Checkbox
+                    checked={assigned}
+                    disabled={
+                      changeApplicationAccess.isPending &&
+                      changeApplicationAccess.variables?.applicationId === application.id
+                    }
+                    onChange={(event) =>
+                      changeApplicationAccess.mutate({
+                        applicationId: application.id,
+                        assigned: event.target.checked,
+                      })
+                    }
+                  />
+                  <span className="flex size-8 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-raised)]">
+                    <AppWindow aria-hidden="true" className="size-4 text-[var(--accent)]" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] font-medium">{application.name}</span>
+                    <span className="technical-value block text-[var(--text-tertiary)]">
+                      {application.slug}
+                    </span>
+                  </span>
+                  <StatusBadge
+                    label={
+                      application.provisioning_enabled ? "Ready to launch" : "Provisioning required"
+                    }
+                    tone={application.provisioning_enabled ? "success" : "warning"}
+                  />
+                </label>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyState
+            primaryAction={
+              <Button asChild>
+                <Link href="/applications">Configure Applications</Link>
+              </Button>
+            }
+            description="Enable an application's employee portal setting and add its sign-in URL first."
+            headingLevel="h3"
+            icon={AppWindow}
+            title="No Portal Applications"
+          />
+        )}
+      </section>
       <ConfirmDialog
         actionLabel="Delete User"
         description="Their Authometry sessions, grants, and tokens will be removed. Connected services will be notified asynchronously. This action cannot be undone."

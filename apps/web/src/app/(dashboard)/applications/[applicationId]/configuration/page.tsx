@@ -1,10 +1,10 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { ExternalLink, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { redirectUriSchema } from "@authometry/domain";
-import { Button } from "@authometry/ui";
+import { Button, Checkbox, StatusBadge } from "@authometry/ui";
 import { useApplication } from "@/components/applications/application-context";
 import { inputClass } from "@/components/auth/auth-shell";
 import { DividerSection, SectionHeader } from "@/components/layout/page";
@@ -17,6 +17,8 @@ export default function ConfigurationPage() {
   const [description, setDescription] = useState("");
   const [uris, setUris] = useState<string[]>([]);
   const [nextUri, setNextUri] = useState("");
+  const [portalEnabled, setPortalEnabled] = useState(false);
+  const [launchUri, setLaunchUri] = useState("");
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
   useEffect(() => {
@@ -24,12 +26,16 @@ export default function ConfigurationPage() {
       setName(application.name);
       setDescription(application.description ?? "");
       setUris(application.redirect_uris);
+      setPortalEnabled(application.portal_enabled);
+      setLaunchUri(application.launch_uri ?? "");
     }
   }, [application]);
   const dirty = Boolean(
     application &&
     (name !== application.name ||
       description !== (application.description ?? "") ||
+      portalEnabled !== application.portal_enabled ||
+      launchUri !== (application.launch_uri ?? "") ||
       JSON.stringify(uris) !== JSON.stringify(application.redirect_uris)),
   );
   useUnsavedChanges(dirty);
@@ -51,6 +57,17 @@ export default function ConfigurationPage() {
     setError(undefined);
   }
   async function save() {
+    if (portalEnabled && !launchUri) {
+      setError("Add the application's sign-in URL before enabling portal access.");
+      return;
+    }
+    if (launchUri) {
+      const parsed = redirectUriSchema.safeParse(launchUri);
+      if (!parsed.success) {
+        setError(parsed.error.issues[0]?.message);
+        return;
+      }
+    }
     setSaving(true);
     try {
       await apiFetch(`/api/v1/applications/${app.id}`, {
@@ -59,6 +76,8 @@ export default function ConfigurationPage() {
           name,
           description: description || null,
           redirectUris: uris,
+          portalEnabled,
+          launchUri: launchUri || null,
           version: app.version,
         }),
       });
@@ -146,9 +165,74 @@ export default function ConfigurationPage() {
         )}
         {error && (
           <p aria-live="polite" className="mt-2 text-xs text-[var(--danger)]" role="alert">
-            {error} Check the URI and try again.
+            {error}
           </p>
         )}
+      </DividerSection>
+      <DividerSection>
+        <SectionHeader
+          description="Publish this service to assigned employees and send them through its normal OIDC sign-in flow."
+          title="Employee Portal"
+        />
+        <div className="max-w-3xl overflow-hidden rounded-lg border border-[var(--border)]">
+          <label className="flex cursor-pointer items-start gap-3 bg-[var(--surface-subtle)] px-4 py-3.5">
+            <Checkbox
+              checked={portalEnabled}
+              className="mt-0.5"
+              disabled={readOnly}
+              onChange={(event) => setPortalEnabled(event.target.checked)}
+            />
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-center gap-2 text-[13px] font-medium">
+                Show this application in the employee portal
+                <StatusBadge
+                  label={
+                    app.provisioning_enabled ? "Provisioning connected" : "Provisioning required"
+                  }
+                  tone={app.provisioning_enabled ? "success" : "warning"}
+                />
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-[var(--text-secondary)]">
+                Only assigned users can see it. Launching stays unavailable until this environment
+                has an active provisioning connection.
+              </span>
+            </span>
+          </label>
+          <div className="border-t border-[var(--border)] px-4 py-4">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium">Application sign-in URL</span>
+              <div className="relative">
+                <input
+                  autoComplete="url"
+                  className={`${inputClass} technical-value pr-9`}
+                  disabled={readOnly}
+                  name="launchUri"
+                  onChange={(event) => {
+                    setLaunchUri(event.target.value);
+                    setError(undefined);
+                  }}
+                  placeholder="https://app.example.com/login"
+                  spellCheck={false}
+                  type="url"
+                  value={launchUri}
+                />
+                <ExternalLink
+                  aria-hidden="true"
+                  className="absolute top-1/2 right-3 size-3.5 -translate-y-1/2 text-[var(--text-tertiary)]"
+                />
+              </div>
+            </label>
+            <div className="mt-3 flex items-start gap-2 border-l-2 border-[var(--accent)] pl-3 text-xs leading-5 text-[var(--text-secondary)]">
+              <ShieldCheck
+                aria-hidden="true"
+                className="mt-0.5 size-3.5 shrink-0 text-[var(--accent)]"
+              />
+              Use the service's OIDC login-initiation URL. It will redirect back to Authometry,
+              where the employee's existing portal session completes sign-in without another
+              password.
+            </div>
+          </div>
+        </div>
       </DividerSection>
       <DividerSection>
         <SectionHeader

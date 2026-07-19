@@ -94,6 +94,7 @@ export async function runRetention(): Promise<void> {
   await Promise.all([
     query("DELETE FROM revoked_access_tokens WHERE expires_at < now()"),
     query("DELETE FROM social_login_states WHERE expires_at < now() - interval '1 day'"),
+    query("DELETE FROM portal_social_login_states WHERE expires_at < now() - interval '1 day'"),
     query("DELETE FROM one_time_tokens WHERE expires_at < now() - interval '1 day'"),
     query("DELETE FROM admin_refresh_sessions WHERE expires_at < now() - interval '30 days'"),
     query("DELETE FROM pending_authorization_requests WHERE expires_at < now() - interval '1 day'"),
