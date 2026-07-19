@@ -9,6 +9,11 @@ import { emailEnabled, sendEmail } from "../lib/email.js";
 import { ApiError, asyncRoute } from "../lib/http.js";
 import { createSigningKey } from "../lib/signing.js";
 import { validateOutboundUrl } from "../lib/security.js";
+import {
+  createProvisioningEventBody,
+  type IdentityUserLifecycleRow,
+  userLifecycleEvents,
+} from "../lib/user-lifecycle.js";
 import { auditMutation, requireEnvironment } from "./context.js";
 
 export const settingsRouter = Router();
@@ -224,7 +229,8 @@ settingsRouter.get(
     response.json({
       data: await query(
         `SELECT id, name, url, secret_prefix, subscribed_events, status, created_at, updated_at
-         FROM webhooks WHERE environment_id = $1 ORDER BY created_at DESC`,
+         FROM webhooks WHERE environment_id = $1 AND purpose = 'events'
+         ORDER BY created_at DESC`,
         [request.environment!.id],
       ),
     });
@@ -255,8 +261,9 @@ settingsRouter.post(
     const secret = randomId("amt_webhook", 32);
     const [webhook] = await query<{ id: string }>(
       `INSERT INTO webhooks
-        (workspace_id, environment_id, name, url, secret_hash, encrypted_secret, secret_prefix, subscribed_events, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'enabled') RETURNING id`,
+        (workspace_id, environment_id, name, url, secret_hash, encrypted_secret, secret_prefix,
+         subscribed_events, status, purpose)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'enabled','events') RETURNING id`,
       [
         request.environment!.workspaceId,
         request.environment!.id,
@@ -269,6 +276,148 @@ settingsRouter.post(
       ],
     );
     response.status(201).json({ id: webhook?.id, secret });
+  }),
+);
+
+settingsRouter.get(
+  "/settings/provisioning",
+  asyncRoute(async (request, response) => {
+    response.json({
+      data: await query(
+        `SELECT id, name, url, secret_prefix, status, created_at, updated_at,
+                (SELECT count(*)::integer FROM webhook_deliveries d
+                 WHERE d.webhook_id = w.id AND d.status = 'failed') AS failed_deliveries,
+                (SELECT max(created_at) FROM webhook_deliveries d
+                 WHERE d.webhook_id = w.id AND d.status = 'succeeded') AS last_delivered_at
+         FROM webhooks w
+         WHERE environment_id = $1 AND purpose = 'provisioning'
+         ORDER BY created_at DESC`,
+        [request.environment!.id],
+      ),
+    });
+  }),
+);
+
+settingsRouter.post(
+  "/settings/provisioning",
+  asyncRoute(async (request, response) => {
+    requireRole(request.admin?.role, ["owner", "admin", "developer"]);
+    const input = z
+      .object({
+        name: z.string().trim().min(2).max(100),
+        url: z.string().url(),
+        syncExistingUsers: z.boolean().default(true),
+      })
+      .parse(request.body);
+    let url: URL;
+    try {
+      url = validateOutboundUrl(input.url);
+    } catch (error) {
+      throw new ApiError(
+        422,
+        "unsafe_provisioning_url",
+        error instanceof Error ? error.message : "The provisioning URL is not allowed.",
+      );
+    }
+    const environment = request.environment!;
+    const secret = randomId("amt_provision", 32);
+    const result = await transaction(async (client) => {
+      const created = await client.query<{ id: string }>(
+        `INSERT INTO webhooks
+          (workspace_id, environment_id, name, url, secret_hash, encrypted_secret, secret_prefix,
+           subscribed_events, status, purpose)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'enabled','provisioning') RETURNING id`,
+        [
+          environment.workspaceId,
+          environment.id,
+          input.name,
+          url.toString(),
+          hashToken(secret),
+          encrypt(secret),
+          secret.slice(0, 18),
+          [...userLifecycleEvents],
+        ],
+      );
+      const connectionId = created.rows[0]?.id;
+      if (!connectionId) throw new Error("Provisioning connection was not created.");
+      let queued = 0;
+      if (input.syncExistingUsers) {
+        const users = await client.query<IdentityUserLifecycleRow>(
+          `SELECT id, email, name, groups, status, email_verified_at
+           FROM identity_users WHERE workspace_id = $1 ORDER BY created_at`,
+          [environment.workspaceId],
+        );
+        for (const user of users.rows) {
+          await client.query(
+            `INSERT INTO webhook_deliveries
+              (webhook_id, event_type, status, redacted_request_body)
+             VALUES ($1, 'user.created', 'pending', $2)`,
+            [connectionId, createProvisioningEventBody("user.created", user)],
+          );
+        }
+        queued = users.rowCount ?? users.rows.length;
+      }
+      return { id: connectionId, queued };
+    });
+    response.status(201).json({ ...result, secret });
+  }),
+);
+
+settingsRouter.post(
+  "/settings/provisioning/:connectionId/sync",
+  asyncRoute(async (request, response) => {
+    requireRole(request.admin?.role, ["owner", "admin", "developer"]);
+    const environment = request.environment!;
+    const queued = await transaction(async (client) => {
+      const connection = await client.query<{ id: string }>(
+        `SELECT id FROM webhooks
+         WHERE id = $1 AND environment_id = $2 AND purpose = 'provisioning' FOR UPDATE`,
+        [request.params.connectionId, environment.id],
+      );
+      if (!connection.rows[0]) {
+        throw new ApiError(
+          404,
+          "provisioning_connection_not_found",
+          "The provisioning connection was not found.",
+        );
+      }
+      const users = await client.query<IdentityUserLifecycleRow>(
+        `SELECT id, email, name, groups, status, email_verified_at
+         FROM identity_users WHERE workspace_id = $1 ORDER BY created_at`,
+        [environment.workspaceId],
+      );
+      for (const user of users.rows) {
+        await client.query(
+          `INSERT INTO webhook_deliveries
+            (webhook_id, event_type, status, redacted_request_body)
+           VALUES ($1, 'user.created', 'pending', $2)`,
+          [connection.rows[0].id, createProvisioningEventBody("user.created", user)],
+        );
+      }
+      return users.rowCount ?? users.rows.length;
+    });
+    response.status(202).json({ queued });
+  }),
+);
+
+settingsRouter.delete(
+  "/settings/provisioning/:connectionId",
+  asyncRoute(async (request, response) => {
+    requireRole(request.admin?.role, ["owner", "admin", "developer"]);
+    const result = await query(
+      `DELETE FROM webhooks
+       WHERE id = $1 AND environment_id = $2 AND purpose = 'provisioning'
+       RETURNING id`,
+      [request.params.connectionId, request.environment!.id],
+    );
+    if (!result[0]) {
+      throw new ApiError(
+        404,
+        "provisioning_connection_not_found",
+        "The provisioning connection was not found.",
+      );
+    }
+    response.status(204).end();
   }),
 );
 

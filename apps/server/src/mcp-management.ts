@@ -130,6 +130,12 @@ export const managementOperations: readonly ManagementOperation[] = [
     "Read an identity user and related sessions.",
     /^\/users\/[^/]+$/,
   ),
+  operation(
+    "DELETE",
+    "/users/:userId",
+    "Permanently delete an identity user and notify provisioning connections.",
+    /^\/users\/[^/]+$/,
+  ),
   operation("GET", "/sessions", "List identity sessions.", /^\/sessions$/),
   operation(
     "POST",
@@ -210,6 +216,30 @@ export const managementOperations: readonly ManagementOperation[] = [
     "/settings/webhooks",
     "Create a webhook and return its signing secret once.",
     /^\/settings\/webhooks$/,
+  ),
+  operation(
+    "GET",
+    "/settings/provisioning",
+    "List outbound account provisioning connections.",
+    /^\/settings\/provisioning$/,
+  ),
+  operation(
+    "POST",
+    "/settings/provisioning",
+    "Create an outbound account provisioning connection and return its signing secret once.",
+    /^\/settings\/provisioning$/,
+  ),
+  operation(
+    "POST",
+    "/settings/provisioning/:connectionId/sync",
+    "Queue all existing identity users for a provisioning connection.",
+    /^\/settings\/provisioning\/[^/]+\/sync$/,
+  ),
+  operation(
+    "DELETE",
+    "/settings/provisioning/:connectionId",
+    "Disconnect an outbound account provisioning service.",
+    /^\/settings\/provisioning\/[^/]+$/,
   ),
   operation(
     "GET",
@@ -317,6 +347,8 @@ export const managementOperationInputs: Readonly<Record<string, string>> = {
   "POST /agent-grants/:grantId/usage": "No body.",
   "POST /users":
     "Body: { name: string, email: email, password: string of at least 12 characters, groups?: string[] }.",
+  "DELETE /users/:userId":
+    "No body. Permanently deletes the identity user, sessions, grants, and tokens, then asynchronously notifies provisioning connections.",
   "POST /sessions/:sessionId/revoke": "No body.",
   "POST /scopes":
     "Body: { name: scope name, displayName: string, description: string, consentDescription: string, sensitivity?: standard|sensitive|restricted }.",
@@ -336,6 +368,11 @@ export const managementOperationInputs: Readonly<Record<string, string>> = {
   "POST /settings/signing-keys/rotate": "No body.",
   "POST /settings/webhooks":
     "Body: { name: string, url: public HTTPS URL, subscribedEvents: string[] }. Returns the webhook signing secret once.",
+  "POST /settings/provisioning":
+    "Body: { name: string, url: public HTTPS URL, syncExistingUsers?: boolean }. Returns the signing secret once.",
+  "POST /settings/provisioning/:connectionId/sync":
+    "No body. Queues an idempotent user.created delivery for every existing identity user.",
+  "DELETE /settings/provisioning/:connectionId": "No body. Stops future lifecycle deliveries.",
   "POST /settings/members":
     "Body: { email: email, name: string, role: admin|developer|auditor|viewer }.",
   "PATCH /settings/members/:memberId": "Body: { role: owner|admin|developer|auditor|viewer }.",

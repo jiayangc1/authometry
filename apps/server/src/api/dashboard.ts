@@ -5,6 +5,7 @@ import { applicationInputSchema, createApplicationSlug, scopeNameSchema } from "
 import { query, transaction } from "../db.js";
 import { hashToken, randomId } from "../lib/crypto.js";
 import { ApiError, asyncRoute } from "../lib/http.js";
+import { type IdentityUserLifecycleRow, userLifecycleData } from "../lib/user-lifecycle.js";
 import { auditMutation, requireEnvironment } from "./context.js";
 
 export const dashboardRouter = Router();
@@ -432,17 +433,45 @@ dashboardRouter.post(
         groups: z.array(z.string()).default([]),
       })
       .parse(request.body);
-    const [user] = await query<{ id: string }>(
-      `INSERT INTO identity_users(workspace_id, email, name, password_hash, email_verified_at, groups)
-       VALUES ($1, lower($2), $3, $4, now(), $5) RETURNING id`,
-      [
-        request.environment!.workspaceId,
-        input.email,
-        input.name,
-        await hash(input.password, 12),
-        input.groups,
-      ],
-    );
+    const environment = request.environment!;
+    const user = await transaction(async (client) => {
+      const created = await client.query<IdentityUserLifecycleRow>(
+        `INSERT INTO identity_users(workspace_id, email, name, password_hash, email_verified_at, groups)
+         VALUES ($1, lower($2), $3, $4, now(), $5)
+         RETURNING id, email, name, groups, status, email_verified_at`,
+        [
+          environment.workspaceId,
+          input.email,
+          input.name,
+          await hash(input.password, 12),
+          input.groups,
+        ],
+      );
+      const createdUser = created.rows[0];
+      if (!createdUser) throw new Error("User was not created.");
+      await client.query(
+        `INSERT INTO audit_events
+          (workspace_id, environment_id, category, severity, event_type, summary, actor_type,
+           actor_id, actor_name, resource_type, resource_id, changes)
+         SELECT $1, e.id, 'user', 'info', 'user.created', $2, 'admin', $3, $4, 'user', $5, $6
+         FROM environments e
+         WHERE e.workspace_id = $1 AND
+           (e.id = $7 OR EXISTS (
+             SELECT 1 FROM webhooks w
+             WHERE w.environment_id = e.id AND w.purpose = 'provisioning' AND w.status = 'enabled'
+           ))`,
+        [
+          environment.workspaceId,
+          `${createdUser.email} created`,
+          request.admin!.userId,
+          request.admin!.email,
+          createdUser.id,
+          userLifecycleData(createdUser),
+          environment.id,
+        ],
+      );
+      return createdUser;
+    });
     response.status(201).json(user);
   }),
 );
@@ -471,6 +500,45 @@ dashboardRouter.get(
       ),
     ]);
     response.json({ ...user, sessions, social_connections: socialConnections });
+  }),
+);
+
+dashboardRouter.delete(
+  "/users/:userId",
+  asyncRoute(async (request, response) => {
+    const environment = request.environment!;
+    await transaction(async (client) => {
+      const result = await client.query<IdentityUserLifecycleRow>(
+        `SELECT id, email, name, groups, status, email_verified_at
+         FROM identity_users WHERE id = $1 AND workspace_id = $2 FOR UPDATE`,
+        [request.params.userId, environment.workspaceId],
+      );
+      const user = result.rows[0];
+      if (!user) throw new ApiError(404, "user_not_found", "The user was not found.");
+      await client.query(
+        `INSERT INTO audit_events
+          (workspace_id, environment_id, category, severity, event_type, summary, actor_type,
+           actor_id, actor_name, resource_type, resource_id, changes)
+         SELECT $1, e.id, 'user', 'warning', 'user.deleted', $2, 'admin', $3, $4, 'user', $5, $6
+         FROM environments e
+         WHERE e.workspace_id = $1 AND
+           (e.id = $7 OR EXISTS (
+             SELECT 1 FROM webhooks w
+             WHERE w.environment_id = e.id AND w.purpose = 'provisioning' AND w.status = 'enabled'
+           ))`,
+        [
+          environment.workspaceId,
+          `${user.email} deleted`,
+          request.admin!.userId,
+          request.admin!.email,
+          user.id,
+          userLifecycleData(user),
+          environment.id,
+        ],
+      );
+      await client.query("DELETE FROM identity_users WHERE id = $1", [user.id]);
+    });
+    response.status(204).end();
   }),
 );
 
