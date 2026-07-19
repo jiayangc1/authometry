@@ -28,7 +28,8 @@ If values are unavailable, finish the code with environment-variable placeholder
 1. Read the application's package manifest, routes, middleware, session handling, environment validation, and existing authentication code.
 2. Reuse a maintained OAuth/OIDC client already present in the app. Otherwise choose a well-supported library for the app's framework and runtime.
 3. Preserve unrelated authentication methods unless replacement is explicitly requested.
-4. Determine the client type:
+4. Inspect the production session store, user identity schema, account-linking rules, reverse-proxy settings, and existing CSRF protection before adding callback or logout behavior.
+5. Determine the client type:
    - Use `web` for a server-rendered or backend-assisted app that can protect a secret.
    - Use `spa` or `native` for a public client. Never give these clients a secret.
    - Use `machine` only for service-to-service access without a user.
@@ -50,13 +51,14 @@ Use Authorization Code with S256 PKCE for every interactive client, including co
 
 1. Add a login handler in the application. Do not link a sign-in button directly to a fixed authorization URL.
 2. Generate fresh, high-entropy `state`, `nonce`, and PKCE verifier values for every attempt.
-3. Store those short-lived values in a secure server-side session or encrypted, HTTP-only, `Secure`, `SameSite=Lax` cookie.
+3. Store those short-lived values as a single-use login attempt with a short expiry. Support concurrent login attempts, consume the matching attempt atomically, and do not use process memory in a multi-instance production deployment. Use a secure server-side session or encrypted, HTTP-only, `Secure`, `SameSite=Lax` cookie.
 4. Redirect with `response_type=code`, the exact registered `redirect_uri`, `code_challenge_method=S256`, and the required scopes. Start with `openid profile email`; request `offline_access` only when the app will safely store and rotate refresh tokens.
 5. Add a callback handler that rejects provider errors, validates `state`, and exchanges the single-use code with the original redirect URI and PKCE verifier.
 6. Authenticate confidential clients at the token endpoint with the application's configured method, preferably `client_secret_basic`. Send `client_id` with no secret for a public client.
 7. Validate the ID token through the OIDC library: signature, exact `iss`, `aud`, `exp`, and the original `nonce`. Do not accept a merely decoded JWT.
-8. Establish the application's own session using the stable `sub` claim as the external user ID. Fetch UserInfo when additional authorized claims are needed.
-9. Validate any `returnTo` value as a same-origin relative path before redirecting after sign-in.
+8. Find or create the local identity using the `(iss, sub)` pair as its stable external key. Do not automatically link an existing account by email unless the email is verified and the application has an explicit, safe account-linking policy. Fetch UserInfo when additional authorized claims are needed.
+9. Regenerate the local session identifier after sign-in to prevent session fixation, then establish the application's own session.
+10. Accept a `returnTo` value only when it is a valid same-origin relative path beginning with a single `/`. Reject absolute URLs, protocol-relative values, backslashes, encoded path tricks, and malformed input.
 
 Use the label **Continue with Authometry** for the provider button. Point it at the application's login handler.
 
@@ -64,13 +66,14 @@ Use the label **Continue with Authometry** for the provider button. Point it at 
 
 - Keep tokens and the client secret on the server for backend-assisted applications. Store application sessions in HTTP-only, `Secure`, `SameSite=Lax` cookies.
 - Prefer a backend-for-frontend for browser applications. If the project must remain a pure SPA, use a public client with PKCE and avoid long-lived token storage such as `localStorage`.
-- Replace a stored refresh token atomically after every successful refresh. Authometry rotates refresh tokens and revokes the family when a consumed token is reused.
+- Encrypt server-held refresh tokens at rest and replace one atomically after every successful refresh. Authometry rotates refresh tokens and revokes the family when a consumed token is reused. On `invalid_grant`, clear the unusable token and require sign-in instead of retrying it.
 - Validate access-token signature, issuer, audience, expiry, and expected token context in APIs. Use discovery and JWKS caching instead of a hard-coded signing key.
+- Get the expected resource or audience and API scopes from the application's API configuration. Do not guess an audience or accept a token minted for another resource.
 - Never log authorization codes, access tokens, refresh tokens, ID tokens, client secrets, PKCE verifiers, or complete session cookies.
 
 ## Implement logout
 
-1. Clear the local application session.
+1. Expose local logout through a non-GET action protected by the application's CSRF controls, then clear the local application session.
 2. Revoke the refresh token when the application requires immediate session termination.
 3. Redirect through the discovered end-session endpoint with `id_token_hint` and the exact registered `post_logout_redirect_uri` when provider logout is required.
 
@@ -82,7 +85,7 @@ Use the label **Continue with Authometry** for the provider button. Point it at 
 
 ## Configure the Authometry application
 
-In Authometry, create or update an application whose type matches the implementation. Register complete redirect and post-logout redirect URIs exactly, including scheme, host, port, path, trailing slash, and case. Enable only the grant types and scopes the app uses.
+In Authometry, create or update an application whose type matches the implementation. Register complete redirect and post-logout redirect URIs exactly, including scheme, host, port, path, trailing slash, and case. Enable `authorization_code` for interactive sign-in. Enable `refresh_token` only when the app requests `offline_access` and implements secure rotation. Enable only the other grant types and scopes the app uses.
 
 Use separate Authometry applications and credentials for local, preview, and production deployments when their redirect origins differ.
 
@@ -95,7 +98,7 @@ Then verify these protocol outcomes without printing secrets:
 - Discovery returns an issuer exactly equal to `AUTHOMETRY_ISSUER`.
 - The login redirect contains a unique state, nonce, and S256 PKCE challenge.
 - The registered callback completes sign-in and creates a local session.
-- A modified state or nonce is rejected.
+- Modified, expired, replayed, or concurrently mismatched state and nonce values are rejected.
 - An unauthenticated protected request is denied or redirected.
 - Refresh rotation replaces the previous refresh token when enabled.
 - Logout clears the local session and returns only to an allowed URI.

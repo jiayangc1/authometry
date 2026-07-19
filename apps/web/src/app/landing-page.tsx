@@ -11,6 +11,7 @@ import {
   CircleGauge,
   Cloud,
   Code2,
+  Copy,
   Database,
   FileClock,
   Fingerprint,
@@ -170,6 +171,8 @@ const trustStandards = [
   { name: "DPoP", icon: Network },
 ] as const;
 
+const agentPrompt = "Add Authometry OAuth to my app: https://authometry.ch3n.cc/SKILL.md";
+
 const principleCards = [
   {
     eyebrow: "Every request",
@@ -247,8 +250,19 @@ const footerColumns = [
 
 export function LandingPage() {
   const [activeComponent, setActiveComponent] = useState(0);
+  const [agentPromptStatus, setAgentPromptStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [navDark, setNavDark] = useState(false);
+
+  async function copyAgentPrompt() {
+    try {
+      await navigator.clipboard.writeText(agentPrompt);
+      setAgentPromptStatus("copied");
+      window.setTimeout(() => setAgentPromptStatus("idle"), 1800);
+    } catch {
+      setAgentPromptStatus("failed");
+    }
+  }
 
   useEffect(() => {
     let frame = 0;
@@ -369,6 +383,61 @@ export function LandingPage() {
                 Explore the dashboard
               </ArrowLink>
             </div>
+            <motion.div
+              animate={{ opacity: 1, y: 0 }}
+              className={styles.agentPrompt}
+              initial={{ opacity: 0, y: 12 }}
+              transition={{ duration: 0.55, delay: 0.35, ease: [0.33, 1, 0.68, 1] }}
+            >
+              <div className={styles.agentPromptCard}>
+                <div className={styles.agentPromptHeader}>
+                  <span>
+                    <Bot aria-hidden="true" /> Agent
+                  </span>
+                  <Link href="/SKILL.md">
+                    Read SKILL.md <ArrowRight aria-hidden="true" />
+                  </Link>
+                </div>
+                <div className={styles.agentPromptRow}>
+                  <code>{agentPrompt}</code>
+                  <button
+                    aria-label={
+                      agentPromptStatus === "copied"
+                        ? "Agent prompt copied"
+                        : agentPromptStatus === "failed"
+                          ? "Clipboard unavailable. Select and copy the prompt."
+                          : "Copy agent prompt"
+                    }
+                    className={agentPromptStatus === "copied" ? styles.promptCopied : ""}
+                    onClick={() => void copyAgentPrompt()}
+                    title={
+                      agentPromptStatus === "failed"
+                        ? "Clipboard unavailable — select the prompt and copy it"
+                        : undefined
+                    }
+                    type="button"
+                  >
+                    {agentPromptStatus === "copied" ? (
+                      <Check aria-hidden="true" />
+                    ) : (
+                      <Copy aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div aria-live="polite" className={styles.agentPromptGuide}>
+                {agentPromptStatus === "failed" ? (
+                  <span>Select the prompt and copy it manually.</span>
+                ) : (
+                  <>
+                    <span>Or start building with the</span>
+                    <Link href="/docs/getting-started">
+                      Quickstart guide <ArrowRight aria-hidden="true" />
+                    </Link>
+                  </>
+                )}
+              </div>
+            </motion.div>
           </motion.div>
         </section>
 

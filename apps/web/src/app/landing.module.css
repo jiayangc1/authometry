@@ -284,8 +284,8 @@
   position: relative;
   z-index: 1;
   display: grid;
-  height: 598px;
-  min-height: 598px;
+  height: 760px;
+  min-height: 760px;
   place-items: start center;
   overflow: hidden;
   margin-top: -64px;
@@ -435,6 +435,153 @@
   box-shadow:
     0 4px 8px -2px rgb(0 0 0 / 12%),
     0 0 0 0.5px rgb(19 19 22 / 16%);
+}
+
+.agentPrompt {
+  width: min(100%, 840px);
+  margin: 48px auto 0;
+  text-align: left;
+}
+
+.agentPromptCard {
+  overflow: hidden;
+  border: 1px solid rgb(99 91 255 / 48%);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 94%);
+  box-shadow:
+    0 18px 38px -18px rgb(72 57 173 / 34%),
+    0 0 0 1px rgb(99 91 255 / 4%),
+    inset 0 1px rgb(255 255 255 / 85%);
+  backdrop-filter: blur(14px) saturate(135%);
+}
+
+.agentPromptHeader {
+  display: flex;
+  height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  border-bottom: 1px solid rgb(19 19 22 / 8%);
+  color: #686975;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.agentPromptHeader > span,
+.agentPromptHeader a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.agentPromptHeader > span {
+  height: 44px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid var(--violet);
+  color: var(--ink);
+}
+
+.agentPromptHeader svg,
+.agentPromptHeader a svg {
+  width: 14px;
+  height: 14px;
+}
+
+.agentPromptHeader a {
+  color: #6a6b77;
+  font-size: 12px;
+  text-decoration: none;
+  transition: color 180ms ease;
+}
+
+.agentPromptHeader a:hover {
+  color: var(--violet);
+}
+
+.agentPromptRow {
+  display: grid;
+  min-height: 70px;
+  grid-template-columns: minmax(0, 1fr) 62px;
+  align-items: stretch;
+}
+
+.agentPromptRow code {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  padding: 14px 20px;
+  color: #222228;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 17px;
+  line-height: 26px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.agentPromptRow button {
+  display: grid;
+  width: 62px;
+  border: 0;
+  border-left: 1px solid rgb(19 19 22 / 7%);
+  place-items: center;
+  background: transparent;
+  color: #73747f;
+  cursor: pointer;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.agentPromptRow button:hover {
+  background: rgb(99 91 255 / 5%);
+  color: var(--violet);
+}
+
+.agentPromptRow button:focus-visible,
+.agentPromptHeader a:focus-visible,
+.agentPromptGuide a:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: -3px;
+}
+
+.agentPromptRow button svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.8;
+}
+
+.agentPromptRow button.promptCopied {
+  color: #15803d;
+}
+
+.agentPromptGuide {
+  display: flex;
+  min-height: 24px;
+  margin-top: 17px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #5d5e69;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.agentPromptGuide a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.agentPromptGuide a:hover {
+  color: var(--violet);
+}
+
+.agentPromptGuide svg {
+  width: 12px;
+  height: 12px;
 }
 
 .trustStrip {
@@ -2456,8 +2603,8 @@
   }
 
   .hero {
-    height: 584px;
-    min-height: 584px;
+    height: 742px;
+    min-height: 742px;
     padding-top: 144px;
   }
 
@@ -2489,6 +2636,34 @@
   .heroActions {
     flex-direction: column;
     gap: 10px;
+  }
+
+  .agentPrompt {
+    margin-top: 38px;
+  }
+
+  .agentPromptHeader {
+    padding-inline: 14px;
+  }
+
+  .agentPromptRow {
+    min-height: 84px;
+    grid-template-columns: minmax(0, 1fr) 50px;
+  }
+
+  .agentPromptRow code {
+    padding: 13px 14px;
+    font-size: 12px;
+    line-height: 19px;
+  }
+
+  .agentPromptRow button {
+    width: 50px;
+  }
+
+  .agentPromptGuide {
+    flex-wrap: wrap;
+    font-size: 12px;
   }
 
   .trustStrip {
