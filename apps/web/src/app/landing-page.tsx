@@ -355,7 +355,7 @@ export function LandingPage() {
             <h1>
               More than authentication,
               <br />
-              Complete Authorization Control
+              Complete Access <span className={styles.mobileHeadlineBreak}>Control</span>
             </h1>
             <p>
               Need more than sign-in? Authometry gives you OAuth, OpenID Connect, policy, and audit

@@ -288,8 +288,8 @@
   min-height: 598px;
   place-items: start center;
   overflow: hidden;
-  margin-top: -42px;
-  padding-top: 168px;
+  margin-top: -64px;
+  padding-top: 192px;
   background: #f8f8f9;
 }
 
@@ -369,7 +369,7 @@
 }
 
 .hero h1 {
-  max-width: 920px;
+  max-width: 896px;
   margin: 0 auto;
   color: var(--ink);
   font-size: clamp(52px, 5vw, 64px);
@@ -377,6 +377,10 @@
   letter-spacing: -0.035em;
   line-height: 1.125;
   text-wrap: balance;
+}
+
+.mobileHeadlineBreak {
+  display: inline;
 }
 
 .hero p {
@@ -390,7 +394,7 @@
 
 .heroActions {
   display: flex;
-  margin-top: 26px;
+  margin-top: 32px;
   align-items: center;
   justify-content: center;
   gap: 16px;
@@ -505,6 +509,7 @@
 .componentCopy {
   position: relative;
   z-index: 3;
+  padding-top: 30px;
 }
 
 .purpleEyebrow {
@@ -998,8 +1003,9 @@
 .notchedDivider {
   position: relative;
   z-index: 3;
-  height: 76px;
-  margin-block: -1px;
+  height: 48px;
+  margin-top: -45px;
+  margin-bottom: 43px;
   background: #fff;
   clip-path: polygon(
     0 44px,
@@ -1014,6 +1020,9 @@
 }
 
 .notchedDivider.toDark {
+  height: 76px;
+  margin-top: -47px;
+  margin-bottom: -30px;
   background: var(--night);
   clip-path: polygon(
     0 0,
@@ -1032,7 +1041,7 @@
   min-height: 1830px;
   overflow: hidden;
   margin-top: -1px;
-  padding: 96px 32px 124px;
+  padding: 96px 32px 42px;
   background: var(--night);
   color: #fff;
 }
@@ -1130,7 +1139,7 @@
   grid-row: span 2;
 }
 
-.securityCard7 {
+.securityCard8 {
   grid-column: span 2;
 }
 
@@ -2086,7 +2095,7 @@
 .platformSection {
   min-height: 804px;
   margin-top: -1px;
-  padding: 82px 32px 110px;
+  padding: 54px 32px 138px;
   background: var(--night);
   color: #fff;
 }
@@ -2160,10 +2169,10 @@
 
 .principlesSection {
   display: grid;
-  min-height: 910px;
+  min-height: 693px;
   grid-template-columns: 0.76fr 1.24fr;
   gap: 64px;
-  padding: 120px max(32px, calc((100vw - 1216px) / 2));
+  padding: 41px max(32px, calc((100vw - 1216px) / 2)) 120px;
   background: #f7f7f8;
 }
 
@@ -2238,7 +2247,7 @@
 }
 
 .footer {
-  padding: 90px 32px 0;
+  padding: 70px 32px 0;
   border-top: 1px solid #e6e6ea;
   background: #f7f7f8;
 }
@@ -2246,7 +2255,7 @@
 .footerGrid {
   display: grid;
   width: min(100%, 1216px);
-  min-height: 310px;
+  min-height: 273px;
   margin: 0 auto;
   grid-template-columns: 1.4fr repeat(5, 1fr);
   gap: 32px;
@@ -2291,7 +2300,7 @@
 .footerBottom {
   display: flex;
   width: min(100%, 1216px);
-  height: 96px;
+  height: 94px;
   margin: 0 auto;
   align-items: center;
   justify-content: space-between;
@@ -2337,7 +2346,7 @@
     grid-row: span 1;
   }
 
-  .securityCard7 {
+  .securityCard8 {
     grid-column: span 1;
   }
 
@@ -2364,13 +2373,24 @@
   }
 }
 
+@media (min-width: 768px) {
+  .agentCopy {
+    position: relative;
+    top: -22px;
+  }
+
+  .agentWindow {
+    position: relative;
+    top: -98px;
+  }
+}
+
 @media (max-width: 767px) {
   .announcement {
     gap: 8px;
     font-size: 10px;
   }
 
-  .announcement strong,
   .announcement i {
     display: none;
   }
@@ -2395,19 +2415,10 @@
 
   .navRule,
   .desktopNav,
-  .navCta > span:first-child,
-  .navCta .arrowSwap {
-    display: none;
-  }
-
   .navCta {
-    width: 30px;
-    padding: 0;
-  }
-
-  .navCta::before {
-    font-size: 15px;
-    content: "↗";
+    width: auto;
+    padding-inline: 8px;
+    font-size: 11px;
   }
 
   .signIn {
@@ -2447,7 +2458,7 @@
   .hero {
     height: 584px;
     min-height: 584px;
-    padding-top: 122px;
+    padding-top: 144px;
   }
 
   .heroInner {
@@ -2455,7 +2466,7 @@
   }
 
   .hero h1 {
-    max-width: 300px;
+    max-width: 280px;
     font-size: 32px;
     letter-spacing: -0.025em;
     line-height: 36px;
@@ -2463,6 +2474,10 @@
 
   .hero h1 br {
     display: none;
+  }
+
+  .mobileHeadlineBreak {
+    display: block;
   }
 
   .hero p {
@@ -2518,7 +2533,11 @@
   .componentsInner {
     display: block;
     width: calc(100% - 48px);
-    padding-top: 100px;
+    padding-top: 79px;
+  }
+
+  .componentCopy {
+    padding-top: 0;
   }
 
   .componentCopy h2,
@@ -2600,6 +2619,8 @@
   }
 
   .notchedDivider {
+    margin-top: -29px;
+    margin-bottom: 27px;
     clip-path: polygon(
       0 28px,
       16px 28px,
@@ -2613,6 +2634,8 @@
   }
 
   .notchedDivider.toDark {
+    margin-top: -31px;
+    margin-bottom: -45px;
     clip-path: polygon(
       0 0,
       16px 0,
@@ -2640,7 +2663,7 @@
 
   .securityCard1,
   .securityCard3,
-  .securityCard7 {
+  .securityCard8 {
     grid-column: auto;
     grid-row: auto;
   }
@@ -2783,6 +2806,27 @@
     align-items: flex-start;
     justify-content: center;
     gap: 14px;
+  }
+}
+
+@media (max-width: 359px) {
+  .announcement strong {
+    display: none;
+  }
+
+  .navCta > span:first-child,
+  .navCta .arrowSwap {
+    display: none;
+  }
+
+  .navCta {
+    width: 30px;
+    padding: 0;
+  }
+
+  .navCta::before {
+    font-size: 15px;
+    content: "↗";
   }
 }
 
