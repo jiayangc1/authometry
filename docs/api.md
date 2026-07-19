@@ -104,7 +104,7 @@ All paths below are relative to `/api/v1` and require authentication, CSRF for c
 | ------ | --------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | GET    | `/overview`                                                     | Counts, recent activity, and request metrics.                          |
 | GET    | `/applications`                                                 | List applications in the selected environment.                         |
-| POST   | `/applications`                                                 | Create an application and return its issuer, client ID, and optional one-time secret. |
+| POST   | `/applications`                                                 | Create an application and return its Cloud credentials once.           |
 | POST   | `/applications/slug`                                            | Produce a normalized slug preview from a name.                         |
 | GET    | `/applications/:applicationId`                                  | Read application configuration and credentials.                        |
 | PATCH  | `/applications/:applicationId`                                  | Update dashboard-owned application fields using optimistic versioning. |

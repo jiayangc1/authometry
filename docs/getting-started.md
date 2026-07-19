@@ -1,118 +1,105 @@
 # Getting started
 
-This guide creates a local Authometry installation, bootstraps its first owner, and prepares it to issue tokens.
+Use Authometry Cloud and the CLI to provision OAuth for an application. The CLI creates the client and returns the selected environment's issuer, client ID, and one-time client secret; you do not need to run an authorization server locally.
 
-## Prerequisites
+## 1. Install the CLI
 
-- Node.js 24 or newer.
-- pnpm 11.8 or a compatible pnpm 11 release. Corepack can install the version pinned in `package.json`.
-- PostgreSQL 18 or Docker and Docker Compose.
-
-## 1. Configure the environment
-
-Copy the example file and keep the resulting `.env` file out of source control.
+Install the current release with Homebrew:
 
 ```bash
-cp .env.example .env
+brew install jiayangc1/tap/authometry
 ```
 
-The development defaults describe two processes: the public web origin at `http://localhost:3000` and the API at `http://localhost:4000`. Replace every `replace-with-...` value before using the installation outside an isolated local machine.
-
-Generate random values with Node.js:
+Or run it without a global install:
 
 ```bash
-node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
+npx authometry@latest --help
 ```
 
-Use independent values for `COOKIE_SECRET`, `CSRF_SECRET`, `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`, `TOKEN_HMAC_KEY`, and `BOOTSTRAP_TOKEN`. Generate the installation encryption key as base64:
+Authometry Cloud at `https://authometry.ch3n.cc` and its `production` environment are the defaults.
+
+## 2. Authorize the CLI
+
+Create an API token under **Settings → API tokens**, then expose it only to the current shell or agent process:
 
 ```bash
-node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+export AUTHOMETRY_TOKEN=amt_your_token
 ```
 
-`BOOTSTRAP_TOKEN_EXPIRES_AT` must be a future ISO 8601 timestamp in production. Bootstrap also becomes unavailable as soon as an owner exists.
+The token needs `applications:read` and `applications:write` for client provisioning. Tokens created in Settings include those scopes. Use `AUTHOMETRY_ENVIRONMENT` or `--environment` only when targeting a non-default Cloud environment.
 
-## 2. Start PostgreSQL
+## 3. Determine the application's OAuth routes
 
-The repository Compose file starts only PostgreSQL, exposes it on port 5432, and persists data in the `authometry-postgres` volume.
-
-```bash
-docker compose up -d postgres
-docker compose ps
-```
-
-If PostgreSQL is already running locally, set `DATABASE_URL` to that database instead.
-
-## 3. Install, migrate, and run
-
-```bash
-corepack enable
-pnpm install
-pnpm db:migrate
-pnpm dev
-```
-
-`pnpm dev` starts the Express API on port 4000 and the Next.js application on port 3000. The web process rewrites `/api`, `/oauth`, `/.well-known`, and `/health` requests to `INTERNAL_API_ORIGIN`, so browser-facing calls remain same-origin.
-
-Confirm both services:
-
-```bash
-curl http://localhost:3000/health/live
-curl http://localhost:3000/.well-known/openid-configuration
-```
-
-The liveness response does not touch PostgreSQL. Use `/health/ready` when readiness must include a database query.
-
-## 4. Bootstrap the installation
-
-Open:
-
-```text
-http://localhost:3000/bootstrap?token=YOUR_BOOTSTRAP_TOKEN
-```
-
-Create the first owner and workspace. Bootstrap creates the owner account, a default production environment, built-in OIDC scopes, and the environment's initial signing key. The owner password must contain at least 12 characters.
-
-After bootstrap, sign in at `/login`. Administrative sessions use short-lived access and rotating refresh cookies; state-changing dashboard requests also require the CSRF token issued by the server.
-
-## 5. Register a client
-
-In **Applications**, create a client and choose the type that matches its runtime:
+Choose the application type that matches the runtime:
 
 - `web` — a confidential server-side web application.
-- `spa` — a public browser application; use PKCE and no client secret.
-- `native` — a public installed application; use PKCE.
+- `spa` — a public browser application using PKCE and no client secret.
+- `native` — a public installed application using PKCE.
 - `machine` — a confidential service using Client Credentials.
-- `device` — a client using Device Authorization.
+- `device` — an input-constrained client using Device Authorization.
 
-Register every callback exactly as the client sends it. Authometry compares the complete URI, including scheme, host, port, path, and query. Save a generated client secret immediately; raw secrets are returned only when created.
+For an interactive application, identify its exact callback and post-logout URLs. Local HTTP URLs are accepted only for `localhost`, `127.0.0.1`, and `::1`. Production URLs must use HTTPS.
 
-For a web client, begin authorization at `/oauth/authorize`, exchange the returned code at `/oauth/token`, and use the access token at `/oauth/userinfo`. See [OAuth and OpenID Connect](oauth-and-oidc.md) for complete examples.
+## 4. Provision the application
 
-## Optional integrations
+Run one command from the application's repository:
 
-Google and GitHub login are disabled until both the client ID and client secret for that provider are set. Mail is disabled until `RESEND_API_KEY` or SMTP is configured; invitations and password-reset flows that require delivery will report that mail is unavailable. Resend uses `RESEND_FROM` as its verified sender identity and takes precedence when both providers are configured.
+```bash
+npx authometry@latest apps create \
+  --name "Customer Portal" \
+  --type web \
+  --redirect-uri http://localhost:3000/auth/callback \
+  --post-logout-redirect-uri http://localhost:3000/ \
+  --scope openid \
+  --scope profile \
+  --scope email \
+  --output-env .env.local \
+  --json
+```
 
-Restart the API after changing environment variables.
+The command creates the OAuth client in Authometry Cloud and writes these values directly to the ignored environment file:
+
+```dotenv
+AUTHOMETRY_APPLICATION_ID="..."
+AUTHOMETRY_ISSUER="https://authometry.ch3n.cc"
+AUTHOMETRY_CLIENT_ID="..."
+AUTHOMETRY_CLIENT_SECRET="..."
+```
+
+Public clients omit `AUTHOMETRY_CLIENT_SECRET`. The file is written with mode `0600`. The CLI preserves unrelated settings and refuses to replace existing Authometry values unless `--overwrite-env` is passed explicitly.
+
+Add `--scope offline_access` only when the application securely stores and rotates refresh tokens. Repeat callback, logout, and scope flags when the application needs more than one value.
+
+## 5. Implement the OIDC flow
+
+Give an AI coding agent this prompt:
+
+```text
+Add Authometry OAuth to my app: https://authometry.ch3n.cc/SKILL.md
+```
+
+The skill tells the agent to inspect the app, run the CLI itself, select a maintained OIDC library, implement Authorization Code with S256 PKCE, protect sessions and callbacks, and run the repository's own checks.
+
+For a manual implementation, load `${AUTHOMETRY_ISSUER}/.well-known/openid-configuration` and use the discovered endpoints. See [OAuth and OpenID Connect](oauth-and-oidc.md) for the complete protocol contract.
+
+## Self-hosting
+
+Self-hosting remains available for installations that need it. Pass `--server` or set `AUTHOMETRY_SERVER` to target that installation, and follow the [deployment guide](deployment.md). Cloud is the default onboarding path.
 
 ## Troubleshooting
 
-### The bootstrap page says bootstrap is unavailable
+### The CLI asks for a token
 
-Bootstrap is one-time only. Check `/api/v1/auth/bootstrap/status`. If an owner already exists, sign in or use the password-reset workflow. Do not delete production identity records to repeat bootstrap.
+Set `AUTHOMETRY_TOKEN` in the process running the CLI. Do not put a management token in application source code or a committed environment file.
 
-### The API reports an invalid environment
+### The API token has insufficient scope
 
-Dashboard requests select an environment using `x-authometry-environment`; the CLI defaults to the `production` slug. Pass `--environment <slug-or-id>` or set `AUTHOMETRY_ENVIRONMENT` when your environment has another name.
+Create a new Settings token with `applications:read` and `applications:write`. Existing configuration-only tokens cannot provision OAuth clients.
+
+### The environment file already has Authometry values
+
+Inspect the existing client before replacing it. Pass `--overwrite-env` only when intentionally switching the application to the newly created client.
 
 ### A redirect URI is rejected
 
-Compare the requested `redirect_uri` byte-for-byte with the application's registered URI. Localhost and `127.0.0.1`, omitted and explicit ports, trailing slashes, and different query strings are distinct.
-
-### The web application cannot reach the API
-
-For local development, keep `INTERNAL_API_ORIGIN=http://localhost:4000`. In containers it must be an address resolvable from the web container, not the browser's public address.
-
-### PostgreSQL is not ready
-
-Check `docker compose ps`, then inspect the database URL and credentials. Migrations are safe to rerun; the migrator records applied files and uses a PostgreSQL advisory lock.
+Use the complete externally visible callback URL. Scheme, host, port, path, query, trailing slash, and case must match exactly.

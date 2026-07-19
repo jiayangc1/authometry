@@ -145,7 +145,7 @@ export default function TokensPage() {
         </div>
       ) : (
         <EmptyState
-          description="Create a scoped token to use validate, plan, apply, and status from CI or your terminal."
+          description="Create a scoped token to provision OAuth applications or manage configuration from CI and the CLI."
           headingLevel="h3"
           icon={KeyRound}
           title="No API tokens"

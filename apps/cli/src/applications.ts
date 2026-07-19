@@ -67,19 +67,71 @@ export function provisionedApplication(
   };
 }
 
-const applicationEnvironmentKeys = [
-  "AUTHOMETRY_APPLICATION_ID",
-  "AUTHOMETRY_ISSUER",
-  "AUTHOMETRY_CLIENT_ID",
-  "AUTHOMETRY_CLIENT_SECRET",
-] as const;
+function applicationEnvironmentKeys(prefix: string): [string, string, string, string] {
+  if (!/^[A-Z][A-Z0-9_]*$/.test(prefix)) {
+    throw new Error("--env-prefix must contain only uppercase letters, numbers, and underscores.");
+  }
+  return [
+    `${prefix}_APPLICATION_ID`,
+    `${prefix}_ISSUER`,
+    `${prefix}_CLIENT_ID`,
+    `${prefix}_CLIENT_SECRET`,
+  ];
+}
 
-export function applicationEnvironment(application: CreatedApplicationResponse): string {
+async function environmentFileState(
+  path: string,
+  prefix: string,
+): Promise<{
+  target: string;
+  existing: string;
+  conflicts: string[];
+}> {
+  const target = resolve(path);
+  let existing = "";
+  try {
+    existing = await readFile(target, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  const assignment = /^([A-Z][A-Z0-9_]*)\s*=/;
+  const existingKeys = new Set(
+    existing
+      .split(/\r?\n/)
+      .map((line) => assignment.exec(line)?.[1])
+      .filter((key): key is string => Boolean(key)),
+  );
+  return {
+    target,
+    existing,
+    conflicts: applicationEnvironmentKeys(prefix).filter((key) => existingKeys.has(key)),
+  };
+}
+
+export async function assertApplicationEnvironmentWritable(
+  path: string,
+  overwrite: boolean,
+  prefix = "AUTHOMETRY",
+): Promise<void> {
+  const { target, conflicts } = await environmentFileState(path, prefix);
+  if (conflicts.length && !overwrite) {
+    throw new Error(
+      `${target} already defines ${conflicts.join(", ")}. Pass --overwrite-env to replace them.`,
+    );
+  }
+}
+
+export function applicationEnvironment(
+  application: CreatedApplicationResponse,
+  prefix = "AUTHOMETRY",
+): string {
+  const [applicationIdKey, issuerKey, clientIdKey, clientSecretKey] =
+    applicationEnvironmentKeys(prefix);
   const values: Array<[string, string | undefined]> = [
-    ["AUTHOMETRY_APPLICATION_ID", application.id],
-    ["AUTHOMETRY_ISSUER", application.issuer],
-    ["AUTHOMETRY_CLIENT_ID", application.clientId],
-    ["AUTHOMETRY_CLIENT_SECRET", application.clientSecret],
+    [applicationIdKey, application.id],
+    [issuerKey, application.issuer],
+    [clientIdKey, application.clientId],
+    [clientSecretKey, application.clientSecret],
   ];
   return `${values
     .filter((entry): entry is [string, string] => Boolean(entry[1]))
@@ -91,23 +143,11 @@ export async function writeApplicationEnvironment(
   path: string,
   application: CreatedApplicationResponse,
   overwrite: boolean,
+  prefix = "AUTHOMETRY",
 ): Promise<string> {
-  const target = resolve(path);
-  let existing = "";
-  try {
-    existing = await readFile(target, "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-
+  const keys = applicationEnvironmentKeys(prefix);
+  const { target, existing, conflicts } = await environmentFileState(path, prefix);
   const assignment = /^([A-Z][A-Z0-9_]*)\s*=/;
-  const existingKeys = new Set(
-    existing
-      .split(/\r?\n/)
-      .map((line) => assignment.exec(line)?.[1])
-      .filter((key): key is string => Boolean(key)),
-  );
-  const conflicts = applicationEnvironmentKeys.filter((key) => existingKeys.has(key));
   if (conflicts.length && !overwrite) {
     throw new Error(
       `${target} already defines ${conflicts.join(", ")}. Pass --overwrite-env to replace them.`,
@@ -118,14 +158,11 @@ export async function writeApplicationEnvironment(
     .split(/\r?\n/)
     .filter((line) => {
       const key = assignment.exec(line)?.[1];
-      return (
-        !key ||
-        !applicationEnvironmentKeys.includes(key as (typeof applicationEnvironmentKeys)[number])
-      );
+      return !key || !keys.includes(key);
     })
     .join("\n")
     .trimEnd();
-  const contents = `${preserved ? `${preserved}\n\n` : ""}${applicationEnvironment(application)}`;
+  const contents = `${preserved ? `${preserved}\n\n` : ""}${applicationEnvironment(application, prefix)}`;
   const temporary = join(dirname(target), `.${basename(target)}.${randomUUID()}.tmp`);
   await writeFile(temporary, contents, { flag: "wx", mode: 0o600 });
   try {

@@ -44,7 +44,7 @@ authometry apps create \
   --scope openid \
   --scope profile \
   --scope email \
-  --env-file .env.local
+  --output-env .env.local
 ```
 
 The command creates the Authometry application and writes its issuer, application ID, client ID, and one-time client secret directly to the environment file with mode `0600`. It refuses to replace existing Authometry values unless `--overwrite-env` is passed. Use `--json` for machine-readable output.

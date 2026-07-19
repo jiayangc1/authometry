@@ -51,11 +51,11 @@ authometry apps create \
   --scope profile \
   --scope email \
   --scope offline_access \
-  --env-file .env.local \
+  --output-env .env.local \
   --json
 ```
 
-The command returns the selected environment's issuer with the generated client ID. Confidential `web` and `machine` applications also receive a one-time client secret. With `--env-file`, the secret is written with mode `0600` and omitted from JSON output. Existing Authometry assignments are preserved unless `--overwrite-env` is explicit.
+The command returns the selected environment's issuer with the generated client ID. Confidential `web` and `machine` applications also receive a one-time client secret. With `--output-env`, the secret is written with mode `0600` and omitted from JSON output. Existing Authometry assignments are preserved unless `--overwrite-env` is explicit.
 
 ## Workflow
 

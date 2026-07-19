@@ -20,6 +20,7 @@ import {
 import {
   applicationCreatePayload,
   applicationTypes,
+  assertApplicationEnvironmentWritable,
   provisionedApplication,
   writeApplicationEnvironment,
   type ApplicationCreateOptions,
@@ -126,8 +127,9 @@ applications
     [],
   )
   .option("--scope <scope>", "Allowed OAuth scope; repeat for additional scopes", collectOption, [])
-  .option("--env-file <path>", "Write credentials to an environment file without printing them")
-  .option("--overwrite-env", "Replace existing Authometry values in --env-file", false)
+  .option("--output-env <path>", "Write credentials to an environment file without printing them")
+  .option("--env-prefix <prefix>", "Environment variable prefix", "AUTHOMETRY")
+  .option("--overwrite-env", "Replace existing Authometry values in --output-env", false)
   .option("--json", "Print machine-readable JSON", false)
   .action(
     async (
@@ -139,7 +141,8 @@ applications
         redirectUri: string[];
         postLogoutRedirectUri: string[];
         scope: string[];
-        envFile?: string;
+        outputEnv?: string;
+        envPrefix: string;
         overwriteEnv: boolean;
         json: boolean;
       },
@@ -158,14 +161,26 @@ applications
         ...(input.description ? { description: input.description } : {}),
       };
       const payload = applicationCreatePayload(createOptions);
+      if (input.outputEnv) {
+        await assertApplicationEnvironmentWritable(
+          input.outputEnv,
+          input.overwriteEnv,
+          input.envPrefix,
+        );
+      }
       const created = await api<CreatedApplicationResponse>(
         "/api/v1/applications",
         globalOptions(command),
         { method: "POST", body: JSON.stringify(payload) },
       );
       const result = provisionedApplication(createOptions, created);
-      const environmentFile = input.envFile
-        ? await writeApplicationEnvironment(input.envFile, created, input.overwriteEnv)
+      const environmentFile = input.outputEnv
+        ? await writeApplicationEnvironment(
+            input.outputEnv,
+            created,
+            input.overwriteEnv,
+            input.envPrefix,
+          )
         : undefined;
 
       if (input.json) {

@@ -42,6 +42,21 @@ export function createApp() {
       ...(env.NODE_ENV === "production" ? {} : { hsts: false }),
     }),
   );
+  const protocolCors = cors({
+    origin: true,
+    credentials: false,
+    methods: ["GET", "HEAD", "POST", "OPTIONS"],
+    allowedHeaders: ["authorization", "content-type", "dpop"],
+    exposedHeaders: ["dpop-nonce", "www-authenticate", "x-request-id"],
+    maxAge: 600,
+  });
+  app.use((request, response, next) => {
+    if (/(^|\/)(oauth|\.well-known)(\/|$)/.test(request.path)) {
+      protocolCors(request, response, next);
+      return;
+    }
+    next();
+  });
   app.use(
     cors({
       origin: env.NODE_ENV === "development" ? env.PUBLIC_ORIGIN : false,
@@ -82,7 +97,6 @@ export function createApp() {
     standardHeaders: "draft-8",
     legacyHeaders: false,
   });
-
   app.post(
     [
       "/api/v1/auth/bootstrap",

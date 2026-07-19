@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   applicationCreatePayload,
+  applicationEnvironment,
   writeApplicationEnvironment,
   type CreatedApplicationResponse,
 } from "./applications.js";
@@ -38,6 +39,17 @@ void test("builds a SaaS application payload with agent-selected OAuth settings"
         scopes: [],
       }),
     /requires at least one --redirect-uri/,
+  );
+  assert.equal(
+    applicationEnvironment(
+      {
+        id: "app_public",
+        issuer: "https://authometry.ch3n.cc",
+        clientId: "amt_client_public",
+      },
+      "VITE_AUTHOMETRY",
+    ),
+    'VITE_AUTHOMETRY_APPLICATION_ID="app_public"\nVITE_AUTHOMETRY_ISSUER="https://authometry.ch3n.cc"\nVITE_AUTHOMETRY_CLIENT_ID="amt_client_public"\n',
   );
 });
 

@@ -19,37 +19,36 @@ export const documentationPages: DocumentationPage[] = [
     slug: "getting-started",
     group: "Start",
     title: "Getting started",
-    summary: "Bootstrap an installation, register a client, and complete the first health checks.",
+    summary: "Provision an Authometry Cloud OAuth client from your application with the CLI.",
     sections: [
       {
-        title: "Run locally",
+        title: "Install the CLI",
         paragraphs: [
-          "Authometry needs Node.js 24 or newer, pnpm 11, and PostgreSQL. The repository Compose file starts a development database; the web and API processes run separately and keep browser traffic same-origin through rewrites.",
+          "Authometry Cloud is the default server and production is the default environment. Run the current CLI without adding it to your application's runtime dependencies.",
         ],
-        code: "cp .env.example .env\ndocker compose up -d postgres\npnpm install\npnpm db:migrate\npnpm dev",
+        code: "npx authometry@latest --help",
       },
       {
-        title: "Create the first owner",
+        title: "Authorize the CLI",
         paragraphs: [
-          "Open /bootstrap with the BOOTSTRAP_TOKEN from your environment. Bootstrap creates the first owner, workspace, production environment, built-in scopes, and signing key. It becomes unavailable after the owner exists or the configured expiry passes.",
+          "Create a token under Settings → API tokens and expose it only to the current shell or agent process. Application provisioning needs applications:read and applications:write.",
         ],
-        code: "http://localhost:3000/bootstrap?token=YOUR_BOOTSTRAP_TOKEN",
-        note: "Use independent random values for every secret. Production also requires BOOTSTRAP_TOKEN_EXPIRES_AT.",
+        code: "export AUTHOMETRY_TOKEN=amt_your_token",
+        note: "The management token belongs to the provisioning process. Never put it in application source or runtime environment files.",
       },
       {
-        title: "Check the issuer",
+        title: "Provision the application",
         paragraphs: [
-          "Liveness confirms the process is serving HTTP. Readiness also checks PostgreSQL. Discovery confirms that the default environment resolves and advertises endpoints from its issuer.",
+          "Run the CLI from the application repository. It creates the SaaS client and writes the issuer, application ID, client ID, and one-time client secret directly to an ignored environment file. Public clients omit the secret.",
         ],
-        code: "curl http://localhost:3000/health/live\ncurl http://localhost:3000/health/ready\ncurl http://localhost:3000/.well-known/openid-configuration",
+        code: 'npx authometry@latest apps create \\\n  --name "Customer Portal" \\\n  --type web \\\n  --redirect-uri http://localhost:3000/auth/callback \\\n  --post-logout-redirect-uri http://localhost:3000/ \\\n  --scope openid --scope profile --scope email \\\n  --output-env .env.local --json',
       },
       {
-        title: "Register a client",
+        title: "Give the integration to an agent",
         bullets: [
-          "Choose web for a confidential backend, SPA or native for a public PKCE client, machine for Client Credentials, or device for Device Authorization.",
-          "Register complete callback and logout URLs exactly as the client sends them.",
-          "Assign the smallest scope set the client needs.",
-          "Save generated secrets immediately; Authometry shows raw credentials once.",
+          "Prompt the agent with: Add Authometry OAuth to my app: https://authometry.ch3n.cc/SKILL.md",
+          "The agent inspects the repository, runs the provisioning command, implements the OIDC flow, and verifies the result.",
+          "Pass --server only when intentionally targeting a self-hosted installation.",
         ],
       },
     ],

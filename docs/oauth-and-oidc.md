@@ -50,6 +50,8 @@ Token, device, revocation, and introspection requests use `application/x-www-for
 
 With HTTP Basic authentication, encode `client_id:client_secret` and send it in `Authorization: Basic ...`. With `client_secret_post`, send both values in the form body. Public clients send `client_id` and no secret.
 
+Discovery and OAuth protocol endpoints allow credential-free CORS for public browser clients. SPAs must still use Authorization Code with S256 PKCE, keep their client secret empty, and send users to the authorization endpoint as a top-level navigation. CORS does not permit dashboard cookies or management API access from another origin.
+
 Client credentials are opaque and stored as hashes. A newly generated secret is shown once. Rotate by creating a second credential, deploying it to the client, and revoking the old credential.
 
 ## Authorization Code with PKCE

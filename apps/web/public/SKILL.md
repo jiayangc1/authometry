@@ -1,108 +1,104 @@
 ---
 name: add-authometry-oauth
-description: Implement Authometry OAuth 2.0 and OpenID Connect in an existing application. Use when adding Authometry sign-in, configuring an Authometry issuer and client, implementing Authorization Code with PKCE, protecting routes or APIs, refreshing sessions, logging users out, or adding client credentials and device authorization flows.
+description: Provision Authometry Cloud with the Authometry CLI and implement OAuth 2.0 or OpenID Connect in an existing application. Use when adding Authometry sign-in, creating an Authometry OAuth client, obtaining an issuer and client credentials, implementing Authorization Code with PKCE, protecting routes or APIs, refreshing sessions, logging users out, or adding client credentials and device authorization flows.
 ---
 
 # Add Authometry OAuth
 
-Implement Authometry through its standards-compliant OAuth 2.0 and OpenID Connect endpoints. Adapt the integration to the application's existing framework, routing, session, and configuration conventions instead of replacing working infrastructure.
+Complete the integration end to end. Inspect the application, use the Authometry CLI to create the Cloud OAuth client and write its credentials, implement the code, and run the repository's checks. Do not ask the user to manually create a client or copy an issuer, client ID, or client secret from the dashboard.
 
-## Gather the integration values
+## 1. Inspect the application
 
-Use environment variables for these values:
+Read the package manifest, routes, middleware, session handling, environment validation, deployment configuration, and existing authentication code before changing anything. Preserve unrelated authentication methods unless replacement is explicitly requested.
 
-```dotenv
-AUTHOMETRY_ISSUER=https://authometry.example.com
-AUTHOMETRY_CLIENT_ID=
-AUTHOMETRY_CLIENT_SECRET=
-AUTHOMETRY_REDIRECT_URI=http://localhost:3000/auth/callback
-AUTHOMETRY_POST_LOGOUT_REDIRECT_URI=http://localhost:3000/
+Determine:
+
+- The application name and a stable lowercase slug.
+- The client type: `web`, `spa`, `native`, `machine`, or `device`.
+- Every local, preview, and production callback and post-logout URL available from the repository's current configuration.
+- The required scopes. Start interactive clients with `openid profile email`. Add `offline_access` only when the app will securely store and rotate refresh tokens.
+- The ignored environment file used by the framework. Add it to `.gitignore` before provisioning if needed.
+- The environment prefix. Use `AUTHOMETRY` for server-side apps. Use a framework's public prefix, such as `VITE_AUTHOMETRY`, only for a secretless public client.
+
+Use a confidential `web` client when a backend can protect a secret. Use `spa` or `native` for public clients and never give them a secret. Use `machine` only for service-to-service access without a user, and `device` only for input-constrained clients.
+
+## 2. Authorize the CLI
+
+Use the current CLI without adding it to the application's runtime dependencies:
+
+```bash
+npx authometry@latest --help
 ```
 
-Get the exact issuer from the Authometry environment. Get the client ID and, for a confidential client, the one-time client secret from its Authometry application. Never commit or expose a client secret.
+Authometry Cloud at `https://authometry.ch3n.cc` and the `production` environment are the defaults. Do not pass `--server` or set `AUTHOMETRY_SERVER` unless the user explicitly requests a self-hosted installation. Select a different Cloud environment with `--environment` or `AUTHOMETRY_ENVIRONMENT` only when required.
 
-If values are unavailable, finish the code with environment-variable placeholders and report the exact redirect URI, post-logout redirect URI, application type, grant types, and scopes that must be configured in Authometry.
+Use `AUTHOMETRY_TOKEN` from the agent's existing environment without printing it. The token needs `applications:read` and `applications:write`. If it is missing, stop only for the user to provide a scoped Authometry API token; never request their password or echo the token. The CLI must create all remaining Authometry values.
 
-## Inspect before changing code
+## 3. Provision Authometry Cloud
 
-1. Read the application's package manifest, routes, middleware, session handling, environment validation, and existing authentication code.
-2. Reuse a maintained OAuth/OIDC client already present in the app. Otherwise choose a well-supported library for the app's framework and runtime.
-3. Preserve unrelated authentication methods unless replacement is explicitly requested.
-4. Inspect the production session store, user identity schema, account-linking rules, reverse-proxy settings, and existing CSRF protection before adding callback or logout behavior.
-5. Determine the client type:
-   - Use `web` for a server-rendered or backend-assisted app that can protect a secret.
-   - Use `spa` or `native` for a public client. Never give these clients a secret.
-   - Use `machine` only for service-to-service access without a user.
-   - Use `device` only for input-constrained clients.
+Run `apps create` yourself from the application repository. Adapt this command to the inspected app instead of copying the example literally:
 
-## Discover the provider
-
-Load OpenID Provider metadata from:
-
-```text
-${AUTHOMETRY_ISSUER}/.well-known/openid-configuration
+```bash
+npx authometry@latest apps create \
+  --name "Customer Portal" \
+  --slug customer-portal \
+  --type web \
+  --redirect-uri http://localhost:3000/auth/callback \
+  --post-logout-redirect-uri http://localhost:3000/ \
+  --scope openid \
+  --scope profile \
+  --scope email \
+  --output-env .env.local \
+  --env-prefix AUTHOMETRY \
+  --json
 ```
 
-Treat the configured issuer and discovered endpoint URLs as authoritative. Do not construct authorization, token, UserInfo, logout, or JWKS URLs when the selected library can use discovery. Environment issuers may include a path prefix, so do not strip or rewrite the issuer.
+Repeat URI and scope flags for additional values. The command creates the SaaS application and writes its application ID, issuer, client ID, and one-time client secret directly to the environment file with mode `0600`. Public clients omit the secret. When `--output-env` is used, JSON output does not contain the secret.
 
-## Implement interactive sign-in
+Do not run a successful create command twice. The CLI refuses to replace existing Authometry assignments. If they already exist, inspect the current integration and reuse it; never pass `--overwrite-env` unless the user explicitly asks to replace that client.
 
-Use Authorization Code with S256 PKCE for every interactive client, including confidential web applications.
+Never put `AUTHOMETRY_TOKEN` in the application's environment file. It is a management credential for the provisioning process, not an application runtime credential.
 
-1. Add a login handler in the application. Do not link a sign-in button directly to a fixed authorization URL.
-2. Generate fresh, high-entropy `state`, `nonce`, and PKCE verifier values for every attempt.
-3. Store those short-lived values as a single-use login attempt with a short expiry. Support concurrent login attempts, consume the matching attempt atomically, and do not use process memory in a multi-instance production deployment. Use a secure server-side session or encrypted, HTTP-only, `Secure`, `SameSite=Lax` cookie.
-4. Redirect with `response_type=code`, the exact registered `redirect_uri`, `code_challenge_method=S256`, and the required scopes. Start with `openid profile email`; request `offline_access` only when the app will safely store and rotate refresh tokens.
-5. Add a callback handler that rejects provider errors, validates `state`, and exchanges the single-use code with the original redirect URI and PKCE verifier.
-6. Authenticate confidential clients at the token endpoint with the application's configured method, preferably `client_secret_basic`. Send `client_id` with no secret for a public client.
-7. Validate the ID token through the OIDC library: signature, exact `iss`, `aud`, `exp`, and the original `nonce`. Do not accept a merely decoded JWT.
-8. Find or create the local identity using the `(iss, sub)` pair as its stable external key. Do not automatically link an existing account by email unless the email is verified and the application has an explicit, safe account-linking policy. Fetch UserInfo when additional authorized claims are needed.
-9. Regenerate the local session identifier after sign-in to prevent session fixation, then establish the application's own session.
-10. Accept a `returnTo` value only when it is a valid same-origin relative path beginning with a single `/`. Reject absolute URLs, protocol-relative values, backslashes, encoded path tricks, and malformed input.
+## 4. Implement interactive sign-in
 
-Use the label **Continue with Authometry** for the provider button. Point it at the application's login handler.
+Reuse a maintained OAuth/OIDC client already present in the app, or install a well-supported discovery-capable library for its framework and runtime. Load metadata from `${AUTHOMETRY_ISSUER}/.well-known/openid-configuration`; treat the configured issuer and discovered endpoints as authoritative.
 
-## Handle tokens and sessions
+Use Authorization Code with S256 PKCE for every interactive client, including confidential web applications:
 
-- Keep tokens and the client secret on the server for backend-assisted applications. Store application sessions in HTTP-only, `Secure`, `SameSite=Lax` cookies.
-- Prefer a backend-for-frontend for browser applications. If the project must remain a pure SPA, use a public client with PKCE and avoid long-lived token storage such as `localStorage`.
-- Encrypt server-held refresh tokens at rest and replace one atomically after every successful refresh. Authometry rotates refresh tokens and revokes the family when a consumed token is reused. On `invalid_grant`, clear the unusable token and require sign-in instead of retrying it.
-- Validate access-token signature, issuer, audience, expiry, and expected token context in APIs. Use discovery and JWKS caching instead of a hard-coded signing key.
-- Get the expected resource or audience and API scopes from the application's API configuration. Do not guess an audience or accept a token minted for another resource.
-- Never log authorization codes, access tokens, refresh tokens, ID tokens, client secrets, PKCE verifiers, or complete session cookies.
+1. Add an application login handler. Point the **Continue with Authometry** button to this handler, never to a fixed authorization URL.
+2. Generate fresh high-entropy `state`, `nonce`, and PKCE verifier values for every attempt.
+3. For a backend-assisted client, store them as a short-lived, single-use attempt in the production session store or an encrypted HTTP-only, `Secure`, `SameSite=Lax` cookie. For a pure SPA or native client, let the selected OIDC library keep only this transient request state in `sessionStorage` or platform-secure storage. Support concurrent attempts and consume the matching state atomically.
+4. Redirect with `response_type=code`, the exact provisioned callback, `code_challenge_method=S256`, and the provisioned scopes.
+5. Add a callback that rejects provider errors, validates state, and exchanges the single-use code with the original redirect URI and PKCE verifier.
+6. Use the discovered token authentication method. Confidential clients normally use `client_secret_basic`; public clients send the client ID and no secret.
+7. Let the OIDC library validate signature, exact issuer, audience, expiry, and nonce. Do not accept a merely decoded JWT.
+8. Find or create the local identity with `(iss, sub)` as its stable key. Link by email only when it is verified and the app has an explicit safe linking policy.
+9. Regenerate the local session ID for a backend-assisted client, then establish the application's own secure session. For a public client, use the OIDC library's authenticated state and do not invent a server session that the application does not have.
+10. Accept a post-login return path only when it begins with one `/` and is not absolute, protocol-relative, backslash-based, encoded to escape the origin, or malformed.
 
-## Implement logout
+## 5. Handle tokens, APIs, and logout
 
-1. Expose local logout through a non-GET action protected by the application's CSRF controls, then clear the local application session.
-2. Revoke the refresh token when the application requires immediate session termination.
-3. Redirect through the discovered end-session endpoint with `id_token_hint` and the exact registered `post_logout_redirect_uri` when provider logout is required.
+- Keep client secrets and tokens on the server for backend-assisted applications. Prefer a backend-for-frontend when the app already has a backend. A pure SPA must use a public client, rely on Authometry's credential-free OAuth CORS support, and keep tokens in memory or short-lived `sessionStorage`, never `localStorage`.
+- Encrypt server-held refresh tokens at rest and replace them atomically after every refresh. On `invalid_grant`, clear the unusable token and require sign-in instead of retrying it.
+- Validate API access-token signature, issuer, audience, expiry, and token context through discovery and cached JWKS. Get the expected resource and scopes from the API configuration; never guess an audience.
+- For backend-assisted apps, expose local logout through a non-GET action protected by the app's CSRF controls. For public clients without cookie authentication, clear the OIDC library state without inventing CSRF requirements. Optionally revoke the refresh token, and use the discovered end-session endpoint with `id_token_hint` and the exact registered post-logout URI when provider logout is required.
+- Never log management tokens, client secrets, authorization codes, access tokens, refresh tokens, ID tokens, PKCE verifiers, or complete cookies.
 
-## Use non-interactive flows only when appropriate
+For a `machine` client, use Client Credentials and request only assigned API scopes; do not request `openid`. For a `device` client, use the discovered Device Authorization endpoint, show its user code and verification URI, honor the polling interval, and stop on approval, denial, or expiry. Never use implicit or resource-owner password grants.
 
-- For service-to-service access, use Client Credentials with a confidential `machine` application. Request only assigned API scopes and do not request `openid`.
-- For an input-constrained client, use the discovered Device Authorization endpoint, show the returned user code and verification URI, honor the polling interval, and stop on approval, denial, or expiry.
-- Do not use the implicit grant or the resource-owner password grant. Authometry does not support them.
+## 6. Verify and report
 
-## Configure the Authometry application
+Run the repository's native lint, typecheck, build, and test commands. Add focused tests for callback errors, state and nonce rejection, single-use attempts, session regeneration, protected routes, safe return paths, refresh rotation, and logout.
 
-In Authometry, create or update an application whose type matches the implementation. Register complete redirect and post-logout redirect URIs exactly, including scheme, host, port, path, trailing slash, and case. Enable `authorization_code` for interactive sign-in. Enable `refresh_token` only when the app requests `offline_access` and implements secure rotation. Enable only the other grant types and scopes the app uses.
+Verify without printing secrets:
 
-Use separate Authometry applications and credentials for local, preview, and production deployments when their redirect origins differ.
+- The CLI-created issuer's discovery document reports the exact same issuer.
+- Login redirects use unique state, nonce, and S256 PKCE values.
+- The exact registered callback completes sign-in and creates a local session.
+- Modified, expired, replayed, or mismatched state and nonce values are rejected.
+- Unauthenticated protected requests are denied or redirected.
+- Refresh rotation and logout behave correctly when enabled.
 
-## Verify the result
+Summarize the CLI command without its token or returned secrets, the created application ID, chosen client type and library, files changed, dashboard values that were provisioned automatically, and verification commands. Never include the client secret in the summary.
 
-Run the repository's native lint, typecheck, build, and test commands. Add focused tests for state and nonce rejection, callback errors, protected-route behavior, and logout without weakening existing coverage.
-
-Then verify these protocol outcomes without printing secrets:
-
-- Discovery returns an issuer exactly equal to `AUTHOMETRY_ISSUER`.
-- The login redirect contains a unique state, nonce, and S256 PKCE challenge.
-- The registered callback completes sign-in and creates a local session.
-- Modified, expired, replayed, or concurrently mismatched state and nonce values are rejected.
-- An unauthenticated protected request is denied or redirected.
-- Refresh rotation replaces the previous refresh token when enabled.
-- Logout clears the local session and returns only to an allowed URI.
-
-Summarize the files changed, the chosen client type and library, the Authometry dashboard values still required, and the commands used to verify the integration.
-
-For protocol details and supported flows, read `https://authometry.ch3n.cc/docs/oauth-and-oidc`.
+For protocol details, read `https://authometry.ch3n.cc/docs/oauth-and-oidc`.

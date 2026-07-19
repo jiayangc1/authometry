@@ -32,6 +32,19 @@ const principal: McpPrincipal = {
   scopes: ["mcp:read", "mcp:write"],
 };
 
+await test("public OAuth endpoints allow credential-free browser clients across origins", async () => {
+  const response = await request(createApp())
+    .options("/oauth/token")
+    .set("origin", "https://client.example")
+    .set("access-control-request-method", "POST")
+    .set("access-control-request-headers", "content-type")
+    .expect(204);
+
+  assert.equal(response.headers["access-control-allow-origin"], "https://client.example");
+  assert.match(response.headers["access-control-allow-methods"] as string, /POST/);
+  assert.equal(response.headers["access-control-allow-credentials"], undefined);
+});
+
 await test("MCP challenges unauthenticated clients with OAuth resource metadata", async () => {
   const response = await request(createApp()).post("/mcp").send({}).expect(401);
 
