@@ -133,6 +133,8 @@ await test("MCP exposes workspace and management tools and keeps queries tenant 
     assert.match(JSON.stringify(operations), /Create an OAuth application or machine service/);
     assert.match(JSON.stringify(operations), /DELETE/);
     assert.match(JSON.stringify(operations), /\/settings\/danger\/workspace/);
+    assert.match(JSON.stringify(operations), /\/settings\/provisioning/);
+    assert.match(JSON.stringify(operations), /Permanently delete an identity user/);
     assert.match(JSON.stringify(operations), /exact workspace name/);
 
     const result = await client.callTool({

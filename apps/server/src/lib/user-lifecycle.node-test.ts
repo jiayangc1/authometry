@@ -10,6 +10,11 @@ const user = {
   status: "active",
   email_verified_at: "2026-07-19T10:00:00.000Z",
 };
+const environment = {
+  id: "22222222-2222-4222-8222-222222222222",
+  slug: "production",
+  issuer: "https://auth.example.com",
+};
 
 await test("user lifecycle data contains the downstream identity without credentials", () => {
   const data = userLifecycleData(user);
@@ -32,6 +37,7 @@ await test("provisioning backfills use the signed webhook lifecycle envelope", (
   const body = createProvisioningEventBody(
     "user.created",
     user,
+    environment,
     new Date("2026-07-19T10:30:00.000Z"),
   );
 
@@ -39,6 +45,7 @@ await test("provisioning backfills use the signed webhook lifecycle envelope", (
   assert.equal(body.type, "user.created");
   assert.equal(body.resourceType, "user");
   assert.equal(body.resourceId, user.id);
+  assert.deepEqual(body.environment, environment);
   assert.equal(body.createdAt, "2026-07-19T10:30:00.000Z");
   assert.deepEqual(body.data, userLifecycleData(user));
 });

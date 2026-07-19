@@ -11,6 +11,12 @@ export interface IdentityUserLifecycleRow {
   email_verified_at: Date | string | null;
 }
 
+export interface ProvisioningEnvironment {
+  id: string;
+  slug: string;
+  issuer: string;
+}
+
 export function userLifecycleData(user: IdentityUserLifecycleRow) {
   return {
     user: {
@@ -27,6 +33,7 @@ export function userLifecycleData(user: IdentityUserLifecycleRow) {
 export function createProvisioningEventBody(
   type: (typeof userLifecycleEvents)[number],
   user: IdentityUserLifecycleRow,
+  environment: ProvisioningEnvironment,
   createdAt = new Date(),
 ) {
   return {
@@ -36,6 +43,7 @@ export function createProvisioningEventBody(
     severity: type === "user.created" ? "info" : "warning",
     resourceType: "user",
     resourceId: user.id,
+    environment,
     data: userLifecycleData(user),
     createdAt: createdAt.toISOString(),
   };

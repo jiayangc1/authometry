@@ -352,7 +352,14 @@ settingsRouter.post(
             `INSERT INTO webhook_deliveries
               (webhook_id, event_type, status, redacted_request_body)
              VALUES ($1, 'user.created', 'pending', $2)`,
-            [connectionId, createProvisioningEventBody("user.created", user)],
+            [
+              connectionId,
+              createProvisioningEventBody("user.created", user, {
+                id: environment.id,
+                slug: environment.slug,
+                issuer: environment.issuer,
+              }),
+            ],
           );
         }
         queued = users.rowCount ?? users.rows.length;
@@ -391,7 +398,14 @@ settingsRouter.post(
           `INSERT INTO webhook_deliveries
             (webhook_id, event_type, status, redacted_request_body)
            VALUES ($1, 'user.created', 'pending', $2)`,
-          [connection.rows[0].id, createProvisioningEventBody("user.created", user)],
+          [
+            connection.rows[0].id,
+            createProvisioningEventBody("user.created", user, {
+              id: environment.id,
+              slug: environment.slug,
+              issuer: environment.issuer,
+            }),
+          ],
         );
       }
       return users.rowCount ?? users.rows.length;

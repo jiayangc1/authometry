@@ -124,6 +124,7 @@ All paths below are relative to `/api/v1` and require authentication, CSRF for c
 | GET    | `/users`                                                        | List identity users.                                                   |
 | POST   | `/users`                                                        | Create a password identity user.                                       |
 | GET    | `/users/:userId`                                                | Read a user and related sessions/events.                               |
+| DELETE | `/users/:userId`                                                | Permanently delete a user and notify provisioning connections.         |
 | GET    | `/sessions`                                                     | List identity sessions.                                                |
 | POST   | `/sessions/:sessionId/revoke`                                   | Revoke a session and its refresh family.                               |
 | GET    | `/scopes`                                                       | List built-in and custom scopes.                                       |
@@ -161,6 +162,9 @@ Use the official workspace CLI instead of constructing apply payloads by hand. I
 | GET        | `/settings/signing-keys`             | List active, retiring, and retired keys.                                 |
 | POST       | `/settings/signing-keys/rotate`      | Rotate the selected environment's signing key.                           |
 | GET, POST  | `/settings/webhooks`                 | List or create signed webhook subscriptions.                             |
+| GET, POST  | `/settings/provisioning`             | List or create signed account provisioning connections.                  |
+| POST       | `/settings/provisioning/:id/sync`    | Queue all existing users for one provisioning connection.                |
+| DELETE     | `/settings/provisioning/:id`         | Stop future lifecycle delivery to a connected service.                   |
 | GET, POST  | `/settings/members`                  | List members or invite/update a member.                                  |
 | PATCH      | `/settings/members/:memberId`        | Change a membership role; owner-only.                                    |
 | GET, POST  | `/settings/tokens`                   | List personal tokens or create one and return it once.                   |
@@ -171,9 +175,44 @@ Use the official workspace CLI instead of constructing apply payloads by hand. I
 
 General settings, domains, key rotation, and invitations require owner or administrator roles. Webhook creation also allows developers. Membership role changes and danger operations require the owner.
 
+## Account provisioning
+
+Provisioning connections are configured separately from general-purpose webhooks. Creating a connection fixes its subscription to `user.created` and `user.deleted`, returns a signing secret once, and can queue existing users immediately with `syncExistingUsers` (enabled by default). A later `POST` to the connection's `/sync` endpoint queues another upsert-style `user.created` delivery for every current user.
+
+Lifecycle deliveries use the standard signed webhook headers and this body shape:
+
+```json
+{
+  "id": "EVENT_UUID",
+  "type": "user.created",
+  "summary": "person@example.com created",
+  "severity": "info",
+  "resourceType": "user",
+  "resourceId": "USER_UUID",
+  "environment": {
+    "id": "ENVIRONMENT_UUID",
+    "slug": "production",
+    "issuer": "https://auth.example.com"
+  },
+  "data": {
+    "user": {
+      "id": "USER_UUID",
+      "email": "person@example.com",
+      "name": "Example Person",
+      "groups": ["members"],
+      "status": "active",
+      "emailVerified": true
+    }
+  },
+  "createdAt": "2026-07-19T10:30:00.000Z"
+}
+```
+
+Receivers should key managed identities by `environment.issuer` plus `data.user.id`, treat `user.created` as an idempotent upsert, and deprovision that identity on `user.deleted`. Authometry never includes a password, password hash, token, or other login credential. Delivery is asynchronous: deletion in Authometry is not rolled back if a connected service is temporarily unavailable, so receivers must accept retries and operators should monitor failed deliveries.
+
 ## Webhooks
 
-Webhook bodies describe audit events and include `id`, `type`, `summary`, `severity`, resource identifiers, and `createdAt`. Deliveries include:
+Webhook bodies describe audit events and include `id`, `type`, `summary`, `severity`, resource identifiers, the selected environment, and `createdAt`. User lifecycle bodies also include the credential-free `data.user` object documented above. Deliveries include:
 
 ```text
 x-authometry-delivery: DELIVERY_ID

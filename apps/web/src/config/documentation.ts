@@ -295,6 +295,42 @@ export const documentationPages: DocumentationPage[] = [
     ],
   },
   {
+    slug: "provisioning",
+    group: "Operate",
+    title: "Account provisioning",
+    summary: "Synchronize Authometry users into connected services with signed lifecycle events.",
+    sections: [
+      {
+        title: "Connect a service",
+        paragraphs: [
+          "Open Settings, choose Provisioning, and register the service's public HTTPS endpoint. Copy the signing secret into that service immediately; Authometry stores it encrypted and does not display it again.",
+        ],
+        bullets: [
+          "Enable the existing-user option to queue every current identity when the connection is created.",
+          "Use Sync Users later to repeat the upsert-safe backfill.",
+          "Disconnecting stops future lifecycle events but does not change existing downstream accounts.",
+        ],
+      },
+      {
+        title: "Handle lifecycle events",
+        paragraphs: [
+          "Provisioning connections receive user.created and user.deleted. Verify the standard Authometry webhook signature before parsing the body, then key the downstream identity by environment.issuer plus data.user.id.",
+        ],
+        bullets: [
+          "Treat user.created as an idempotent upsert because backfills and retries can repeat it.",
+          "Revoke access or remove the managed identity when user.deleted arrives.",
+          "Never expect a password: Authometry sends identity profile fields, not credentials.",
+        ],
+      },
+      {
+        title: "Plan for asynchronous delivery",
+        paragraphs: [
+          "Authometry queues lifecycle events and retries temporary failures with bounded exponential delays. A local user deletion is final even if a downstream service is unavailable, so monitor failed deliveries and keep handlers safe to retry.",
+        ],
+      },
+    ],
+  },
+  {
     slug: "webhooks",
     group: "Operate",
     title: "Webhook verification",

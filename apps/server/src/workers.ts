@@ -19,9 +19,11 @@ export async function dispatchPendingWebhooks(): Promise<void> {
      SELECT w.id, e.id, e.event_type, 'pending',
        jsonb_strip_nulls(jsonb_build_object('id', e.id, 'type', e.event_type, 'summary', e.summary,
          'severity', e.severity, 'resourceType', e.resource_type, 'resourceId', e.resource_id,
+         'environment', jsonb_build_object('id', env.id, 'slug', env.slug, 'issuer', env.issuer),
          'data', CASE WHEN e.event_type IN ('user.created', 'user.deleted') THEN e.changes ELSE NULL END,
          'createdAt', e.created_at))
      FROM webhooks w JOIN audit_events e ON e.environment_id = w.environment_id
+       JOIN environments env ON env.id = e.environment_id
      WHERE w.status = 'enabled' AND e.event_type = ANY(w.subscribed_events)
        AND e.created_at > now() - interval '24 hours'
      ON CONFLICT (webhook_id, audit_event_id) WHERE audit_event_id IS NOT NULL DO NOTHING`,
