@@ -24,6 +24,9 @@ export interface ApplicationDetail {
   refresh_token_lifetime_seconds: number;
   authorization_code_lifetime_seconds: number;
   rotate_refresh_tokens: boolean;
+  portal_enabled: boolean;
+  launch_uri?: string;
+  provisioning_enabled: boolean;
   ownership: "dashboard" | "manifest";
   manifest_path?: string;
   created_at: string;

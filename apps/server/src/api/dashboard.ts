@@ -203,8 +203,13 @@ dashboardRouter.get(
   "/applications/:applicationId",
   asyncRoute(async (request, response) => {
     const [application] = await query(
-      `SELECT * FROM oauth_applications
-       WHERE id = $1 AND environment_id = $2 AND client_id_source <> 'dynamic'`,
+      `SELECT a.*,
+              EXISTS (
+                SELECT 1 FROM webhooks w WHERE w.environment_id = a.environment_id
+                  AND w.purpose = 'provisioning' AND w.status = 'enabled'
+              ) AS provisioning_enabled
+       FROM oauth_applications a
+       WHERE a.id = $1 AND a.environment_id = $2 AND a.client_id_source <> 'dynamic'`,
       [request.params.applicationId, request.environment!.id],
     );
     if (!application)
