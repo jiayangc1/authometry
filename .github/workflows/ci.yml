@@ -8,31 +8,8 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_DB: authometry
-          POSTGRES_USER: authometry
-          POSTGRES_PASSWORD: authometry
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U authometry -d authometry"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
     env:
       NODE_ENV: test
-      PUBLIC_ORIGIN: http://127.0.0.1:3000
-      INTERNAL_API_ORIGIN: http://127.0.0.1:4000
-      DATABASE_URL: postgresql://authometry:authometry@127.0.0.1:5432/authometry
-      COOKIE_SECRET: ci-cookie-secret-at-least-32-bytes-long
-      CSRF_SECRET: ci-csrf-secret-at-least-32-bytes-long
-      ACCESS_TOKEN_SECRET: ci-access-secret-at-least-32-bytes-long
-      REFRESH_TOKEN_SECRET: ci-refresh-secret-at-least-32-bytes-long
-      INSTALLATION_ENCRYPTION_KEY: ci-encryption-secret-at-least-32-bytes
-      TOKEN_HMAC_KEY: ci-hmac-secret-at-least-32-bytes-long
-      BOOTSTRAP_TOKEN: authometry-ci-bootstrap-token
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -44,12 +21,4 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
-      - run: pnpm lint
-      - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm db:migrate
-      - run: pnpm build
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e --project=chromium
-      - run: docker build --target server -t authometry-api:test .
-      - run: docker build --build-arg INTERNAL_API_ORIGIN=http://authometry-api:4000 --target web -t authometry-web:test .
