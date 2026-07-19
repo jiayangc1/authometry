@@ -8,6 +8,7 @@ import { useState } from "react";
 import { Button, EmptyState, StatusBadge } from "@authometry/ui";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader } from "@/components/layout/page";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { apiFetch } from "@/lib/api";
 import { minutesFromSeconds } from "@/lib/format";
 
@@ -32,23 +33,25 @@ export default function AgentsPage() {
   const [rotating, setRotating] = useState<AgentRow>();
   const [jwk, setJwk] = useState("");
   const [rotatingKey, setRotatingKey] = useState(false);
+  const [disabling, setDisabling] = useState<AgentRow>();
   const agents = useQuery({
     queryKey: ["agents"],
     queryFn: () => apiFetch<{ data: AgentRow[] }>("/api/v1/agents"),
   });
 
   async function setEnabled(agent: AgentRow, enabled: boolean) {
-    if (
-      !enabled &&
-      !window.confirm(`Disable ${agent.display_name}? New agent authorizations will be blocked.`)
-    ) {
-      return;
+    try {
+      await apiFetch(`/api/v1/agents/${agent.id}/${enabled ? "enable" : "disable"}`, {
+        method: "POST",
+      });
+      await queryClient.invalidateQueries({ queryKey: ["agents"] });
+      toast.success(`${agent.display_name} ${enabled ? "enabled" : "disabled"}.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "The agent status could not be updated.",
+      );
+      throw error;
     }
-    await apiFetch(`/api/v1/agents/${agent.id}/${enabled ? "enable" : "disable"}`, {
-      method: "POST",
-    });
-    await queryClient.invalidateQueries({ queryKey: ["agents"] });
-    toast.success(`${agent.display_name} ${enabled ? "enabled" : "disabled"}.`);
   }
 
   async function rotateKey() {
@@ -159,7 +162,10 @@ export default function AgentsPage() {
                   <KeyRound aria-hidden="true" className="size-3.5" />
                 </Button>
                 <Button
-                  onClick={() => void setEnabled(agent, agent.status !== "active")}
+                  onClick={() => {
+                    if (agent.status === "active") setDisabling(agent);
+                    else void setEnabled(agent, true);
+                  }}
                   size="compact"
                   variant={agent.status === "active" ? "danger" : "secondary"}
                 >
@@ -181,6 +187,17 @@ export default function AgentsPage() {
           title="No Registered Agents"
         />
       )}
+      <ConfirmDialog
+        actionLabel="Disable Agent"
+        description="New authorizations for this agent will be blocked. Existing grants remain subject to their current limits and expiration."
+        onConfirm={() => (disabling ? setEnabled(disabling, false) : undefined)}
+        onOpenChange={(open) => {
+          if (!open) setDisabling(undefined);
+        }}
+        open={Boolean(disabling)}
+        pendingLabel="Disabling…"
+        title={disabling ? `Disable ${disabling.display_name}?` : "Disable agent?"}
+      />
       <Dialog.Root
         onOpenChange={(open) => {
           if (!open && !rotatingKey) {

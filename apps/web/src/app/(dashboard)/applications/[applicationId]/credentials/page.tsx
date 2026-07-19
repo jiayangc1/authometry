@@ -9,6 +9,7 @@ import { useApplication } from "@/components/applications/application-context";
 import { CopyableValue } from "@/components/data-display/copyable-value";
 import { RelativeTime } from "@/components/data-display/formatted-time";
 import { SectionHeader } from "@/components/layout/page";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { inputClass } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
 
@@ -19,6 +20,7 @@ export default function CredentialsPage() {
   const [secret, setSecret] = useState<string>();
   const [stored, setStored] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [revoking, setRevoking] = useState<string>();
   if (!application) return null;
   const app = application;
   async function create() {
@@ -36,14 +38,16 @@ export default function CredentialsPage() {
     }
   }
   async function revoke(id: string) {
-    if (
-      !window.confirm("Revoke this client secret? Applications using it will stop authenticating.")
-    ) {
-      return;
+    try {
+      await apiFetch(`/api/v1/applications/${app.id}/credentials/${id}/revoke`, { method: "POST" });
+      await refetch();
+      toast.success("Client secret revoked.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "The client secret could not be revoked.",
+      );
+      throw error;
     }
-    await apiFetch(`/api/v1/applications/${app.id}/credentials/${id}/revoke`, { method: "POST" });
-    await refetch();
-    toast.success("Client secret revoked.");
   }
   return (
     <div className="space-y-8">
@@ -89,7 +93,7 @@ export default function CredentialsPage() {
                 />
                 <Button
                   disabled={Boolean(credential.revoked_at)}
-                  onClick={() => void revoke(credential.id)}
+                  onClick={() => setRevoking(credential.id)}
                   size="compact"
                   variant="ghost"
                 >
@@ -107,6 +111,17 @@ export default function CredentialsPage() {
           />
         )}
       </section>
+      <ConfirmDialog
+        actionLabel="Revoke Secret"
+        description="Applications using this client secret will stop authenticating immediately."
+        onConfirm={() => (revoking ? revoke(revoking) : undefined)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setRevoking(undefined);
+        }}
+        open={Boolean(revoking)}
+        pendingLabel="Revoking…"
+        title="Revoke this client secret?"
+      />
       <Dialog.Root
         onOpenChange={(value) => {
           setOpen(value);

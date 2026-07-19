@@ -14,11 +14,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button, StatusBadge, cn } from "@authometry/ui";
 import { ApplicationProvider, useApplication } from "@/components/applications/application-context";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer } from "@/components/layout/page";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { apiFetch } from "@/lib/api";
 
 export default function ApplicationLayout({ children }: { children: React.ReactNode }) {
@@ -34,6 +36,7 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const { application, loading, error, refetch } = useApplication();
   const deleteApplication = useMutation({
     mutationFn: (applicationId: string) =>
@@ -169,15 +172,7 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
                     <DropdownMenu.Item
                       className="flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-[13px] text-[var(--danger)] outline-none focus:bg-[var(--danger-soft)]"
                       disabled={deleteApplication.isPending}
-                      onSelect={() => {
-                        if (
-                          window.confirm(
-                            `Delete ${application.name}? Its sessions, grants, tokens, and credentials will stop working. This action cannot be undone.`,
-                          )
-                        ) {
-                          deleteApplication.mutate(application.id);
-                        }
-                      }}
+                      onSelect={() => setConfirmingDelete(true)}
                     >
                       <Trash2 aria-hidden="true" className="size-3.5" />
                       {deleteApplication.isPending ? "Deleting…" : "Delete Application"}
@@ -227,6 +222,15 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
         })}
       </nav>
       {children}
+      <ConfirmDialog
+        actionLabel="Delete Application"
+        description="Its sessions, grants, tokens, and credentials will stop working. This action cannot be undone."
+        onConfirm={() => deleteApplication.mutateAsync(application.id)}
+        onOpenChange={setConfirmingDelete}
+        open={confirmingDelete}
+        pendingLabel="Deleting…"
+        title={`Delete ${application.name}?`}
+      />
     </PageContainer>
   );
 }

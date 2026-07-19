@@ -3,11 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Github } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button, EmptyState, GoogleIcon, StatusBadge } from "@authometry/ui";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { apiFetch } from "@/lib/api";
 
 type SocialProvider = "google" | "github";
@@ -33,6 +34,7 @@ export default function AccountSettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const [disconnectingProvider, setDisconnectingProvider] = useState<SocialProvider>();
   const me = useQuery({
     queryKey: ["me"],
     queryFn: () => apiFetch<MeResponse>("/api/v1/auth/me"),
@@ -141,11 +143,7 @@ export default function AccountSettingsPage() {
                   {connection.linked ? (
                     <Button
                       disabled={pending}
-                      onClick={() => {
-                        if (window.confirm(`Disconnect ${label}? You can reconnect it later.`)) {
-                          disconnect.mutate(connection.provider);
-                        }
-                      }}
+                      onClick={() => setDisconnectingProvider(connection.provider)}
                     >
                       {pending ? "Disconnecting…" : "Disconnect"}
                     </Button>
@@ -170,6 +168,24 @@ export default function AccountSettingsPage() {
           />
         )}
       </SettingsSection>
+      <ConfirmDialog
+        actionLabel="Disconnect Account"
+        description="You will no longer be able to use this provider to sign in, but you can reconnect it later."
+        onConfirm={() =>
+          disconnectingProvider ? disconnect.mutateAsync(disconnectingProvider) : undefined
+        }
+        onOpenChange={(open) => {
+          if (!open) setDisconnectingProvider(undefined);
+        }}
+        open={Boolean(disconnectingProvider)}
+        pendingLabel="Disconnecting…"
+        title={
+          disconnectingProvider
+            ? `Disconnect ${providerDetails[disconnectingProvider].label}?`
+            : "Disconnect account?"
+        }
+        tone="neutral"
+      />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { inputClass } from "@/components/auth/auth-shell";
 import { RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { CopyableValue } from "@/components/data-display/copyable-value";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { apiFetch } from "@/lib/api";
 
@@ -23,6 +24,7 @@ export default function TokensPage() {
   const client = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [rawToken, setRawToken] = useState<string>();
+  const [selectedToken, setSelectedToken] = useState<Token>();
   const query = useQuery({
     queryKey: ["personal-tokens"],
     queryFn: () => apiFetch<{ data: Token[] }>("/api/v1/settings/tokens"),
@@ -132,13 +134,7 @@ export default function TokensPage() {
               </div>
               <Button
                 disabled={revoke.isPending}
-                onClick={() => {
-                  if (
-                    window.confirm(`Revoke the ${token.name} token? This action cannot be undone.`)
-                  ) {
-                    revoke.mutate(token.id);
-                  }
-                }}
+                onClick={() => setSelectedToken(token)}
                 size="compact"
                 variant="ghost"
               >
@@ -155,6 +151,17 @@ export default function TokensPage() {
           title="No API tokens"
         />
       )}
+      <ConfirmDialog
+        actionLabel="Revoke Token"
+        description="Any CLI or automation using this token will lose access immediately. This action cannot be undone."
+        onConfirm={() => (selectedToken ? revoke.mutateAsync(selectedToken.id) : undefined)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedToken(undefined);
+        }}
+        open={Boolean(selectedToken)}
+        pendingLabel="Revoking…"
+        title={selectedToken ? `Revoke the ${selectedToken.name} token?` : "Revoke token?"}
+      />
     </SettingsSection>
   );
 }

@@ -8,6 +8,7 @@ import { Button, StatusBadge } from "@authometry/ui";
 import { inputClass } from "@/components/auth/auth-shell";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { apiFetch } from "@/lib/api";
 
 interface DangerState {
@@ -18,6 +19,7 @@ export default function DangerPage() {
   const client = useQueryClient();
   const router = useRouter();
   const [confirmation, setConfirmation] = useState("");
+  const [confirmingDisable, setConfirmingDisable] = useState(false);
   const query = useQuery({
     queryKey: ["danger-settings"],
     queryFn: () => apiFetch<DangerState>("/api/v1/settings/danger"),
@@ -65,14 +67,8 @@ export default function DangerPage() {
           <Button
             disabled={status.isPending}
             onClick={() => {
-              if (
-                disabled ||
-                window.confirm(
-                  "Disable this environment? New authorization and token issuance will stop.",
-                )
-              ) {
-                status.mutate(disabled ? "active" : "disabled");
-              }
+              if (disabled) status.mutate("active");
+              else setConfirmingDisable(true);
             }}
             variant={disabled ? "primary" : "danger"}
           >
@@ -125,6 +121,15 @@ export default function DangerPage() {
         </label>
         <p className="text-xs text-[var(--danger)]">This action is irreversible.</p>
       </SettingsSection>
+      <ConfirmDialog
+        actionLabel="Disable Environment"
+        description="New authorization and token issuance will stop. Existing access tokens remain valid until they expire."
+        onConfirm={() => status.mutateAsync("disabled")}
+        onOpenChange={setConfirmingDisable}
+        open={confirmingDisable}
+        pendingLabel="Disabling…"
+        title="Disable this environment?"
+      />
     </div>
   );
 }

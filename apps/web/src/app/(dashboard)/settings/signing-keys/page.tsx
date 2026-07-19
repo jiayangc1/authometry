@@ -2,10 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, RotateCw } from "lucide-react";
+import { useState } from "react";
 import { Button, EmptyState, StatusBadge } from "@authometry/ui";
 import { RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -20,6 +22,7 @@ interface SigningKey {
 }
 export default function SigningKeysPage() {
   const client = useQueryClient();
+  const [confirmingRotation, setConfirmingRotation] = useState(false);
   const query = useQuery({
     queryKey: ["signing-keys"],
     queryFn: () => apiFetch<{ data: SigningKey[] }>("/api/v1/settings/signing-keys"),
@@ -38,18 +41,7 @@ export default function SigningKeysPage() {
       title="Signing Keys"
     >
       <div className="flex justify-end">
-        <Button
-          disabled={rotate.isPending}
-          onClick={() => {
-            if (
-              window.confirm(
-                "Rotate the active signing key? Existing keys will follow the configured retirement policy.",
-              )
-            ) {
-              rotate.mutate();
-            }
-          }}
-        >
+        <Button disabled={rotate.isPending} onClick={() => setConfirmingRotation(true)}>
           <RotateCw aria-hidden="true" className="size-3.5" />{" "}
           {rotate.isPending ? "Rotating…" : "Rotate Key"}
         </Button>
@@ -103,6 +95,16 @@ export default function SigningKeysPage() {
           View JWKS
         </a>
       </Button>
+      <ConfirmDialog
+        actionLabel="Rotate Key"
+        description="A new active signing key will be created. Existing keys will follow the configured retirement policy."
+        onConfirm={() => rotate.mutateAsync()}
+        onOpenChange={setConfirmingRotation}
+        open={confirmingRotation}
+        pendingLabel="Rotating…"
+        title="Rotate the active signing key?"
+        tone="neutral"
+      />
     </SettingsSection>
   );
 }

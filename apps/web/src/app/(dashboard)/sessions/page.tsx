@@ -2,11 +2,13 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Monitor, Smartphone } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button, EmptyState, StatusBadge } from "@authometry/ui";
 import { RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader } from "@/components/layout/page";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { apiFetch } from "@/lib/api";
 
 interface SessionRow {
@@ -23,15 +25,20 @@ interface SessionRow {
 }
 export default function SessionsPage() {
   const client = useQueryClient();
+  const [selectedSession, setSelectedSession] = useState<SessionRow>();
   const query = useQuery({
     queryKey: ["sessions"],
     queryFn: () => apiFetch<{ data: SessionRow[] }>("/api/v1/sessions"),
   });
-  async function revoke(id: string) {
-    if (!window.confirm("Revoke this session? The user will need to sign in again.")) return;
-    await apiFetch(`/api/v1/sessions/${id}/revoke`, { method: "POST" });
-    await client.invalidateQueries({ queryKey: ["sessions"] });
-    toast.success("Session revoked.");
+  async function revoke(session: SessionRow) {
+    try {
+      await apiFetch(`/api/v1/sessions/${session.id}/revoke`, { method: "POST" });
+      await client.invalidateQueries({ queryKey: ["sessions"] });
+      toast.success("Session revoked.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The session could not be revoked.");
+      throw error;
+    }
   }
   return (
     <PageContainer>
@@ -76,7 +83,7 @@ export default function SessionsPage() {
               </span>
               <Button
                 disabled={session.status !== "active"}
-                onClick={() => void revoke(session.id)}
+                onClick={() => setSelectedSession(session)}
                 size="compact"
                 variant="ghost"
               >
@@ -91,6 +98,19 @@ export default function SessionsPage() {
           title="No Sessions"
         />
       )}
+      <ConfirmDialog
+        actionLabel="Revoke Session"
+        description="The user will be signed out of this session and must authenticate again."
+        onConfirm={() => (selectedSession ? revoke(selectedSession) : undefined)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedSession(undefined);
+        }}
+        open={Boolean(selectedSession)}
+        pendingLabel="Revoking…"
+        title={
+          selectedSession ? `Revoke ${selectedSession.user_name}'s session?` : "Revoke session?"
+        }
+      />
     </PageContainer>
   );
 }

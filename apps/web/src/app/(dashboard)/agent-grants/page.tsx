@@ -2,11 +2,13 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Bot, Stamp, UserRound } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button, EmptyState, StatusBadge } from "@authometry/ui";
 import { RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader } from "@/components/layout/page";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { apiFetch } from "@/lib/api";
 
 interface GrantRow {
@@ -27,21 +29,24 @@ interface GrantRow {
 
 export default function AgentGrantsPage() {
   const queryClient = useQueryClient();
+  const [selectedGrant, setSelectedGrant] = useState<GrantRow>();
   const grants = useQuery({
     queryKey: ["agent-grants"],
     queryFn: () => apiFetch<{ data: GrantRow[] }>("/api/v1/agent-grants"),
   });
 
   async function revoke(grant: GrantRow) {
-    if (!window.confirm(`Revoke the ${grant.agent_name} grant? This action cannot be undone.`)) {
-      return;
+    try {
+      await apiFetch(`/api/v1/agent-grants/${grant.id}/revoke`, {
+        method: "POST",
+        body: JSON.stringify({ reason: "dashboard_revocation" }),
+      });
+      await queryClient.invalidateQueries({ queryKey: ["agent-grants"] });
+      toast.success(`${grant.agent_name} grant revoked.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The grant could not be revoked.");
+      throw error;
     }
-    await apiFetch(`/api/v1/agent-grants/${grant.id}/revoke`, {
-      method: "POST",
-      body: JSON.stringify({ reason: "dashboard_revocation" }),
-    });
-    await queryClient.invalidateQueries({ queryKey: ["agent-grants"] });
-    toast.success(`${grant.agent_name} grant revoked.`);
   }
 
   return (
@@ -116,7 +121,7 @@ export default function AgentGrantsPage() {
                   </div>
                   <Button
                     disabled={grant.status !== "active"}
-                    onClick={() => void revoke(grant)}
+                    onClick={() => setSelectedGrant(grant)}
                     size="compact"
                     variant="danger"
                   >
@@ -134,6 +139,17 @@ export default function AgentGrantsPage() {
           title="No Agent Grants"
         />
       )}
+      <ConfirmDialog
+        actionLabel="Revoke Grant"
+        description="The agent will immediately lose this authorization. This action cannot be undone."
+        onConfirm={() => (selectedGrant ? revoke(selectedGrant) : undefined)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedGrant(undefined);
+        }}
+        open={Boolean(selectedGrant)}
+        pendingLabel="Revoking…"
+        title={selectedGrant ? `Revoke the ${selectedGrant.agent_name} grant?` : "Revoke grant?"}
+      />
     </PageContainer>
   );
 }
