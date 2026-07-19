@@ -113,6 +113,13 @@ export function CommandMenu({
                         if (path) go(path);
                       }}
                     >
+                      <Icon aria-hidden="true" className="size-4 text-[var(--text-secondary)]" />
+                      <span>{String(label)}</span>
+                      <ArrowRight
+                        aria-hidden="true"
+                        className="ml-auto size-3 text-[var(--text-tertiary)]"
+                      />
+                    </Link>
                   </Command.Item>
                 ))}
               </Command.Group>
