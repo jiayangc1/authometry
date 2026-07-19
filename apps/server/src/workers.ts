@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { query } from "./db.js";
 import { decrypt } from "./lib/crypto.js";
 import { assertSafeOutboundUrl } from "./lib/security.js";
+import { canonicalWebhookBody } from "./lib/webhook.js";
 
 interface Delivery {
   id: string;
@@ -21,7 +22,7 @@ export async function dispatchPendingWebhooks(): Promise<void> {
          'severity', e.severity, 'resourceType', e.resource_type, 'resourceId', e.resource_id,
          'environment', jsonb_build_object('id', env.id, 'slug', env.slug, 'issuer', env.issuer),
          'data', CASE WHEN e.event_type IN ('user.created', 'user.deleted') THEN e.changes ELSE NULL END,
-         'createdAt', e.created_at))
+         'createdAt', to_char(e.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')))
      FROM webhooks w JOIN audit_events e ON e.environment_id = w.environment_id
        JOIN environments env ON env.id = e.environment_id
      WHERE w.status = 'enabled' AND e.event_type = ANY(w.subscribed_events)
@@ -37,7 +38,7 @@ export async function dispatchPendingWebhooks(): Promise<void> {
      ORDER BY d.created_at FOR UPDATE SKIP LOCKED LIMIT 25`,
   );
   for (const delivery of deliveries) {
-    const serialized = JSON.stringify(delivery.body);
+    const serialized = JSON.stringify(canonicalWebhookBody(delivery.body));
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const signature = createHmac("sha256", decrypt(delivery.encrypted_secret))
       .update(`${timestamp}.${serialized}`)
