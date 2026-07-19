@@ -372,7 +372,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Dialog.Portal>
       </Dialog.Root>
       <main
-        className="h-dvh overflow-y-auto pt-[calc(3.5rem+env(safe-area-inset-top))] lg:ml-[232px] lg:pt-0"
+        className="h-dvh overflow-y-auto pt-[calc(3.5rem+env(safe-area-inset-top))] lg:ml-[232px]"
         id="main-content"
         tabIndex={-1}
       >
