@@ -97,6 +97,7 @@ dashboardRouter.get(
     const applications = await query(
       `SELECT * FROM oauth_applications
        WHERE environment_id = $1
+         AND client_id_source <> 'dynamic'
          AND ($2 = '' OR name ILIKE '%' || $2 || '%' OR slug ILIKE '%' || $2 || '%' OR client_id ILIKE '%' || $2 || '%')
          AND ($3 = '' OR type = $3)
          AND ($4 = '' OR status = $4)
@@ -189,7 +190,8 @@ dashboardRouter.get(
   "/applications/:applicationId",
   asyncRoute(async (request, response) => {
     const [application] = await query(
-      "SELECT * FROM oauth_applications WHERE id = $1 AND environment_id = $2",
+      `SELECT * FROM oauth_applications
+       WHERE id = $1 AND environment_id = $2 AND client_id_source <> 'dynamic'`,
       [request.params.applicationId, request.environment!.id],
     );
     if (!application)
@@ -219,7 +221,8 @@ dashboardRouter.patch(
       })
       .parse(request.body);
     const [existing] = await query<{ ownership: string }>(
-      "SELECT ownership FROM oauth_applications WHERE id = $1 AND environment_id = $2",
+      `SELECT ownership FROM oauth_applications
+       WHERE id = $1 AND environment_id = $2 AND client_id_source <> 'dynamic'`,
       [request.params.applicationId, request.environment!.id],
     );
     if (!existing)
@@ -262,6 +265,60 @@ dashboardRouter.patch(
   }),
 );
 
+dashboardRouter.delete(
+  "/applications/:applicationId",
+  asyncRoute(async (request, response) => {
+    const environment = request.environment!;
+    await transaction(async (client) => {
+      const application = await client.query<{
+        id: string;
+        name: string;
+        ownership: string;
+      }>(
+        `SELECT id, name, ownership FROM oauth_applications
+         WHERE id = $1 AND environment_id = $2 AND client_id_source <> 'dynamic'
+         FOR UPDATE`,
+        [request.params.applicationId, environment.id],
+      );
+      const existing = application.rows[0];
+      if (!existing) {
+        throw new ApiError(404, "application_not_found", "The application was not found.");
+      }
+      if (existing.ownership === "manifest") {
+        throw new ApiError(
+          409,
+          "manifest_managed",
+          "This application is managed by a manifest and must be deleted from its configuration repository.",
+        );
+      }
+
+      await client.query(
+        `UPDATE authorization_policies
+         SET application_ids = array_remove(application_ids, $1::uuid),
+             version = version + 1, updated_at = now()
+         WHERE environment_id = $2 AND $1::uuid = ANY(application_ids)`,
+        [existing.id, environment.id],
+      );
+      await client.query(
+        `INSERT INTO audit_events
+          (workspace_id, environment_id, category, severity, event_type, summary, actor_type,
+           actor_id, actor_name, resource_type, resource_id)
+         VALUES ($1,$2,'configuration','warning','application.deleted',$3,'admin',$4,$5,'application',$6)`,
+        [
+          environment.workspaceId,
+          environment.id,
+          `${existing.name} deleted`,
+          request.admin!.userId,
+          request.admin!.email,
+          existing.id,
+        ],
+      );
+      await client.query("DELETE FROM oauth_applications WHERE id = $1", [existing.id]);
+    });
+    response.status(204).end();
+  }),
+);
+
 dashboardRouter.post(
   "/applications/:applicationId/credentials",
   asyncRoute(async (request, response) => {
@@ -277,7 +334,8 @@ dashboardRouter.post(
         (workspace_id, environment_id, application_id, name, prefix, secret_hash, expires_at)
        SELECT workspace_id, environment_id, id, $3, $4, $5,
               CASE WHEN $6::integer IS NULL THEN NULL ELSE now() + ($6 * interval '1 day') END
-       FROM oauth_applications WHERE id = $1 AND environment_id = $2 RETURNING id`,
+       FROM oauth_applications
+       WHERE id = $1 AND environment_id = $2 AND client_id_source <> 'dynamic' RETURNING id`,
       [
         request.params.applicationId,
         request.environment!.id,
@@ -458,7 +516,9 @@ dashboardRouter.get(
   "/scopes",
   asyncRoute(async (request, response) => {
     const scopes = await query(
-      `SELECT s.*, (SELECT count(*)::integer FROM oauth_applications a WHERE a.environment_id = s.environment_id AND s.name = ANY(a.allowed_scopes)) AS application_count
+      `SELECT s.*, (SELECT count(*)::integer FROM oauth_applications a
+         WHERE a.environment_id = s.environment_id AND a.client_id_source <> 'dynamic'
+           AND s.name = ANY(a.allowed_scopes)) AS application_count
        FROM resource_scopes s WHERE s.environment_id = $1 ORDER BY s.is_system DESC, s.name`,
       [request.environment!.id],
     );
@@ -683,7 +743,8 @@ dashboardRouter.get(
     const [applications, traces] = await Promise.all([
       query(
         `SELECT id, name, slug, 'application' AS type FROM oauth_applications
-         WHERE environment_id = $1 AND (name ILIKE '%' || $2 || '%' OR slug ILIKE '%' || $2 || '%') LIMIT 6`,
+         WHERE environment_id = $1 AND client_id_source <> 'dynamic'
+           AND (name ILIKE '%' || $2 || '%' OR slug ILIKE '%' || $2 || '%') LIMIT 6`,
         [request.environment!.id, q],
       ),
       query(

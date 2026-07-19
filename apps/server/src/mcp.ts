@@ -142,6 +142,7 @@ export function createAuthometryMcpServer(
                 ownership, last_used_at, created_at, updated_at
          FROM oauth_applications
          WHERE environment_id = $1
+           AND client_id_source <> 'dynamic'
            AND ($2 = '' OR name ILIKE '%' || $2 || '%' OR slug ILIKE '%' || $2 || '%'
                 OR client_id ILIKE '%' || $2 || '%')
            AND ($3 = '' OR type = $3)
@@ -172,7 +173,8 @@ export function createAuthometryMcpServer(
         `SELECT s.id, s.name, s.display_name, s.description, s.consent_description,
                 s.sensitivity, s.is_system, s.ownership, s.version, s.created_at, s.updated_at,
                 (SELECT count(*)::integer FROM oauth_applications a
-                 WHERE a.environment_id = s.environment_id AND s.name = ANY(a.allowed_scopes))
+                 WHERE a.environment_id = s.environment_id AND a.client_id_source <> 'dynamic'
+                   AND s.name = ANY(a.allowed_scopes))
                   AS application_count
          FROM resource_scopes s
          WHERE s.environment_id = $1

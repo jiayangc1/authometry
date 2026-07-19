@@ -1,6 +1,7 @@
 "use client";
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   ChevronRight,
@@ -9,14 +10,16 @@ import {
   GitBranch,
   MoreHorizontal,
   Settings,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button, StatusBadge, cn } from "@authometry/ui";
 import { ApplicationProvider, useApplication } from "@/components/applications/application-context";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer } from "@/components/layout/page";
+import { apiFetch } from "@/lib/api";
 
 export default function ApplicationLayout({ children }: { children: React.ReactNode }) {
   const { applicationId } = useParams<{ applicationId: string }>();
@@ -29,7 +32,22 @@ export default function ApplicationLayout({ children }: { children: React.ReactN
 
 function ApplicationFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const { application, loading, error, refetch } = useApplication();
+  const deleteApplication = useMutation({
+    mutationFn: (applicationId: string) =>
+      apiFetch(`/api/v1/applications/${applicationId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: async (_result, applicationId) => {
+      queryClient.removeQueries({ queryKey: ["application", applicationId] });
+      await queryClient.invalidateQueries({ queryKey: ["applications"] });
+      toast.success("Application deleted.");
+      router.push("/applications");
+    },
+    onError: (mutationError) => toast.error(mutationError.message),
+  });
   if (loading)
     return (
       <PageContainer>
@@ -61,7 +79,6 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
   const redirectUri = application.redirect_uris[0];
   if (redirectUri) playgroundParameters.set("redirect_uri", redirectUri);
   const playgroundHref = `/developer/playground?${playgroundParameters.toString()}`;
-
   async function copyClientId() {
     try {
       await navigator.clipboard.writeText(clientId);
@@ -146,6 +163,27 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
                   <Clipboard aria-hidden="true" className="size-3.5 text-[var(--text-secondary)]" />{" "}
                   Copy Client ID
                 </DropdownMenu.Item>
+                {application.ownership !== "manifest" && (
+                  <>
+                    <DropdownMenu.Separator className="my-1 h-px bg-[var(--border)]" />
+                    <DropdownMenu.Item
+                      className="flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-[13px] text-[var(--danger)] outline-none focus:bg-[var(--danger-soft)]"
+                      disabled={deleteApplication.isPending}
+                      onSelect={() => {
+                        if (
+                          window.confirm(
+                            `Delete ${application.name}? Its sessions, grants, tokens, and credentials will stop working. This action cannot be undone.`,
+                          )
+                        ) {
+                          deleteApplication.mutate(application.id);
+                        }
+                      }}
+                    >
+                      <Trash2 aria-hidden="true" className="size-3.5" />
+                      {deleteApplication.isPending ? "Deleting…" : "Delete Application"}
+                    </DropdownMenu.Item>
+                  </>
+                )}
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root>

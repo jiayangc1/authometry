@@ -156,6 +156,7 @@ await test("MCP exposes workspace and management tools and keeps queries tenant 
     });
     assert.deepEqual(calls[0]?.values, ["workspace-1", "production"]);
     assert.deepEqual(calls[1]?.values, ["environment-1", "Example", "", "", 10]);
+    assert.match(calls[1]?.text ?? "", /client_id_source <> 'dynamic'/);
   } finally {
     await client.close();
     await server.close();
@@ -211,6 +212,15 @@ await test("MCP management tools dispatch supported reads and writes with the ap
       },
     });
     assert.equal(write.isError, undefined);
+    const remove = await client.callTool({
+      name: "management_api_write",
+      arguments: {
+        method: "DELETE",
+        path: "/applications/11111111-1111-4111-8111-111111111111",
+        environment: "production",
+      },
+    });
+    assert.equal(remove.isError, undefined);
     assert.deepEqual(dispatched, [
       {
         principal,
@@ -233,6 +243,14 @@ await test("MCP management tools dispatch supported reads and writes with the ap
             type: "machine",
             redirectUris: [],
           },
+        },
+      },
+      {
+        principal,
+        request: {
+          method: "DELETE",
+          path: "/applications/11111111-1111-4111-8111-111111111111",
+          environment: "production",
         },
       },
     ]);

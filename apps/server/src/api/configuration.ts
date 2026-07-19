@@ -64,7 +64,8 @@ async function resourceRows(
   const ownershipClause = includeDashboard ? "" : "AND ownership = 'manifest'";
   const [applications, scopes, policies, claims] = await Promise.all([
     query<Record<string, unknown>>(
-      `SELECT * FROM oauth_applications WHERE environment_id = $1 ${ownershipClause} ORDER BY slug`,
+      `SELECT * FROM oauth_applications
+       WHERE environment_id = $1 AND client_id_source <> 'dynamic' ${ownershipClause} ORDER BY slug`,
       [environmentId],
     ),
     query<Record<string, unknown>>(

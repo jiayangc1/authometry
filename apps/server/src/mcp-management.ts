@@ -69,6 +69,12 @@ export const managementOperations: readonly ManagementOperation[] = [
     /^\/applications\/[^/]+$/,
   ),
   operation(
+    "DELETE",
+    "/applications/:applicationId",
+    "Delete a dashboard-owned application.",
+    /^\/applications\/[^/]+$/,
+  ),
+  operation(
     "POST",
     "/applications/:applicationId/credentials",
     "Create an application credential and return its secret once.",
@@ -297,6 +303,8 @@ export const managementOperationInputs: Readonly<Record<string, string>> = {
   "POST /applications/slug": "Body: { name: string }.",
   "PATCH /applications/:applicationId":
     "Body: { version: positive integer, name?: string, description?: string|null, redirectUris?: absolute URI[], postLogoutRedirectUris?: absolute URI[], requirePkce?: boolean, requireConsent?: boolean, allowedScopes?: scope name[] }.",
+  "DELETE /applications/:applicationId":
+    "No body. Permanently deletes a dashboard-owned application and its active sessions, grants, tokens, and credentials.",
   "POST /applications/:applicationId/credentials":
     "Body: { name: string, expiresInDays: positive integer up to 365|null }. Returns the secret once.",
   "POST /applications/:applicationId/credentials/:credentialId/revoke": "No body.",
