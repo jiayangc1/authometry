@@ -7,7 +7,11 @@ import { useState, type ComponentType } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { createApplicationSlug, redirectUriSchema } from "@authometry/domain";
+import {
+  applicationLogoUriSchema,
+  createApplicationSlug,
+  redirectUriSchema,
+} from "@authometry/domain";
 import { Button, Checkbox, cn } from "@authometry/ui";
 import { PageContainer, PageHeader } from "@/components/layout/page";
 import { inputClass } from "@/components/auth/auth-shell";
@@ -18,6 +22,7 @@ const schema = z.object({
   name: z.string().min(2).max(100),
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   description: z.string().max(500).optional(),
+  logoUri: z.union([z.literal(""), applicationLogoUriSchema]),
   redirectUri: z.string().optional(),
 });
 type Values = z.infer<typeof schema>;
@@ -73,7 +78,7 @@ export default function NewApplicationPage() {
   const [acknowledged, setAcknowledged] = useState(false);
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", slug: "", description: "", redirectUri: "" },
+    defaultValues: { name: "", slug: "", description: "", logoUri: "", redirectUri: "" },
   });
   useUnsavedChanges(form.formState.isDirty && !secret);
   async function submit(values: Values) {
@@ -95,6 +100,7 @@ export default function NewApplicationPage() {
           slug: values.slug,
           type,
           description: values.description || undefined,
+          logoUri: values.logoUri || undefined,
           redirectUris: values.redirectUri ? [values.redirectUri] : [],
           postLogoutRedirectUris: [],
         }),
@@ -236,6 +242,24 @@ export default function NewApplicationPage() {
               className={`${inputClass} h-20 py-2`}
               {...form.register("description")}
             />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium">
+              Logo URL <span className="font-normal text-[var(--text-tertiary)]">Optional</span>
+            </span>
+            <input
+              autoComplete="url"
+              className={`${inputClass} technical-value`}
+              placeholder="https://cdn.example.com/logo.png"
+              spellCheck={false}
+              type="url"
+              {...form.register("logoUri")}
+            />
+            {form.formState.errors.logoUri && (
+              <span aria-live="polite" className="mt-1 block text-xs text-[var(--danger)]">
+                {form.formState.errors.logoUri.message}
+              </span>
+            )}
           </label>
           {type !== "machine" && (
             <label className="block">

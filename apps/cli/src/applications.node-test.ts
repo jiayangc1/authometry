@@ -15,6 +15,7 @@ void test("builds a SaaS application payload with agent-selected OAuth settings"
     applicationCreatePayload({
       name: "Customer Portal",
       type: "web",
+      logoUri: "https://cdn.example.com/customer-portal.png",
       redirectUris: ["https://app.example.com/auth/callback"],
       postLogoutRedirectUris: ["https://app.example.com/"],
       scopes: ["openid", "profile", "email", "offline_access"],
@@ -24,10 +25,23 @@ void test("builds a SaaS application payload with agent-selected OAuth settings"
       slug: "customer-portal",
       type: "web",
       description: undefined,
+      logoUri: "https://cdn.example.com/customer-portal.png",
       redirectUris: ["https://app.example.com/auth/callback"],
       postLogoutRedirectUris: ["https://app.example.com/"],
       allowedScopes: ["openid", "profile", "email", "offline_access"],
     },
+  );
+  assert.throws(
+    () =>
+      applicationCreatePayload({
+        name: "Customer Portal",
+        type: "web",
+        logoUri: "http://cdn.example.com/customer-portal.png",
+        redirectUris: ["https://app.example.com/auth/callback"],
+        postLogoutRedirectUris: [],
+        scopes: [],
+      }),
+    /Use HTTPS unless the host is localhost/,
   );
   assert.throws(
     () =>

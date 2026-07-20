@@ -234,6 +234,7 @@ const footerColumns = [
       ["GitHub", "https://github.com/jiayangc1/authometry"],
       ["Contributing", "https://github.com/jiayangc1/authometry/blob/main/CONTRIBUTING.md"],
       ["License", "https://github.com/jiayangc1/authometry/blob/main/LICENSE"],
+      ["App launcher", "/portal"],
       ["Dashboard", "/login"],
     ],
   },
@@ -314,7 +315,7 @@ export function LandingPage() {
             <a href="https://github.com/jiayangc1/authometry">GitHub</a>
           </nav>
           <div className={styles.navActions}>
-            <Link className={styles.signIn} href="/login">
+            <Link className={styles.signIn} href="/portal">
               Sign in
             </Link>
             <ArrowLink className={styles.navCta} href="/login">

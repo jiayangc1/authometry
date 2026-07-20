@@ -15,6 +15,7 @@ interface PortalApplication {
   name: string;
   slug: string;
   description?: string;
+  logo_uri?: string | null;
   last_launched_at?: string;
   provisioning_enabled: boolean;
 }
@@ -25,6 +26,29 @@ const cardTones = [
   "from-[#3559a8] to-[#5478c9]",
   "from-[#8a4d73] to-[#af6c95]",
 ] as const;
+
+function ApplicationLogo({ application, tone }: { application: PortalApplication; tone: string }) {
+  const [failed, setFailed] = useState(false);
+  const fallback = application.name.slice(0, 2).toUpperCase();
+
+  return (
+    <span
+      className={`flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-gradient-to-br ${tone} text-sm font-semibold text-white shadow-sm`}
+    >
+      {application.logo_uri && !failed ? (
+        <img
+          alt=""
+          className="size-full bg-white object-contain p-1.5"
+          onError={() => setFailed(true)}
+          referrerPolicy="no-referrer"
+          src={application.logo_uri}
+        />
+      ) : (
+        fallback
+      )}
+    </span>
+  );
+}
 
 export default function PortalApplicationsPage() {
   const [launching, setLaunching] = useState<string>();
@@ -152,11 +176,10 @@ export default function PortalApplicationsPage() {
                 key={application.id}
               >
                 <div className="flex items-start gap-3">
-                  <span
-                    className={`flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br ${cardTones[index % cardTones.length]} text-sm font-semibold text-white shadow-sm`}
-                  >
-                    {application.name.slice(0, 2).toUpperCase()}
-                  </span>
+                  <ApplicationLogo
+                    application={application}
+                    tone={cardTones[index % cardTones.length] ?? cardTones[0]}
+                  />
                   <div className="min-w-0 flex-1">
                     <h3 className="truncate text-sm font-semibold">{application.name}</h3>
                     <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-[var(--portal-muted)]">

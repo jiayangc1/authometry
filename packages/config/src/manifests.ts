@@ -2,7 +2,12 @@ import { readFile, readdir } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
 import { parse, stringify } from "yaml";
 import { z } from "zod";
-import { redirectUriSchema, scopeNameSchema, slugSchema } from "@authometry/domain";
+import {
+  applicationLogoUriSchema,
+  redirectUriSchema,
+  scopeNameSchema,
+  slugSchema,
+} from "@authometry/domain";
 
 const metadataSchema = z.object({ name: slugSchema });
 
@@ -25,6 +30,7 @@ export const applicationManifestSchema = z.object({
     displayName: z.string().min(2).max(100),
     type: z.enum(["web", "spa", "native", "machine", "device"]),
     description: z.string().max(500).optional(),
+    logoUri: applicationLogoUriSchema.optional(),
     clientId: z.string().min(3).max(128).optional(),
     redirectUris: z.array(redirectUriSchema).max(25).default([]),
     postLogoutRedirectUris: z.array(redirectUriSchema).max(25).default([]),
