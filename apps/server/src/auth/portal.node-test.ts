@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import request from "supertest";
 import { createApp } from "../index.js";
+import { createPortalLaunchUrl } from "./portal.js";
 
 await test("employee portal reports configured social providers", async () => {
   const response = await request(createApp()).get("/api/v1/portal/auth/providers").expect(200);
@@ -37,4 +38,17 @@ await test("employee portal can clear a stale session and return to login", asyn
     ),
     true,
   );
+});
+
+await test("employee portal launches services with a third-party login issuer hint", () => {
+  const launch = new URL(
+    createPortalLaunchUrl(
+      "https://cams.example.test/login?source=launcher",
+      "https://identity.example.test/w/acme",
+    ),
+  );
+
+  assert.equal(launch.origin + launch.pathname, "https://cams.example.test/login");
+  assert.equal(launch.searchParams.get("source"), "launcher");
+  assert.equal(launch.searchParams.get("iss"), "https://identity.example.test/w/acme");
 });

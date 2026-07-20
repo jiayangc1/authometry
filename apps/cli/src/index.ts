@@ -114,6 +114,7 @@ applications
   .option("--slug <slug>", "Stable application slug; defaults to the display name")
   .option("--type <type>", `Client type: ${applicationTypes.join(", ")}`, "web")
   .option("--description <description>", "Application description")
+  .option("--logo-uri <uri>", "HTTPS URL for the application logo")
   .option(
     "--redirect-uri <uri>",
     "Exact OAuth callback URI; repeat for additional deployments",
@@ -138,6 +139,7 @@ applications
         slug?: string;
         type: string;
         description?: string;
+        logoUri?: string;
         redirectUri: string[];
         postLogoutRedirectUri: string[];
         scope: string[];
@@ -159,6 +161,7 @@ applications
         scopes: input.scope,
         ...(input.slug ? { slug: input.slug } : {}),
         ...(input.description ? { description: input.description } : {}),
+        ...(input.logoUri ? { logoUri: input.logoUri } : {}),
       };
       const payload = applicationCreatePayload(createOptions);
       if (input.outputEnv) {

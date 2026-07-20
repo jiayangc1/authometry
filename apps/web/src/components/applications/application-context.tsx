@@ -12,6 +12,7 @@ export interface ApplicationDetail {
   type: string;
   status: "active" | "disabled";
   description?: string;
+  logo_uri?: string | null;
   redirect_uris: string[];
   post_logout_redirect_uris: string[];
   grant_types: string[];
