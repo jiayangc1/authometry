@@ -34,7 +34,7 @@ Raw opaque credentials are returned only when created or delivered. Configuratio
 
 ## Administrative authentication
 
-Administrator access tokens are HS256 JWTs with a ten-minute lifetime, the public origin as issuer, and `authometry-admin` as audience. Refresh envelopes have a 30-day lifetime and reference a rotating database session. Access and refresh cookies are HTTP-only, `SameSite=Lax`, path-wide, and secure in production.
+Administrator access tokens are HS256 JWTs with a ten-minute lifetime, the public origin as issuer, and `authometry-admin` as audience. Session envelopes have a 30-day lifetime and reference a revocable database session. Access and session cookies are HTTP-only, `SameSite=Lax`, path-wide, and secure in production.
 
 Google and GitHub dashboard sign-in uses authorization code flow with PKCE, one-time hashed state,
 an encrypted verifier, and nonce validation. A provider identity can only sign in when its verified
@@ -48,7 +48,7 @@ Authometry creates a short-lived, single-use linking proof and asks for the exis
 provider identity is attached only after both proofs succeed, so later password and social sign-ins
 resolve to the same user record without relying on email matching alone.
 
-Successful refresh consumes the current session token and rotates it. Overlapping refreshes receive a short concurrency grace period without receiving new credentials; reuse after that window revokes the session family. Logout revokes the database session and clears cookies.
+Dashboard access tokens remain short-lived and are renewed from a stable, opaque 30-day session credential backed by a revocable database record. Renewal replaces only the access cookie, so simultaneous requests and browser tabs cannot invalidate the login session. Logout revokes the database session and clears every authentication cookie; invalid, expired, revoked, or disabled-account sessions are also cleared during renewal.
 
 State-changing cookie requests use a signed double-submit CSRF value: the readable `authometry_csrf` cookie must exactly match `x-authometry-csrf` and pass its HMAC signature. Personal access tokens use the Authorization header and do not rely on ambient browser cookies.
 

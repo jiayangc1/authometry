@@ -17,7 +17,6 @@ import {
 } from "../lib/crypto.js";
 import { ApiError, asyncRoute } from "../lib/http.js";
 import { sendEmail } from "../lib/email.js";
-import { isConcurrentAdminRefresh } from "../lib/admin-session.js";
 import {
   exchangeSocialCode,
   socialAuthorizationUrl,
@@ -84,6 +83,25 @@ function csrfCookieOptions() {
   };
 }
 
+function clearAdminSession(response: Response): void {
+  response.clearCookie(accessCookie, { path: "/" });
+  response.clearCookie(refreshCookie, { path: "/" });
+  response.clearCookie(csrfCookie, { path: "/" });
+}
+
+async function issueAdminAccessCookie(
+  response: Response,
+  user: { id: string; email: string; workspaceId: string; role: string },
+): Promise<void> {
+  const access = await signAdminAccessToken({
+    userId: user.id,
+    workspaceId: user.workspaceId,
+    role: user.role,
+    email: user.email,
+  });
+  response.cookie(accessCookie, access, cookieOptions(10 * 60 * 1000));
+}
+
 export function createCsrfToken(): string {
   const nonce = randomToken(24);
   const signature = createHmac("sha256", env.CSRF_SECRET).update(nonce).digest("base64url");
@@ -101,7 +119,6 @@ async function createSession(
   response: Response,
   request: Request,
   user: { id: string; email: string; workspaceId: string; role: string },
-  familyId: string = crypto.randomUUID(),
 ): Promise<void> {
   const rawRefreshToken = randomToken(48);
   const [session] = await query<{ id: string }>(
@@ -112,22 +129,14 @@ async function createSession(
       user.id,
       user.workspaceId,
       hashToken(rawRefreshToken),
-      familyId,
+      crypto.randomUUID(),
       request.get("user-agent") ?? null,
       request.ip,
     ],
   );
   if (!session) throw new ApiError(500, "session_error", "The session could not be created.");
-  const [access, refresh] = await Promise.all([
-    signAdminAccessToken({
-      userId: user.id,
-      workspaceId: user.workspaceId,
-      role: user.role,
-      email: user.email,
-    }),
-    signAdminRefreshEnvelope(session.id, rawRefreshToken),
-  ]);
-  response.cookie(accessCookie, access, cookieOptions(10 * 60 * 1000));
+  const refresh = await signAdminRefreshEnvelope(session.id, rawRefreshToken);
+  await issueAdminAccessCookie(response, user);
   response.cookie(refreshCookie, refresh, cookieOptions(30 * 24 * 60 * 60 * 1000));
   response.cookie(csrfCookie, createCsrfToken(), csrfCookieOptions());
 }
@@ -784,75 +793,45 @@ adminAuthRouter.post(
   requireCsrf,
   asyncRoute(async (request, response) => {
     const envelope = request.cookies[refreshCookie] as string | undefined;
-    if (!envelope) throw new ApiError(401, "refresh_required", "Sign in to continue.");
-    const { sessionId, token } = await verifyAdminRefreshEnvelope(envelope);
-    let reuseDetected = false;
-    let concurrentRefresh = false;
-    const next = await transaction(async (client) => {
-      const result = await client.query<{
-        id: string;
-        admin_user_id: string;
-        workspace_id: string;
-        token_hash: string;
-        family_id: string;
-        rotated_at: Date | null;
-        revoked_at: Date | null;
-        expires_at: Date;
-        email: string;
-        role: string;
-      }>(
-        `SELECT s.*, u.email, m.role FROM admin_refresh_sessions s
-         JOIN admin_users u ON u.id = s.admin_user_id
-         JOIN workspace_memberships m ON m.workspace_id = s.workspace_id AND m.admin_user_id = s.admin_user_id
-         WHERE s.id = $1 FOR UPDATE`,
-        [sessionId],
-      );
-      const current = result.rows[0];
-      if (!current || current.revoked_at || current.expires_at < new Date()) {
-        throw new ApiError(401, "invalid_refresh", "The refresh session is invalid or expired.");
-      }
-      if (current.rotated_at) {
-        if (isConcurrentAdminRefresh(current.rotated_at)) {
-          concurrentRefresh = true;
-          return undefined;
-        }
-        await client.query(
-          "UPDATE admin_refresh_sessions SET revoked_at = now() WHERE family_id = $1",
-          [current.family_id],
-        );
-        reuseDetected = true;
-        return undefined;
-      }
-      if (!constantTimeEqual(current.token_hash, hashToken(token))) {
-        throw new ApiError(401, "invalid_refresh", "The refresh session is invalid or expired.");
-      }
-      await client.query("UPDATE admin_refresh_sessions SET rotated_at = now() WHERE id = $1", [
-        current.id,
-      ]);
-      return {
-        id: current.admin_user_id,
-        email: current.email,
-        workspaceId: current.workspace_id,
-        role: current.role,
-        familyId: current.family_id,
-      };
-    });
-    if (concurrentRefresh) {
-      // A request already in flight can still carry the cookie that was just
-      // rotated. The first response installs the replacement cookies, so this
-      // duplicate can succeed without issuing or revoking another session.
-      response.status(204).end();
-      return;
+    if (!envelope) {
+      clearAdminSession(response);
+      throw new ApiError(401, "refresh_required", "Sign in to continue.");
     }
-    if (reuseDetected)
-      throw new ApiError(
-        401,
-        "refresh_reuse",
-        "This refresh token was already used. Sign in again.",
-      );
-    if (!next)
-      throw new ApiError(401, "invalid_refresh", "The refresh session is invalid or expired.");
-    await createSession(response, request, next, next.familyId);
+
+    let sessionId: string;
+    let token: string;
+    try {
+      ({ sessionId, token } = await verifyAdminRefreshEnvelope(envelope));
+    } catch {
+      clearAdminSession(response);
+      throw new ApiError(401, "invalid_refresh", "The session is invalid or expired.");
+    }
+
+    const [session] = await query<{
+      admin_user_id: string;
+      workspace_id: string;
+      token_hash: string;
+      email: string;
+      role: string;
+    }>(
+      `SELECT s.admin_user_id, s.workspace_id, s.token_hash, u.email, m.role
+       FROM admin_refresh_sessions s
+       JOIN admin_users u ON u.id = s.admin_user_id AND u.disabled_at IS NULL
+       JOIN workspace_memberships m ON m.workspace_id = s.workspace_id AND m.admin_user_id = s.admin_user_id
+       WHERE s.id = $1 AND s.rotated_at IS NULL AND s.revoked_at IS NULL AND s.expires_at > now()`,
+      [sessionId],
+    );
+    if (!session || !constantTimeEqual(session.token_hash, hashToken(token))) {
+      clearAdminSession(response);
+      throw new ApiError(401, "invalid_refresh", "The session is invalid or expired.");
+    }
+
+    await issueAdminAccessCookie(response, {
+      id: session.admin_user_id,
+      email: session.email,
+      workspaceId: session.workspace_id,
+      role: session.role,
+    });
     response.status(204).end();
   }),
 );
@@ -872,9 +851,7 @@ adminAuthRouter.post(
         // Clearing an invalid cookie remains a successful logout.
       }
     }
-    response.clearCookie(accessCookie, { path: "/" });
-    response.clearCookie(refreshCookie, { path: "/" });
-    response.clearCookie(csrfCookie, { path: "/" });
+    clearAdminSession(response);
     response.status(204).end();
   }),
 );

@@ -39,56 +39,29 @@ void test("concurrent unauthorized requests share one session refresh", async ()
   }
 });
 
-void test("a queued cross-tab refresh reuses the session rotated by the first tab", async () => {
-  const originalDocument = globalThis.document;
+void test("the same browser session can renew access repeatedly", async () => {
   const originalFetch = globalThis.fetch;
-  const originalNavigator = globalThis.navigator;
-  let csrf = "first.csrf";
-  let protectedRequests = 0;
+  const attempts = new Map<string, number>();
   let refreshRequests = 0;
 
-  Object.defineProperty(globalThis, "document", {
-    configurable: true,
-    value: {
-      get cookie() {
-        return `authometry_csrf=${csrf}`;
-      },
-    },
-  });
-  Object.defineProperty(globalThis, "navigator", {
-    configurable: true,
-    value: {
-      locks: {
-        request: async (_name: string, callback: () => Promise<boolean>) => {
-          csrf = "rotated.csrf";
-          return callback();
-        },
-      },
-    },
-  });
   globalThis.fetch = async (input) => {
-    if (String(input) === "/api/v1/auth/refresh") {
+    const path = String(input);
+    if (path === "/api/v1/auth/refresh") {
       refreshRequests += 1;
       return new Response(null, { status: 204 });
     }
-    protectedRequests += 1;
-    return protectedRequests === 1
+    const attempt = (attempts.get(path) ?? 0) + 1;
+    attempts.set(path, attempt);
+    return attempt === 1
       ? Response.json({ error: { code: "authentication_required" } }, { status: 401 })
       : Response.json({ ok: true });
   };
 
   try {
     assert.deepEqual(await apiFetch<{ ok: boolean }>("/api/v1/overview"), { ok: true });
-    assert.equal(refreshRequests, 0);
+    assert.deepEqual(await apiFetch<{ ok: boolean }>("/api/v1/settings"), { ok: true });
+    assert.equal(refreshRequests, 2);
   } finally {
-    Object.defineProperty(globalThis, "document", {
-      configurable: true,
-      value: originalDocument,
-    });
-    Object.defineProperty(globalThis, "navigator", {
-      configurable: true,
-      value: originalNavigator,
-    });
     globalThis.fetch = originalFetch;
   }
 });

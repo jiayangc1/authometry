@@ -22,27 +22,12 @@ export class ApiClientError extends Error {
 let refreshPromise: Promise<boolean> | undefined;
 
 async function requestSessionRefresh(csrf: string | undefined): Promise<boolean> {
-  const refresh = async () => {
-    const currentCsrf = cookie("authometry_csrf");
-
-    // Another tab may have refreshed while this request waited for the lock. Its
-    // new access cookie is already available to this tab, so rotating again is unnecessary.
-    if (csrf && currentCsrf && currentCsrf !== csrf) return true;
-
-    const response = await fetch("/api/v1/auth/refresh", {
-      method: "POST",
-      credentials: "include",
-      headers: currentCsrf
-        ? { "x-authometry-csrf": decodeURIComponent(currentCsrf) }
-        : {},
-    });
-    return response.ok;
-  };
-
-  if (typeof navigator !== "undefined" && navigator.locks) {
-    return navigator.locks.request("authometry-session-refresh", refresh);
-  }
-  return refresh();
+  const response = await fetch("/api/v1/auth/refresh", {
+    method: "POST",
+    credentials: "include",
+    headers: csrf ? { "x-authometry-csrf": decodeURIComponent(csrf) } : {},
+  });
+  return response.ok;
 }
 
 function refreshSession(csrf: string | undefined): Promise<boolean> {
