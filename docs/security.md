@@ -48,7 +48,7 @@ Authometry creates a short-lived, single-use linking proof and asks for the exis
 provider identity is attached only after both proofs succeed, so later password and social sign-ins
 resolve to the same user record without relying on email matching alone.
 
-Successful refresh consumes the current session token and rotates it. Reuse detection revokes the session family. Logout revokes the database session and clears cookies.
+Successful refresh consumes the current session token and rotates it. Overlapping refreshes receive a short concurrency grace period without receiving new credentials; reuse after that window revokes the session family. Logout revokes the database session and clears cookies.
 
 State-changing cookie requests use a signed double-submit CSRF value: the readable `authometry_csrf` cookie must exactly match `x-authometry-csrf` and pass its HMAC signature. Personal access tokens use the Authorization header and do not rely on ambient browser cookies.
 

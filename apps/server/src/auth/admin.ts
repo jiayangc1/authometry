@@ -17,6 +17,7 @@ import {
 } from "../lib/crypto.js";
 import { ApiError, asyncRoute } from "../lib/http.js";
 import { sendEmail } from "../lib/email.js";
+import { isConcurrentAdminRefresh } from "../lib/admin-session.js";
 import {
   exchangeSocialCode,
   socialAuthorizationUrl,
@@ -786,6 +787,7 @@ adminAuthRouter.post(
     if (!envelope) throw new ApiError(401, "refresh_required", "Sign in to continue.");
     const { sessionId, token } = await verifyAdminRefreshEnvelope(envelope);
     let reuseDetected = false;
+    let concurrentRefresh = false;
     const next = await transaction(async (client) => {
       const result = await client.query<{
         id: string;
@@ -810,6 +812,10 @@ adminAuthRouter.post(
         throw new ApiError(401, "invalid_refresh", "The refresh session is invalid or expired.");
       }
       if (current.rotated_at) {
+        if (isConcurrentAdminRefresh(current.rotated_at)) {
+          concurrentRefresh = true;
+          return undefined;
+        }
         await client.query(
           "UPDATE admin_refresh_sessions SET revoked_at = now() WHERE family_id = $1",
           [current.family_id],
@@ -831,6 +837,13 @@ adminAuthRouter.post(
         familyId: current.family_id,
       };
     });
+    if (concurrentRefresh) {
+      // A request already in flight can still carry the cookie that was just
+      // rotated. The first response installs the replacement cookies, so this
+      // duplicate can succeed without issuing or revoking another session.
+      response.status(204).end();
+      return;
+    }
     if (reuseDetected)
       throw new ApiError(
         401,
