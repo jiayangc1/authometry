@@ -75,7 +75,7 @@ function safePortalReturn(value: unknown, fallback = "/portal"): string {
   }
 }
 
-function validateLaunchUri(value: string): string {
+export function createPortalLaunchUrl(value: string, issuer: string): string {
   let target: URL;
   try {
     target = new URL(value);
@@ -94,6 +94,7 @@ function validateLaunchUri(value: string): string {
       "Launch URLs must use HTTPS and cannot contain embedded credentials.",
     );
   }
+  target.searchParams.set("iss", issuer);
   return target.toString();
 }
 
@@ -781,11 +782,12 @@ portalRouter.get(
       name: string;
       slug: string;
       description: string | null;
+      logo_uri: string | null;
       launch_uri: string;
       last_launched_at: Date | null;
       provisioning_enabled: boolean;
     }>(
-      `SELECT a.id, a.name, a.slug, a.description, a.launch_uri, ua.last_launched_at,
+      `SELECT a.id, a.name, a.slug, a.description, a.logo_uri, a.launch_uri, ua.last_launched_at,
               EXISTS (
                 SELECT 1 FROM webhooks w
                 WHERE w.environment_id = a.environment_id AND w.purpose = 'provisioning'
@@ -806,10 +808,16 @@ portalRouter.post(
   "/applications/:applicationId/launch",
   asyncRoute(async (request, response) => {
     const portal = request.portal!;
-    const [application] = await query<{ id: string; name: string; launch_uri: string }>(
-      `SELECT a.id, a.name, a.launch_uri
+    const [application] = await query<{
+      id: string;
+      name: string;
+      launch_uri: string;
+      issuer: string;
+    }>(
+      `SELECT a.id, a.name, a.launch_uri, e.issuer
        FROM user_application_assignments ua
        JOIN oauth_applications a ON a.id = ua.application_id
+       JOIN environments e ON e.id = a.environment_id
        WHERE ua.user_id = $1 AND ua.environment_id = $2 AND ua.application_id = $3
          AND a.portal_enabled = true AND a.status = 'active' AND a.launch_uri IS NOT NULL
          AND EXISTS (
@@ -825,7 +833,7 @@ portalRouter.post(
         "This application is not assigned or ready for portal launch.",
       );
     }
-    const launchUri = validateLaunchUri(application.launch_uri);
+    const launchUri = createPortalLaunchUrl(application.launch_uri, application.issuer);
     await transaction(async (client) => {
       await client.query(
         `UPDATE user_application_assignments SET last_launched_at = now()

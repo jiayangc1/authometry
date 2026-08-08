@@ -128,6 +128,7 @@ function rowToManifest(row: ResourceRow): AuthometryManifest {
           displayName: value.name,
           type: value.type,
           ...(value.description ? { description: value.description } : {}),
+          ...(value.logo_uri ? { logoUri: value.logo_uri } : {}),
           ...(value.client_id_source === "manifest" ? { clientId: value.client_id } : {}),
           redirectUris: value.redirect_uris,
           postLogoutRedirectUris: value.post_logout_redirect_uris,
@@ -363,18 +364,18 @@ async function applyEntry(
       const clientId = manifest.spec.clientId ?? randomId("amt_client", 12);
       const app = await client.query<{ id: string }>(
         `INSERT INTO oauth_applications
-          (workspace_id, environment_id, name, slug, client_id, client_id_source, type, description, redirect_uris,
+          (workspace_id, environment_id, name, slug, client_id, client_id_source, type, description, logo_uri, redirect_uris,
            post_logout_redirect_uris, grant_types, response_types, token_endpoint_auth_method,
            require_pkce, require_consent, allowed_scopes, access_token_lifetime_seconds,
            refresh_token_lifetime_seconds, authorization_code_lifetime_seconds, rotate_refresh_tokens,
            ownership, manifest_path)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'manifest',$21)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'manifest',$22)
          ON CONFLICT (environment_id, slug) DO UPDATE SET
            name = EXCLUDED.name,
            client_id = CASE WHEN EXCLUDED.client_id_source = 'manifest'
              THEN EXCLUDED.client_id ELSE oauth_applications.client_id END,
            client_id_source = EXCLUDED.client_id_source,
-           type = EXCLUDED.type, description = EXCLUDED.description,
+           type = EXCLUDED.type, description = EXCLUDED.description, logo_uri = EXCLUDED.logo_uri,
            redirect_uris = EXCLUDED.redirect_uris, post_logout_redirect_uris = EXCLUDED.post_logout_redirect_uris,
            grant_types = EXCLUDED.grant_types, response_types = EXCLUDED.response_types,
            token_endpoint_auth_method = EXCLUDED.token_endpoint_auth_method, require_pkce = EXCLUDED.require_pkce,
@@ -394,6 +395,7 @@ async function applyEntry(
           manifest.spec.clientId ? "manifest" : "auto",
           manifest.spec.type,
           manifest.spec.description ?? null,
+          manifest.spec.logoUri ?? null,
           manifest.spec.redirectUris,
           manifest.spec.postLogoutRedirectUris,
           manifest.spec.grantTypes,

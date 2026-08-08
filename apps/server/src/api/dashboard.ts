@@ -153,10 +153,10 @@ dashboardRouter.post(
     const result = await transaction(async (client) => {
       const created = await client.query<{ id: string }>(
         `INSERT INTO oauth_applications
-          (workspace_id, environment_id, name, slug, client_id, type, description, redirect_uris,
+          (workspace_id, environment_id, name, slug, client_id, type, description, logo_uri, redirect_uris,
            post_logout_redirect_uris, grant_types, token_endpoint_auth_method, require_pkce, require_consent,
            allowed_scopes, access_token_lifetime_seconds, refresh_token_lifetime_seconds)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
         [
           environment.workspaceId,
           environment.id,
@@ -165,6 +165,7 @@ dashboardRouter.post(
           clientId,
           input.type,
           input.description ?? null,
+          input.logoUri ?? null,
           input.redirectUris,
           input.postLogoutRedirectUris,
           input.type === "machine"
@@ -245,6 +246,7 @@ dashboardRouter.patch(
       .object({
         name: z.string().min(2).max(100).optional(),
         description: z.string().max(500).nullable().optional(),
+        logoUri: applicationInputSchema.shape.logoUri.nullable().optional(),
         redirectUris: z.array(z.string().url()).max(25).optional(),
         postLogoutRedirectUris: z.array(z.string().url()).max(25).optional(),
         requirePkce: z.boolean().optional(),
@@ -290,8 +292,9 @@ dashboardRouter.patch(
         allowed_scopes = COALESCE($10, allowed_scopes),
         portal_enabled = COALESCE($11, portal_enabled),
         launch_uri = CASE WHEN $12::boolean THEN $13 ELSE launch_uri END,
+        logo_uri = CASE WHEN $14::boolean THEN $15 ELSE logo_uri END,
         version = version + 1, updated_at = now()
-       WHERE id = $1 AND environment_id = $2 AND version = $14 RETURNING *`,
+       WHERE id = $1 AND environment_id = $2 AND version = $16 RETURNING *`,
       [
         request.params.applicationId,
         request.environment!.id,
@@ -306,6 +309,8 @@ dashboardRouter.patch(
         input.portalEnabled ?? null,
         Object.hasOwn(input, "launchUri"),
         input.launchUri ?? null,
+        Object.hasOwn(input, "logoUri"),
+        input.logoUri ?? null,
         input.version,
       ],
     );

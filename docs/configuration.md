@@ -124,6 +124,7 @@ metadata:
 spec:
   displayName: Customer portal
   description: Customer account access
+  logoUri: https://cdn.example.com/customer-portal.png
   type: web
   redirectUris:
     - https://portal.example.com/auth/callback
@@ -152,6 +153,7 @@ spec:
 | ------------------------------ | ---------------------------------------------------------------- |
 | `type`                         | `web`, `spa`, `native`, `machine`, or `device`.                  |
 | `clientId`                     | Optional stable client ID; otherwise the server supplies one.    |
+| `logoUri`                      | Optional HTTPS image URL used by the employee app launcher.      |
 | `redirectUris`                 | Up to 25 exact absolute callback URIs.                           |
 | `postLogoutRedirectUris`       | Up to 25 exact logout callback URIs.                             |
 | `grantTypes`                   | One or more supported grant identifiers.                         |

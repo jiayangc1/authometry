@@ -46,6 +46,7 @@ export interface OAuthApplication {
   type: ApplicationType;
   status: ApplicationStatus;
   description?: string;
+  logoUri?: string;
   redirectUris: string[];
   postLogoutRedirectUris: string[];
   grantTypes: OAuthGrantType[];

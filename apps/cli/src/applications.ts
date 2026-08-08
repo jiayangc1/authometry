@@ -11,6 +11,7 @@ export interface ApplicationCreateOptions {
   slug?: string;
   type: ApplicationType;
   description?: string;
+  logoUri?: string;
   redirectUris: string[];
   postLogoutRedirectUris: string[];
   scopes: string[];
@@ -28,6 +29,7 @@ export interface ProvisionedApplication extends Omit<CreatedApplicationResponse,
   name: string;
   slug: string;
   type: ApplicationType;
+  logoUri?: string;
   redirectUris: string[];
   postLogoutRedirectUris: string[];
   scopes: string[];
@@ -43,6 +45,7 @@ export function applicationCreatePayload(input: ApplicationCreateOptions) {
     slug: input.slug ?? createApplicationSlug(input.name),
     type: input.type,
     description: input.description,
+    logoUri: input.logoUri,
     redirectUris: input.redirectUris,
     postLogoutRedirectUris: input.postLogoutRedirectUris,
     allowedScopes: input.scopes.length ? input.scopes : defaultScopes,
@@ -61,6 +64,7 @@ export function provisionedApplication(
     name: payload.name,
     slug: payload.slug,
     type: payload.type,
+    ...(payload.logoUri ? { logoUri: payload.logoUri } : {}),
     redirectUris: payload.redirectUris,
     postLogoutRedirectUris: payload.postLogoutRedirectUris,
     scopes: payload.allowedScopes ?? [],

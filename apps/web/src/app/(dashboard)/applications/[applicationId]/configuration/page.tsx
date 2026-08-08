@@ -3,7 +3,7 @@
 import { ExternalLink, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { redirectUriSchema } from "@authometry/domain";
+import { applicationLogoUriSchema, redirectUriSchema } from "@authometry/domain";
 import { Button, Checkbox, StatusBadge } from "@authometry/ui";
 import { useApplication } from "@/components/applications/application-context";
 import { inputClass } from "@/components/auth/auth-shell";
@@ -15,6 +15,7 @@ export default function ConfigurationPage() {
   const { application, refetch } = useApplication();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [logoUri, setLogoUri] = useState("");
   const [uris, setUris] = useState<string[]>([]);
   const [nextUri, setNextUri] = useState("");
   const [portalEnabled, setPortalEnabled] = useState(false);
@@ -25,6 +26,7 @@ export default function ConfigurationPage() {
     if (application) {
       setName(application.name);
       setDescription(application.description ?? "");
+      setLogoUri(application.logo_uri ?? "");
       setUris(application.redirect_uris);
       setPortalEnabled(application.portal_enabled);
       setLaunchUri(application.launch_uri ?? "");
@@ -34,6 +36,7 @@ export default function ConfigurationPage() {
     application &&
     (name !== application.name ||
       description !== (application.description ?? "") ||
+      logoUri !== (application.logo_uri ?? "") ||
       portalEnabled !== application.portal_enabled ||
       launchUri !== (application.launch_uri ?? "") ||
       JSON.stringify(uris) !== JSON.stringify(application.redirect_uris)),
@@ -68,6 +71,13 @@ export default function ConfigurationPage() {
         return;
       }
     }
+    if (logoUri) {
+      const parsed = applicationLogoUriSchema.safeParse(logoUri);
+      if (!parsed.success) {
+        setError(parsed.error.issues[0]?.message);
+        return;
+      }
+    }
     setSaving(true);
     try {
       await apiFetch(`/api/v1/applications/${app.id}`, {
@@ -75,6 +85,7 @@ export default function ConfigurationPage() {
         body: JSON.stringify({
           name,
           description: description || null,
+          logoUri: logoUri || null,
           redirectUris: uris,
           portalEnabled,
           launchUri: launchUri || null,
@@ -116,6 +127,26 @@ export default function ConfigurationPage() {
               onChange={(event) => setDescription(event.target.value)}
               value={description}
             />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium">Logo URL</span>
+            <input
+              autoComplete="url"
+              className={`${inputClass} technical-value`}
+              disabled={readOnly}
+              name="logoUri"
+              onChange={(event) => {
+                setLogoUri(event.target.value);
+                setError(undefined);
+              }}
+              placeholder="https://cdn.example.com/logo.png"
+              spellCheck={false}
+              type="url"
+              value={logoUri}
+            />
+            <span className="mt-1.5 block text-xs leading-5 text-[var(--text-secondary)]">
+              Use a square HTTPS image. This logo represents the service in the employee launcher.
+            </span>
           </label>
         </div>
       </section>
@@ -227,9 +258,9 @@ export default function ConfigurationPage() {
                 aria-hidden="true"
                 className="mt-0.5 size-3.5 shrink-0 text-[var(--accent)]"
               />
-              Use the service's OIDC login-initiation URL. It will redirect back to Authometry,
-              where the employee's existing portal session completes sign-in without another
-              password.
+              Use the service's OIDC login-initiation URL. Authometry adds the standard issuer hint,
+              and the service should immediately start Authorization Code with PKCE. The employee's
+              existing portal session then completes sign-in without another password.
             </div>
           </div>
         </div>
