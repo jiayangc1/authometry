@@ -133,7 +133,7 @@ async function authorizationCodeGrant(
       ) {
         throw new ApiError(400, "invalid_grant", "The authorization code has an invalid resource.");
       }
-      trace.identifyUser({ id: admin.id, email: admin.email, name: admin.name });
+      trace.identifyAdmin({ id: admin.id, email: admin.email, name: admin.name });
       return issueTokenSet({
         application,
         issuer: application.issuer,
@@ -357,7 +357,7 @@ async function refreshTokenGrant(
       if (!admin) throw new ApiError(400, "invalid_grant", "The Authometry admin is not active.");
     }
     if (admin) {
-      trace.identifyUser({ id: admin.id, email: admin.email, name: admin.name });
+      trace.identifyAdmin({ id: admin.id, email: admin.email, name: admin.name });
     } else if (user) {
       trace.identifyUser({ id: user.id, email: user.email, name: user.name });
     }

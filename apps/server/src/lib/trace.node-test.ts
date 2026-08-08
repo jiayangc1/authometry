@@ -3,7 +3,9 @@ import test from "node:test";
 import { pool } from "../db.js";
 import { TraceRecorder } from "./trace.js";
 
-await test("trace records persist an identity resolved after the request starts", async () => {
+async function captureTraceInsert(
+  identify: (trace: TraceRecorder) => void,
+): Promise<{ insertedValues: unknown[]; finished: Awaited<ReturnType<TraceRecorder["finish"]>> }> {
   const originalQuery = pool.query.bind(pool);
   let insertedValues: unknown[] | undefined;
   Object.assign(pool, {
@@ -26,15 +28,33 @@ await test("trace records persist an identity resolved after the request starts"
       grantType: "authorization_code",
       request: { query: {}, headers: {} },
     });
-    const user = { id: "admin-1", email: "owner@example.com", name: "Owner" };
-
-    trace.identifyUser(user);
+    identify(trace);
     const finished = await trace.finish("success");
-
-    assert.deepEqual(finished.user, user);
-    assert.equal(insertedValues?.[9], user.id);
-    assert.deepEqual(JSON.parse(String(insertedValues?.[10])), user);
+    assert.ok(insertedValues);
+    return { insertedValues, finished };
   } finally {
     Object.assign(pool, { query: originalQuery });
   }
+}
+
+await test("trace records persist an identity user resolved after the request starts", async () => {
+  const user = { id: "user-1", email: "user@example.com", name: "User" };
+  const { insertedValues, finished } = await captureTraceInsert((trace) =>
+    trace.identifyUser(user),
+  );
+
+  assert.deepEqual(finished.user, user);
+  assert.equal(insertedValues[9], user.id);
+  assert.deepEqual(JSON.parse(String(insertedValues[10])), user);
+});
+
+await test("trace snapshots an admin without writing it to the identity-user foreign key", async () => {
+  const admin = { id: "admin-1", email: "owner@example.com", name: "Owner" };
+  const { insertedValues, finished } = await captureTraceInsert((trace) =>
+    trace.identifyAdmin(admin),
+  );
+
+  assert.deepEqual(finished.user, admin);
+  assert.equal(insertedValues[9], null);
+  assert.deepEqual(JSON.parse(String(insertedValues[10])), admin);
 });

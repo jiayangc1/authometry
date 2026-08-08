@@ -28,6 +28,7 @@ export class TraceRecorder {
   readonly steps: TraceStep[] = [];
   private readonly startedAtMonotonic = performance.now();
   private lastStepCompletedOffsetMs = 0;
+  private identityUserId: string | undefined;
 
   constructor(
     private readonly context: {
@@ -43,10 +44,18 @@ export class TraceRecorder {
       user?: { id: string; email: string; name: string };
       request: { query: Record<string, unknown>; headers: Record<string, unknown> };
     },
-  ) {}
+  ) {
+    this.identityUserId = context.user?.id;
+  }
 
   identifyUser(user: NonNullable<AuthorizationTrace["user"]>): void {
     this.context.user = user;
+    this.identityUserId = user.id;
+  }
+
+  identifyAdmin(user: NonNullable<AuthorizationTrace["user"]>): void {
+    this.context.user = user;
+    this.identityUserId = undefined;
   }
 
   step(
@@ -149,7 +158,7 @@ export class TraceRecorder {
         this.context.applicationId ?? null,
         trace.applicationName,
         trace.clientId,
-        trace.user?.id ?? null,
+        this.identityUserId ?? null,
         trace.user ? JSON.stringify(trace.user) : null,
         trace.grantType,
         trace.endpoint,
