@@ -40,6 +40,9 @@ CMD ["node", "apps/web/server.js"]
 FROM source AS server-builder
 RUN pnpm --filter @authometry/server build
 
+FROM source AS server-runtime-dependencies
+RUN pnpm --filter @authometry/server deploy --prod --legacy /server
+
 FROM node:24-alpine AS server
 ENV NODE_ENV=production
 ENV PORT=4000
@@ -47,6 +50,7 @@ WORKDIR /app
 RUN apk add --no-cache curl && addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 authometry
 COPY --from=server-builder --chown=authometry:nodejs /app/apps/server/dist ./dist
 COPY --from=server-builder --chown=authometry:nodejs /app/apps/server/migrations ./migrations
+COPY --from=server-runtime-dependencies --chown=authometry:nodejs /server/node_modules ./node_modules
 USER authometry
 EXPOSE 4000
 CMD ["node", "dist/index.js"]
