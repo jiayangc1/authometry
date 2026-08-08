@@ -8,6 +8,7 @@ import { Button, EmptyState } from "@authometry/ui";
 import type { PortalMe } from "@/components/portal/types";
 import { RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState } from "@/components/data-display/states";
+import { createPortalLaunchHandoff } from "@/components/portal/launch-handoff";
 import { portalApiFetch } from "@/lib/portal-api";
 
 interface PortalApplication {
@@ -59,8 +60,11 @@ export default function PortalApplicationsPage() {
       return;
     }
     tab.opener = null;
-    tab.document.title = `Opening ${application.name}…`;
-    tab.document.body.textContent = `Opening ${application.name}…`;
+    const handoff = createPortalLaunchHandoff(tab, application, {
+      dark: document.documentElement.classList.contains("dark"),
+      userEmail: me.data?.user.email,
+      workspaceName: me.data?.workspace.name,
+    });
     setLaunching(application.id);
     try {
       const result = await portalApiFetch<{ url: string }>(
@@ -72,8 +76,10 @@ export default function PortalApplicationsPage() {
       tab.location.replace(result.url);
       void applications.refetch();
     } catch (error) {
-      tab.close();
-      toast.error(error instanceof Error ? error.message : "The application could not be opened.");
+      const message =
+        error instanceof Error ? error.message : "The application could not be opened. Try again.";
+      handoff.showError(message);
+      toast.error(message);
     } finally {
       setLaunching(undefined);
     }
