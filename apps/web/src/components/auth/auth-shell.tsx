@@ -1,5 +1,29 @@
 import Link from "next/link";
+import { Check, ShieldCheck } from "lucide-react";
 import { AuthometryLogo, AuthometryMark } from "@authometry/ui";
+
+const authorizationTrace = [
+  {
+    label: "Request received",
+    detail: "GET /oauth/authorize",
+    elapsed: "00 ms",
+  },
+  {
+    label: "Client verified",
+    detail: "Client credentials active",
+    elapsed: "08 ms",
+  },
+  {
+    label: "Redirect URI matched",
+    detail: "Exact registered callback",
+    elapsed: "11 ms",
+  },
+  {
+    label: "PKCE challenge validated",
+    detail: "S256 proof verified",
+    elapsed: "16 ms",
+  },
+];
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
@@ -27,37 +51,88 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
       </section>
-      <aside className="hidden border-l border-[var(--border)] bg-[var(--surface)] p-10 lg:flex lg:items-center">
-        <div className="mx-auto w-full max-w-xl">
-          <p className="technical-value mb-5 text-[var(--text-tertiary)]">
-            AUTHORIZATION TRACE / LIVE
-          </p>
-          <h2 className="max-w-md text-3xl leading-10 font-semibold tracking-[-0.04em] text-balance">
+      <aside className="relative hidden overflow-hidden border-l border-[var(--border)] bg-[var(--surface)] p-10 lg:flex lg:items-center">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_68%_42%,var(--accent-soft),transparent_38%)] opacity-50"
+        />
+        <div className="relative mx-auto w-full max-w-xl">
+          <div className="mb-5 flex items-center gap-2.5">
+            <span className="technical-value text-[var(--text-tertiary)]">AUTHORIZATION TRACE</span>
+            <span className="flex items-center gap-1.5 rounded-full border border-[var(--success-border)] bg-[var(--success-soft)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-[var(--success)] uppercase">
+              <span className="relative flex size-1.5">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--success)] opacity-40" />
+                <span className="relative inline-flex size-1.5 rounded-full bg-[var(--success)]" />
+              </span>
+              Live
+            </span>
+          </div>
+          <h2 className="max-w-lg text-[32px] leading-[1.18] font-semibold tracking-[-0.045em] text-balance">
             Every decision leaves evidence.
           </h2>
-          <p className="mt-4 max-w-md text-sm leading-6 text-[var(--text-secondary)]">
-            Inspect the exact client, redirect URI, PKCE challenge, user session, consent grant, and
-            policy result behind every request.
+          <p className="mt-4 max-w-lg text-sm leading-6 text-[var(--text-secondary)]">
+            Follow every check from the authorization request to the final policy decision, with the
+            exact inputs that produced it.
           </p>
-          <div className="mt-10 border-y border-[var(--border)] py-2">
-            {[
-              "Request received",
-              "Client verified",
-              "Redirect URI matched",
-              "PKCE challenge validated",
-            ].map((step, index) => (
-              <div
-                className="grid grid-cols-[28px_1fr_auto] items-center border-b border-[var(--border-subtle)] py-3 last:border-0"
-                key={step}
-              >
-                <span className="technical-value text-[var(--text-tertiary)]">
-                  {String(index + 1).padStart(2, "0")}
+
+          <div className="mt-9 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--background)] shadow-[0_18px_55px_rgba(0,0,0,0.12)]">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent)]">
+                  <ShieldCheck aria-hidden="true" className="size-[18px]" />
                 </span>
-                <span className="text-[13px] font-medium">{step}</span>
-                <span className="text-xs text-[var(--success)]">Passed</span>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold">Authorization request</p>
+                  <p className="technical-value truncate text-[10px] text-[var(--text-tertiary)]">
+                    req_9f2a7c1d · authorization_code
+                  </p>
+                </div>
               </div>
-            ))}
+              <span className="rounded-md bg-[var(--success-soft)] px-2 py-1 text-[10px] font-semibold text-[var(--success)]">
+                ALLOWED
+              </span>
+            </div>
+
+            <ol aria-label="Example authorization trace" className="px-5 py-2">
+              {authorizationTrace.map((step, index) => (
+                <li className="relative grid grid-cols-[24px_1fr_auto] gap-3 py-3" key={step.label}>
+                  {index < authorizationTrace.length - 1 && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute top-8 bottom-[-12px] left-[11px] w-px bg-[var(--success-border)]"
+                    />
+                  )}
+                  <span className="relative z-10 mt-0.5 flex size-6 items-center justify-center rounded-full border border-[var(--success-border)] bg-[var(--success-soft)] text-[var(--success)]">
+                    <Check aria-hidden="true" className="size-3.5" strokeWidth={2.5} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-baseline gap-2">
+                      <span className="technical-value text-[10px] text-[var(--text-tertiary)]">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span className="text-[13px] font-medium">{step.label}</span>
+                    </div>
+                    <p className="technical-value mt-0.5 truncate text-[10px] text-[var(--text-tertiary)]">
+                      {step.detail}
+                    </p>
+                  </div>
+                  <span className="technical-value pt-0.5 text-[10px] text-[var(--text-tertiary)]">
+                    +{step.elapsed}
+                  </span>
+                </li>
+              ))}
+            </ol>
+
+            <div className="flex items-center justify-between border-t border-[var(--border)] bg-[var(--surface-subtle)] px-5 py-3">
+              <span className="text-xs font-medium">Policy result</span>
+              <span className="technical-value text-[10px] text-[var(--success)]">
+                PASS · 16 MS
+              </span>
+            </div>
           </div>
+          <p className="technical-value mt-3 text-[10px] text-[var(--text-tertiary)]">
+            Sensitive values are redacted before storage.
+          </p>
         </div>
       </aside>
     </main>
