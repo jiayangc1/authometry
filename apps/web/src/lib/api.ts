@@ -22,12 +22,25 @@ export class ApiClientError extends Error {
 let refreshPromise: Promise<boolean> | undefined;
 
 async function requestSessionRefresh(csrf: string | undefined): Promise<boolean> {
-  const response = await fetch("/api/v1/auth/refresh", {
-    method: "POST",
-    credentials: "include",
-    headers: csrf ? { "x-authometry-csrf": decodeURIComponent(csrf) } : {},
-  });
-  return response.ok;
+  async function refresh(csrfToken: string | undefined): Promise<Response> {
+    return fetch("/api/v1/auth/refresh", {
+      method: "POST",
+      credentials: "include",
+      headers: csrfToken ? { "x-authometry-csrf": decodeURIComponent(csrfToken) } : {},
+    });
+  }
+
+  const response = await refresh(csrf);
+  if (response.ok || response.status !== 403) return response.ok;
+
+  const result = (await response.json().catch(() => undefined)) as
+    { error?: { code?: string } } | undefined;
+  if (result?.error?.code !== "csrf_failed") return false;
+
+  const csrfResponse = await fetch("/api/v1/auth/csrf", { credentials: "include" });
+  if (!csrfResponse.ok) return false;
+  const csrfResult = (await csrfResponse.json()) as { csrfToken: string };
+  return (await refresh(csrfResult.csrfToken)).ok;
 }
 
 function refreshSession(csrf: string | undefined): Promise<boolean> {

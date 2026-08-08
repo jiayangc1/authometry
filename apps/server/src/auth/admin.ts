@@ -34,6 +34,7 @@ import {
 const accessCookie = "authometry_admin_access";
 const refreshCookie = "authometry_admin_refresh";
 const csrfCookie = "authometry_csrf";
+const sessionMaxAge = 30 * 24 * 60 * 60 * 1000;
 
 function safeReturnTo(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
@@ -80,7 +81,7 @@ function csrfCookieOptions() {
     secure: env.NODE_ENV === "production",
     sameSite: "lax" as const,
     path: "/",
-    maxAge: 30 * 24 * 60 * 60 * 1000,
+    maxAge: sessionMaxAge,
   };
 }
 
@@ -138,7 +139,7 @@ async function createSession(
   if (!session) throw new ApiError(500, "session_error", "The session could not be created.");
   const refresh = await signAdminRefreshEnvelope(session.id, rawRefreshToken);
   await issueAdminAccessCookie(response, user);
-  response.cookie(refreshCookie, refresh, cookieOptions(30 * 24 * 60 * 60 * 1000));
+  response.cookie(refreshCookie, refresh, cookieOptions(sessionMaxAge));
   response.cookie(csrfCookie, createCsrfToken(), csrfCookieOptions());
 }
 
@@ -235,6 +236,12 @@ export function requireCsrf(
 }
 
 export const adminAuthRouter = Router();
+
+adminAuthRouter.get("/csrf", (_request, response) => {
+  const csrfToken = createCsrfToken();
+  response.cookie(csrfCookie, csrfToken, csrfCookieOptions());
+  response.json({ csrfToken });
+});
 
 adminAuthRouter.get("/providers", (_request, response) => {
   response.json({
@@ -826,12 +833,18 @@ adminAuthRouter.post(
       throw new ApiError(401, "invalid_refresh", "The session is invalid or expired.");
     }
 
+    const refresh = await signAdminRefreshEnvelope(sessionId, token);
+    await query(
+      "UPDATE admin_refresh_sessions SET expires_at = now() + interval '30 days' WHERE id = $1",
+      [sessionId],
+    );
     await issueAdminAccessCookie(response, {
       id: session.admin_user_id,
       email: session.email,
       workspaceId: session.workspace_id,
       role: session.role,
     });
+    response.cookie(refreshCookie, refresh, cookieOptions(sessionMaxAge));
     response.status(204).end();
   }),
 );

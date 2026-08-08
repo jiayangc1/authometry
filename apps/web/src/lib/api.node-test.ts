@@ -65,3 +65,37 @@ void test("the same browser session can renew access repeatedly", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+void test("session renewal replaces a missing or stale CSRF cookie", async () => {
+  const originalFetch = globalThis.fetch;
+  let protectedRequests = 0;
+  let refreshRequests = 0;
+  let csrfRequests = 0;
+
+  globalThis.fetch = async (input, init) => {
+    const path = String(input);
+    if (path === "/api/v1/auth/refresh") {
+      refreshRequests += 1;
+      const csrf = new Headers(init?.headers).get("x-authometry-csrf");
+      return csrf === "replacement-token"
+        ? new Response(null, { status: 204 })
+        : Response.json({ error: { code: "csrf_failed" } }, { status: 403 });
+    }
+    if (path === "/api/v1/auth/csrf") {
+      csrfRequests += 1;
+      return Response.json({ csrfToken: "replacement-token" });
+    }
+    protectedRequests += 1;
+    return protectedRequests === 1
+      ? Response.json({ error: { code: "authentication_required" } }, { status: 401 })
+      : Response.json({ ok: true });
+  };
+
+  try {
+    assert.deepEqual(await apiFetch<{ ok: boolean }>("/api/v1/overview"), { ok: true });
+    assert.equal(refreshRequests, 2);
+    assert.equal(csrfRequests, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

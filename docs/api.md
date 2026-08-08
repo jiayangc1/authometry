@@ -21,7 +21,7 @@ The web service proxies this path to the private API. Do not point browser integ
 Interactive login issues three cookies:
 
 - `authometry_admin_access` — signed, HTTP-only access JWT with a ten-minute lifetime.
-- `authometry_admin_refresh` — signed, HTTP-only session envelope with a 30-day lifetime.
+- `authometry_admin_refresh` — signed, HTTP-only session envelope with a rolling 30-day lifetime.
 - `authometry_csrf` — readable signed CSRF token.
 
 For state-changing requests, copy the decoded CSRF cookie value to `x-authometry-csrf`. Access and refresh cookies are sent automatically by a same-origin browser.
@@ -84,6 +84,7 @@ These routes are mounted under `/api/v1/auth`. Login and recovery routes are rat
 | GET    | `/auth/invitation?token=...`  | Inspect an account invitation.                                                                         |
 | POST   | `/auth/invitation`            | Accept an invitation and establish the account password.                                               |
 | POST   | `/auth/refresh`               | Renew the short-lived administrative access cookie from the active session.                            |
+| GET    | `/auth/csrf`                  | Restore the CSRF cookie used to renew an otherwise valid browser session.                              |
 | POST   | `/auth/logout`                | Revoke the administrative session and clear cookies.                                                   |
 | GET    | `/auth/me`                    | Return current user, workspace, role, and available workspaces.                                        |
 | POST   | `/auth/switch-workspace`      | Change the workspace encoded in the administrative session.                                            |
