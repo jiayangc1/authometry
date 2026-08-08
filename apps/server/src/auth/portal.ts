@@ -13,6 +13,7 @@ import {
 } from "../lib/crypto.js";
 import { verifyIdentityMfa } from "../lib/identity-mfa.js";
 import { ApiError, asyncRoute } from "../lib/http.js";
+import { identityPasswordSchema, setIdentityUserPassword } from "../lib/identity-password.js";
 import { generateRecoveryCodes, generateTotpSecret, totpSetupUri, verifyTotp } from "../lib/mfa.js";
 import {
   exchangeSocialCode,
@@ -566,7 +567,7 @@ portalRouter.put(
     const input = z
       .object({
         currentPassword: z.string().max(128).optional(),
-        newPassword: z.string().min(12).max(128),
+        newPassword: identityPasswordSchema,
       })
       .parse(request.body);
     const portal = request.portal!;
@@ -583,30 +584,12 @@ portalRouter.put(
       }
     }
     await transaction(async (client) => {
-      await client.query(
-        "UPDATE identity_users SET password_hash = $2, updated_at = now() WHERE id = $1",
-        [portal.id, await hash(input.newPassword, 12)],
-      );
-      const revoked = await client.query<{ refresh_family_id: string | null }>(
-        `UPDATE user_sessions SET status = 'revoked', revoked_at = now()
-         WHERE user_id = $1 AND id <> $2 AND status = 'active'
-         RETURNING refresh_family_id`,
-        [portal.id, portal.session_id],
-      );
-      const familyIds = revoked.rows.flatMap(({ refresh_family_id: familyId }) =>
-        familyId ? [familyId] : [],
-      );
-      if (familyIds.length) {
-        await client.query(
-          `UPDATE refresh_token_families SET status = 'revoked', revoked_reason = 'password_changed'
-           WHERE id = ANY($1::uuid[])`,
-          [familyIds],
-        );
-        await client.query(
-          "UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = ANY($1::uuid[])",
-          [familyIds],
-        );
-      }
+      await setIdentityUserPassword(client, {
+        userId: portal.id,
+        passwordHash: await hash(input.newPassword, 12),
+        exceptSessionId: portal.session_id,
+        revokedReason: "password_changed",
+      });
     });
     response.status(204).end();
   }),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppWindow, ChevronRight, Trash2, Users } from "lucide-react";
+import { AppWindow, ChevronRight, KeyRound, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
@@ -11,6 +11,7 @@ import { FullDateTime, RelativeTime } from "@/components/data-display/formatted-
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
 import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
+import { ResetUserPasswordDialog } from "@/components/users/reset-user-password-dialog";
 import { apiFetch } from "@/lib/api";
 
 interface UserDetail {
@@ -57,6 +58,7 @@ export default function UserDetailPage() {
   const router = useRouter();
   const client = useQueryClient();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
   const query = useQuery({
     queryKey: ["user", userId],
     queryFn: () => apiFetch<UserDetail>(`/api/v1/users/${userId}`),
@@ -80,6 +82,18 @@ export default function UserDetailPage() {
       toast.success(
         variables.assigned ? "Application access assigned" : "Application access removed",
       );
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const resetPassword = useMutation({
+    mutationFn: (newPassword: string) =>
+      apiFetch(`/api/v1/users/${userId}/password`, {
+        method: "PUT",
+        body: JSON.stringify({ newPassword }),
+      }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ["user", userId] });
+      toast.success("Password reset and active sessions revoked");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -133,9 +147,14 @@ export default function UserDetailPage() {
       </div>
       <PageHeader
         actions={
-          <Button onClick={() => setConfirmingDelete(true)} variant="danger">
-            <Trash2 aria-hidden="true" className="size-3.5" /> Delete User
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => setResettingPassword(true)}>
+              <KeyRound aria-hidden="true" className="size-3.5" /> Reset Password
+            </Button>
+            <Button onClick={() => setConfirmingDelete(true)} variant="danger">
+              <Trash2 aria-hidden="true" className="size-3.5" /> Delete User
+            </Button>
+          </div>
         }
         description={user.email}
         title={user.name}
@@ -258,6 +277,12 @@ export default function UserDetailPage() {
         open={confirmingDelete}
         pendingLabel="Deleting…"
         title={`Delete ${user.email}?`}
+      />
+      <ResetUserPasswordDialog
+        email={user.email}
+        onOpenChange={setResettingPassword}
+        onReset={(newPassword) => resetPassword.mutateAsync(newPassword)}
+        open={resettingPassword}
       />
     </PageContainer>
   );

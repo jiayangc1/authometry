@@ -1,10 +1,11 @@
-import { hash } from "bcryptjs";
+import { compare, hash } from "bcryptjs";
 import { Router } from "express";
 import { z } from "zod";
 import { applicationInputSchema, createApplicationSlug, scopeNameSchema } from "@authometry/domain";
 import { query, transaction } from "../db.js";
 import { hashToken, randomId } from "../lib/crypto.js";
 import { ApiError, asyncRoute } from "../lib/http.js";
+import { identityPasswordSchema, setIdentityUserPassword } from "../lib/identity-password.js";
 import { type IdentityUserLifecycleRow, userLifecycleData } from "../lib/user-lifecycle.js";
 import { auditMutation, requireEnvironment } from "./context.js";
 
@@ -587,6 +588,54 @@ dashboardRouter.get(
       application_assignments: assignments,
       available_applications: availableApplications,
     });
+  }),
+);
+
+dashboardRouter.put(
+  "/users/:userId/password",
+  asyncRoute(async (request, response) => {
+    const input = z.object({ newPassword: identityPasswordSchema }).parse(request.body);
+    const environment = request.environment!;
+    await transaction(async (client) => {
+      const result = await client.query<{
+        id: string;
+        email: string;
+        password_hash: string | null;
+      }>(
+        `SELECT id, email, password_hash FROM identity_users
+         WHERE id = $1 AND workspace_id = $2 FOR UPDATE`,
+        [request.params.userId, environment.workspaceId],
+      );
+      const user = result.rows[0];
+      if (!user) throw new ApiError(404, "user_not_found", "The user was not found.");
+      if (user.password_hash && (await compare(input.newPassword, user.password_hash))) {
+        throw new ApiError(
+          422,
+          "password_unchanged",
+          "Choose a password the user is not already using.",
+        );
+      }
+      await setIdentityUserPassword(client, {
+        userId: user.id,
+        passwordHash: await hash(input.newPassword, 12),
+        revokedReason: "password_reset_by_admin",
+      });
+      await client.query(
+        `INSERT INTO audit_events
+          (workspace_id, environment_id, category, severity, event_type, summary, actor_type,
+           actor_id, actor_name, resource_type, resource_id)
+         VALUES ($1,$2,'user','warning','user.password_reset',$3,'admin',$4,$5,'user',$6)`,
+        [
+          environment.workspaceId,
+          environment.id,
+          `${user.email} password reset by administrator`,
+          request.admin!.userId,
+          request.admin!.email,
+          user.id,
+        ],
+      );
+    });
+    response.status(204).end();
   }),
 );
 
