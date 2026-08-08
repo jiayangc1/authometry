@@ -2,12 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import request from "supertest";
 import { createApp } from "../index.js";
+import { socialCallbackUri } from "../lib/social.js";
 import { createPortalLaunchUrl } from "./portal.js";
 
 await test("employee portal reports configured social providers", async () => {
   const response = await request(createApp()).get("/api/v1/portal/auth/providers").expect(200);
 
   assert.deepEqual(response.body, { google: false, github: false });
+});
+
+await test("employee portal reuses the registered provider callback", () => {
+  assert.equal(
+    socialCallbackUri("google"),
+    "http://localhost:3000/api/v1/authorize/social/google/callback",
+  );
 });
 
 await test("employee portal identity routes require a resource-owner session", async () => {

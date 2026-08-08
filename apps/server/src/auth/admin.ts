@@ -20,6 +20,7 @@ import { sendEmail } from "../lib/email.js";
 import {
   exchangeSocialCode,
   socialAuthorizationUrl,
+  socialCallbackUri,
   socialProviderConfigured,
   type SocialProvider,
 } from "../lib/social.js";
@@ -251,8 +252,7 @@ async function createAdminSocialAuthorization(
   const state = randomToken(32);
   const nonce = randomToken(24);
   const verifier = randomToken(48);
-  // Keep the callback shared with application sign-in so existing provider registrations remain valid.
-  const redirectUri = `${env.PUBLIC_ORIGIN}/api/v1/authorize/social/${provider}/callback`;
+  const redirectUri = socialCallbackUri(provider);
   const target = socialAuthorizationUrl(
     provider,
     redirectUri,

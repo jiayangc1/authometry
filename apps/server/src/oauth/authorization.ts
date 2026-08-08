@@ -2,6 +2,7 @@ import { compare } from "bcryptjs";
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { completeAdminSocialLogin, optionalAdmin, requireCsrf } from "../auth/admin.js";
+import { completePortalSocialLogin } from "../auth/portal.js";
 import { env } from "../env.js";
 import { query, transaction } from "../db.js";
 import {
@@ -15,7 +16,7 @@ import {
 import { ApiError, asyncRoute } from "../lib/http.js";
 import { verifyIdentityMfa } from "../lib/identity-mfa.js";
 import { evaluateAll } from "../lib/policy.js";
-import { exchangeSocialCode, socialAuthorizationUrl } from "../lib/social.js";
+import { exchangeSocialCode, socialAuthorizationUrl, socialCallbackUri } from "../lib/social.js";
 import { TraceRecorder } from "../lib/trace.js";
 import { assertApplicationRoute, findApplicationByClientId } from "./common.js";
 import { mcpResourceForIssuer, resourceIndicatorsMatch } from "./resources.js";
@@ -1253,7 +1254,7 @@ authorizeApiRouter.get(
     const state = randomToken(32);
     const nonce = randomToken(24);
     const verifier = randomToken(48);
-    const redirectUri = `${env.PUBLIC_ORIGIN}/api/v1/authorize/social/${provider}/callback`;
+    const redirectUri = socialCallbackUri(provider);
     const target = socialAuthorizationUrl(
       provider,
       redirectUri,
@@ -1290,6 +1291,9 @@ authorizeApiRouter.get(
       .object({ code: z.string().min(1), state: z.string().min(1) })
       .parse(request.query);
     if (await completeAdminSocialLogin(request, response, provider, input.code, input.state)) {
+      return;
+    }
+    if (await completePortalSocialLogin(request, response, provider, input.code, input.state)) {
       return;
     }
     const stateResult = await transaction(async (client) => {

@@ -17,6 +17,10 @@ export function socialProviderConfigured(provider: SocialProvider): boolean {
     : Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET);
 }
 
+export function socialCallbackUri(provider: SocialProvider): string {
+  return `${env.PUBLIC_ORIGIN}/api/v1/authorize/social/${provider}/callback`;
+}
+
 export function socialAuthorizationUrl(
   provider: SocialProvider,
   redirectUri: string,

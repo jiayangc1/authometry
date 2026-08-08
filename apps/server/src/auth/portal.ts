@@ -18,6 +18,7 @@ import { generateRecoveryCodes, generateTotpSecret, totpSetupUri, verifyTotp } f
 import {
   exchangeSocialCode,
   socialAuthorizationUrl,
+  socialCallbackUri,
   socialProviderConfigured,
   type SocialProvider,
 } from "../lib/social.js";
@@ -318,7 +319,8 @@ portalRouter.get(
     const state = randomToken(32);
     const nonce = randomToken(24);
     const verifier = randomToken(48);
-    const redirectUri = `${env.PUBLIC_ORIGIN}/api/v1/portal/auth/social/${provider}/callback`;
+    // All social flows share the provider callback registered for this deployment.
+    const redirectUri = socialCallbackUri(provider);
     const returnTo = safePortalReturn(request.query.return_to);
     await query(
       `INSERT INTO portal_social_login_states
@@ -349,6 +351,133 @@ portalRouter.get(
   }),
 );
 
+export async function completePortalSocialLogin(
+  request: Request,
+  response: Response,
+  provider: SocialProvider,
+  code: string,
+  stateToken: string,
+): Promise<boolean> {
+  const state = await transaction(async (client) => {
+    const result = await client.query<{
+      id: string;
+      workspace_id: string;
+      user_id: string | null;
+      intent: "login" | "link";
+      nonce_encrypted: string;
+      code_verifier_encrypted: string;
+      redirect_uri: string;
+      return_to: string;
+    }>(
+      `SELECT id, workspace_id, user_id, intent, nonce_encrypted, code_verifier_encrypted,
+                redirect_uri, return_to
+         FROM portal_social_login_states
+         WHERE state_hash = $1 AND provider = $2 AND consumed_at IS NULL AND expires_at > now()
+         FOR UPDATE`,
+      [hashToken(stateToken), provider],
+    );
+    const stored = result.rows[0];
+    if (!stored) return undefined;
+    await client.query("UPDATE portal_social_login_states SET consumed_at = now() WHERE id = $1", [
+      stored.id,
+    ]);
+    return stored;
+  });
+  if (!state) return false;
+  const profile = await exchangeSocialCode(
+    provider,
+    code,
+    state.redirect_uri,
+    decrypt(state.code_verifier_encrypted),
+    decrypt(state.nonce_encrypted),
+  );
+  if (!profile.emailVerified) {
+    throw new ApiError(
+      401,
+      "unverified_social_email",
+      "The provider email address is not verified.",
+    );
+  }
+  if (state.intent === "link") {
+    if (!state.user_id)
+      throw new ApiError(401, "invalid_social_state", "The social account link has no user.");
+    await transaction(async (client) => {
+      const conflict = await client.query<{ user_id: string }>(
+        `SELECT user_id FROM social_identities
+           WHERE workspace_id = $1 AND provider = $2 AND provider_subject = $3`,
+        [state.workspace_id, provider, profile.subject],
+      );
+      if (conflict.rows[0] && conflict.rows[0].user_id !== state.user_id) {
+        throw new ApiError(
+          409,
+          "social_identity_in_use",
+          `This ${provider} account is linked to another user.`,
+        );
+      }
+      const existingProvider = await client.query<{ provider_subject: string }>(
+        `SELECT provider_subject FROM social_identities
+           WHERE workspace_id = $1 AND user_id = $2 AND provider = $3
+           ORDER BY created_at LIMIT 1`,
+        [state.workspace_id, state.user_id, provider],
+      );
+      if (
+        existingProvider.rows[0] &&
+        existingProvider.rows[0].provider_subject !== profile.subject
+      ) {
+        throw new ApiError(
+          409,
+          "social_provider_already_linked",
+          `A different ${provider} account is already connected. Disconnect it first.`,
+        );
+      }
+      await client.query(
+        `INSERT INTO social_identities
+            (workspace_id, user_id, provider, provider_subject, provider_email)
+           VALUES ($1,$2,$3,$4,$5)
+           ON CONFLICT (workspace_id, provider, provider_subject)
+           DO UPDATE SET provider_email = EXCLUDED.provider_email`,
+        [state.workspace_id, state.user_id, provider, profile.subject, profile.email],
+      );
+    });
+    response.redirect(state.return_to);
+    return true;
+  }
+  const [identity] = await query<{
+    user_id: string;
+    workspace_id: string;
+    environment_id: string;
+    session_lifetime_seconds: number;
+    status: string;
+  }>(
+    `SELECT u.id AS user_id, u.workspace_id, e.id AS environment_id,
+              ws.session_lifetime_seconds, u.status
+       FROM social_identities s
+       JOIN identity_users u ON u.id = s.user_id
+       JOIN workspace_settings ws ON ws.workspace_id = u.workspace_id
+       JOIN environments e ON e.workspace_id = u.workspace_id AND e.is_default = true AND e.status = 'active'
+       WHERE s.workspace_id = $1 AND s.provider = $2 AND s.provider_subject = $3`,
+    [state.workspace_id, provider, profile.subject],
+  );
+  if (!identity || identity.status !== "active") {
+    throw new ApiError(
+      401,
+      "social_account_not_linked",
+      "Link this social account from the portal before using it to sign in.",
+    );
+  }
+  await createPortalSession(request, response, {
+    userId: identity.user_id,
+    workspaceId: identity.workspace_id,
+    environmentId: identity.environment_id,
+    lifetimeSeconds: identity.session_lifetime_seconds,
+  });
+  await query("UPDATE identity_users SET last_authenticated_at = now() WHERE id = $1", [
+    identity.user_id,
+  ]);
+  response.redirect(state.return_to);
+  return true;
+}
+
 portalRouter.get(
   "/auth/social/:provider/callback",
   asyncRoute(async (request, response) => {
@@ -356,128 +485,13 @@ portalRouter.get(
     const input = z
       .object({ code: z.string().min(1), state: z.string().min(1) })
       .parse(request.query);
-    const state = await transaction(async (client) => {
-      const result = await client.query<{
-        id: string;
-        workspace_id: string;
-        user_id: string | null;
-        intent: "login" | "link";
-        nonce_encrypted: string;
-        code_verifier_encrypted: string;
-        redirect_uri: string;
-        return_to: string;
-      }>(
-        `SELECT id, workspace_id, user_id, intent, nonce_encrypted, code_verifier_encrypted,
-                redirect_uri, return_to
-         FROM portal_social_login_states
-         WHERE state_hash = $1 AND provider = $2 AND consumed_at IS NULL AND expires_at > now()
-         FOR UPDATE`,
-        [hashToken(input.state), provider],
-      );
-      const stored = result.rows[0];
-      if (!stored)
-        throw new ApiError(
-          401,
-          "invalid_social_state",
-          "The social login link is invalid or expired.",
-        );
-      await client.query(
-        "UPDATE portal_social_login_states SET consumed_at = now() WHERE id = $1",
-        [stored.id],
-      );
-      return stored;
-    });
-    const profile = await exchangeSocialCode(
-      provider,
-      input.code,
-      state.redirect_uri,
-      decrypt(state.code_verifier_encrypted),
-      decrypt(state.nonce_encrypted),
-    );
-    if (!profile.emailVerified) {
+    if (!(await completePortalSocialLogin(request, response, provider, input.code, input.state))) {
       throw new ApiError(
         401,
-        "unverified_social_email",
-        "The provider email address is not verified.",
+        "invalid_social_state",
+        "The social login link is invalid or expired.",
       );
     }
-    if (state.intent === "link") {
-      if (!state.user_id)
-        throw new ApiError(401, "invalid_social_state", "The social account link has no user.");
-      await transaction(async (client) => {
-        const conflict = await client.query<{ user_id: string }>(
-          `SELECT user_id FROM social_identities
-           WHERE workspace_id = $1 AND provider = $2 AND provider_subject = $3`,
-          [state.workspace_id, provider, profile.subject],
-        );
-        if (conflict.rows[0] && conflict.rows[0].user_id !== state.user_id) {
-          throw new ApiError(
-            409,
-            "social_identity_in_use",
-            `This ${provider} account is linked to another user.`,
-          );
-        }
-        const existingProvider = await client.query<{ provider_subject: string }>(
-          `SELECT provider_subject FROM social_identities
-           WHERE workspace_id = $1 AND user_id = $2 AND provider = $3
-           ORDER BY created_at LIMIT 1`,
-          [state.workspace_id, state.user_id, provider],
-        );
-        if (
-          existingProvider.rows[0] &&
-          existingProvider.rows[0].provider_subject !== profile.subject
-        ) {
-          throw new ApiError(
-            409,
-            "social_provider_already_linked",
-            `A different ${provider} account is already connected. Disconnect it first.`,
-          );
-        }
-        await client.query(
-          `INSERT INTO social_identities
-            (workspace_id, user_id, provider, provider_subject, provider_email)
-           VALUES ($1,$2,$3,$4,$5)
-           ON CONFLICT (workspace_id, provider, provider_subject)
-           DO UPDATE SET provider_email = EXCLUDED.provider_email`,
-          [state.workspace_id, state.user_id, provider, profile.subject, profile.email],
-        );
-      });
-      response.redirect(state.return_to);
-      return;
-    }
-    const [identity] = await query<{
-      user_id: string;
-      workspace_id: string;
-      environment_id: string;
-      session_lifetime_seconds: number;
-      status: string;
-    }>(
-      `SELECT u.id AS user_id, u.workspace_id, e.id AS environment_id,
-              ws.session_lifetime_seconds, u.status
-       FROM social_identities s
-       JOIN identity_users u ON u.id = s.user_id
-       JOIN workspace_settings ws ON ws.workspace_id = u.workspace_id
-       JOIN environments e ON e.workspace_id = u.workspace_id AND e.is_default = true AND e.status = 'active'
-       WHERE s.workspace_id = $1 AND s.provider = $2 AND s.provider_subject = $3`,
-      [state.workspace_id, provider, profile.subject],
-    );
-    if (!identity || identity.status !== "active") {
-      throw new ApiError(
-        401,
-        "social_account_not_linked",
-        "Link this social account from the portal before using it to sign in.",
-      );
-    }
-    await createPortalSession(request, response, {
-      userId: identity.user_id,
-      workspaceId: identity.workspace_id,
-      environmentId: identity.environment_id,
-      lifetimeSeconds: identity.session_lifetime_seconds,
-    });
-    await query("UPDATE identity_users SET last_authenticated_at = now() WHERE id = $1", [
-      identity.user_id,
-    ]);
-    response.redirect(state.return_to);
   }),
 );
 
