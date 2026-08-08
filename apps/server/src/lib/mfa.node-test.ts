@@ -9,6 +9,11 @@ await test("TOTP generation follows the RFC 6238 SHA-1 test vector", () => {
   assert.equal(verifyTotp(secret, "000000", 59_000), false);
 });
 
+await test("TOTP secrets reject invalid base32 characters instead of silently deleting them", () => {
+  assert.throws(() => totpCode("JBSWY3DP!EHPK3PXP"), /malformed/);
+  assert.doesNotThrow(() => totpCode("JBSW Y3DP-EHPK3PXP"));
+});
+
 await test("TOTP setup URIs identify the workspace and account", () => {
   const uri = new URL(totpSetupUri("ABC234", "person@example.com", "Acme Workspace"));
   assert.equal(uri.protocol, "otpauth:");

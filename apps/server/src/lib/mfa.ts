@@ -14,7 +14,10 @@ function base32Encode(value: Buffer): string {
 }
 
 function base32Decode(value: string): Buffer {
-  const normalized = value.toUpperCase().replaceAll(/[^A-Z2-7]/g, "");
+  const normalized = value.toUpperCase().replaceAll(/[\s-]/g, "");
+  if (!normalized || !/^[A-Z2-7]+$/.test(normalized)) {
+    throw new Error("The TOTP secret is malformed.");
+  }
   let bits = "";
   for (const character of normalized) {
     const index = alphabet.indexOf(character);

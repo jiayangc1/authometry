@@ -12,24 +12,32 @@ export const scopeNameSchema = z
   .max(128)
   .regex(/^[a-z0-9][a-z0-9:._-]*$/, "Scope names cannot contain spaces.");
 
-export const redirectUriSchema = z.string().superRefine((value, context) => {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    context.addIssue({ code: "custom", message: "Enter a valid absolute URI." });
-    return;
-  }
+export const redirectUriSchema = z
+  .string()
+  .trim()
+  .max(2048)
+  .superRefine((value, context) => {
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      context.addIssue({ code: "custom", message: "Enter a valid absolute URI." });
+      return;
+    }
 
-  if (url.hash) {
-    context.addIssue({ code: "custom", message: "Redirect URIs cannot include fragments." });
-  }
+    if (url.hash) {
+      context.addIssue({ code: "custom", message: "Redirect URIs cannot include fragments." });
+    }
 
-  const localhost = ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
-  if (url.protocol !== "https:" && !(localhost && url.protocol === "http:")) {
-    context.addIssue({ code: "custom", message: "Use HTTPS unless the host is localhost." });
-  }
-});
+    if (url.username || url.password) {
+      context.addIssue({ code: "custom", message: "Redirect URIs cannot contain credentials." });
+    }
+
+    const localhost = ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+    if (url.protocol !== "https:" && !(localhost && url.protocol === "http:")) {
+      context.addIssue({ code: "custom", message: "Use HTTPS unless the host is localhost." });
+    }
+  });
 
 export const applicationLogoUriSchema = z
   .string()
@@ -53,15 +61,50 @@ export const applicationLogoUriSchema = z
     }
   });
 
-export const applicationInputSchema = z.object({
-  name: z.string().trim().min(2).max(100),
-  slug: slugSchema,
-  type: z.enum(["web", "spa", "native", "machine", "device"]),
-  description: z.string().trim().max(500).optional(),
-  logoUri: applicationLogoUriSchema.optional(),
-  redirectUris: z.array(redirectUriSchema).max(25),
-  postLogoutRedirectUris: z.array(redirectUriSchema).max(25).default([]),
-  allowedScopes: z.array(scopeNameSchema).min(1).max(100).optional(),
+const uniqueStrings = <T extends z.ZodType<string>>(schema: T, maximum: number) =>
+  z
+    .array(schema)
+    .max(maximum)
+    .refine(
+      (values) => new Set(values).size === values.length,
+      "Duplicate values are not allowed.",
+    );
+
+const applicationTypeSchema = z.enum(["web", "spa", "native", "machine", "device"]);
+
+export const applicationInputSchema = z
+  .object({
+    name: z.string().trim().min(2).max(100),
+    slug: slugSchema,
+    type: applicationTypeSchema,
+    description: z.string().trim().max(500).optional(),
+    logoUri: applicationLogoUriSchema.optional(),
+    redirectUris: uniqueStrings(redirectUriSchema, 25),
+    postLogoutRedirectUris: uniqueStrings(redirectUriSchema, 25).default([]),
+    allowedScopes: uniqueStrings(scopeNameSchema, 100).min(1).optional(),
+  })
+  .superRefine((value, context) => {
+    if (["web", "spa", "native"].includes(value.type) && value.redirectUris.length === 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["redirectUris"],
+        message: `A ${value.type} application requires at least one redirect URI.`,
+      });
+    }
+  });
+
+export const applicationUpdateSchema = z.object({
+  name: z.string().trim().min(2).max(100).optional(),
+  description: z.string().trim().max(500).nullable().optional(),
+  logoUri: applicationLogoUriSchema.nullable().optional(),
+  redirectUris: uniqueStrings(redirectUriSchema, 25).optional(),
+  postLogoutRedirectUris: uniqueStrings(redirectUriSchema, 25).optional(),
+  requirePkce: z.boolean().optional(),
+  requireConsent: z.boolean().optional(),
+  allowedScopes: uniqueStrings(scopeNameSchema, 100).optional(),
+  portalEnabled: z.boolean().optional(),
+  launchUri: applicationLogoUriSchema.nullable().optional(),
+  version: z.number().int().positive(),
 });
 
 export function createApplicationSlug(name: string): string {

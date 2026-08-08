@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { redirectUriSchema } from "@authometry/domain";
 import { query, transaction } from "../db.js";
 import { randomId } from "../lib/crypto.js";
 import { ApiError, asyncRoute } from "../lib/http.js";
@@ -27,7 +28,7 @@ const agentInputSchema = z.object({
   displayName: z.string().min(2).max(120),
   operatorId: z.string().min(2).max(160),
   publicJwk: jwkSchema,
-  redirectUris: z.array(z.string().url()).min(1).max(25),
+  redirectUris: z.array(redirectUriSchema).min(1).max(25),
   capabilities: z.array(z.string().min(1)).min(1).max(100),
   allowedResources: z.array(z.string().url()).min(1).max(50),
   mayReceiveDelegation: z.boolean().default(true),

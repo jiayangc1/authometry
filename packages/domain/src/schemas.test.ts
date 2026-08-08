@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applicationInputSchema,
+  applicationUpdateSchema,
   createApplicationSlug,
   redirectUriSchema,
   scopeNameSchema,
@@ -15,6 +16,18 @@ describe("management schemas", () => {
   it("rejects insecure public and fragment-bearing redirects", () => {
     expect(redirectUriSchema.safeParse("http://client.example/callback").success).toBe(false);
     expect(redirectUriSchema.safeParse("https://client.example/callback#fragment").success).toBe(
+      false,
+    );
+  });
+
+  it("normalizes redirects and rejects embedded credentials or excessive values", () => {
+    expect(redirectUriSchema.parse("  https://client.example/callback  ")).toBe(
+      "https://client.example/callback",
+    );
+    expect(redirectUriSchema.safeParse("https://user:secret@client.example/callback").success).toBe(
+      false,
+    );
+    expect(redirectUriSchema.safeParse(`https://client.example/${"a".repeat(2048)}`).success).toBe(
       false,
     );
   });
@@ -34,6 +47,42 @@ describe("management schemas", () => {
         slug: "portal",
         type: "spa",
         redirectUris: ["javascript:alert(1)"],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires callbacks for interactive applications and rejects duplicate configuration", () => {
+    const base = { name: "Portal", slug: "portal", type: "web" as const };
+    expect(applicationInputSchema.safeParse({ ...base, redirectUris: [] }).success).toBe(false);
+    expect(
+      applicationInputSchema.safeParse({
+        ...base,
+        redirectUris: ["https://client.example/callback", "https://client.example/callback"],
+      }).success,
+    ).toBe(false);
+    expect(
+      applicationInputSchema.safeParse({
+        ...base,
+        redirectUris: ["https://client.example/callback"],
+        allowedScopes: ["openid", "openid"],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("uses the same secure redirect and normalized text rules for updates", () => {
+    const update = applicationUpdateSchema.parse({
+      version: 1,
+      name: "  Customer Portal  ",
+      description: "  Sign in here  ",
+      redirectUris: [" https://client.example/callback "],
+    });
+    expect(update.name).toBe("Customer Portal");
+    expect(update.description).toBe("Sign in here");
+    expect(update.redirectUris).toEqual(["https://client.example/callback"]);
+    expect(
+      applicationUpdateSchema.safeParse({
+        version: 1,
+        postLogoutRedirectUris: ["http://public.example/logout"],
       }).success,
     ).toBe(false);
   });

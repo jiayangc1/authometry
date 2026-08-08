@@ -1,7 +1,12 @@
 import { compare, hash } from "bcryptjs";
 import { Router } from "express";
 import { z } from "zod";
-import { applicationInputSchema, createApplicationSlug, scopeNameSchema } from "@authometry/domain";
+import {
+  applicationInputSchema,
+  applicationUpdateSchema,
+  createApplicationSlug,
+  scopeNameSchema,
+} from "@authometry/domain";
 import { query, transaction } from "../db.js";
 import { hashToken, randomId } from "../lib/crypto.js";
 import { ApiError, asyncRoute } from "../lib/http.js";
@@ -243,20 +248,8 @@ dashboardRouter.get(
 dashboardRouter.patch(
   "/applications/:applicationId",
   asyncRoute(async (request, response) => {
-    const input = z
-      .object({
-        name: z.string().min(2).max(100).optional(),
-        description: z.string().max(500).nullable().optional(),
-        logoUri: applicationInputSchema.shape.logoUri.nullable().optional(),
-        redirectUris: z.array(z.string().url()).max(25).optional(),
-        postLogoutRedirectUris: z.array(z.string().url()).max(25).optional(),
-        requirePkce: z.boolean().optional(),
-        requireConsent: z.boolean().optional(),
-        allowedScopes: z.array(scopeNameSchema).optional(),
-        portalEnabled: z.boolean().optional(),
-        launchUri: launchUriSchema.nullable().optional(),
-        version: z.number().int().positive(),
-      })
+    const input = applicationUpdateSchema
+      .extend({ launchUri: launchUriSchema.nullable().optional() })
       .parse(request.body);
     const [existing] = await query<{
       ownership: string;
