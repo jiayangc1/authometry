@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@authometry/ui";
 import { inputClass } from "@/components/auth/auth-shell";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
+import { GroupChipInput } from "@/components/users/group-chip-input";
 import { apiFetch } from "@/lib/api";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
@@ -13,19 +14,12 @@ export default function NewUserPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [groups, setGroups] = useState<string[]>([]);
   useUnsavedChanges(dirty && !loading);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     const data = new FormData(event.currentTarget);
-    const groupValue = data.get("groups");
-    const groups =
-      typeof groupValue === "string"
-        ? groupValue
-            .split(",")
-            .map((value) => value.trim())
-            .filter(Boolean)
-        : [];
     try {
       const user = await apiFetch<{ id: string }>("/api/v1/users", {
         method: "POST",
@@ -82,15 +76,20 @@ export default function NewUserPage() {
                 Share through a secure channel and require the user to reset it.
               </span>
             </label>
-            <label>
+            <div>
               <span className="mb-1.5 block text-xs font-medium">Groups</span>
-              <input
-                autoComplete="off"
-                className={inputClass}
-                name="groups"
-                placeholder="engineering, admin…"
+              <GroupChipInput
+                disabled={loading}
+                groups={groups}
+                onChange={(nextGroups) => {
+                  setGroups(nextGroups);
+                  setDirty(true);
+                }}
               />
-            </label>
+              <span className="mt-1.5 block text-xs text-[var(--text-tertiary)]">
+                Type a group name and press Enter. Select a bubble’s × to remove it.
+              </span>
+            </div>
           </div>
         </section>
         <div className="flex justify-end gap-2">

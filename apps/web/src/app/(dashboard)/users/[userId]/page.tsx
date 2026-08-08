@@ -12,7 +12,7 @@ import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
 import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { ResetUserPasswordDialog } from "@/components/users/reset-user-password-dialog";
-import { inputClass } from "@/components/auth/auth-shell";
+import { GroupChipInput } from "@/components/users/group-chip-input";
 import { apiFetch } from "@/lib/api";
 
 interface UserDetail {
@@ -62,7 +62,7 @@ export default function UserDetailPage() {
   const client = useQueryClient();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
-  const [groupValue, setGroupValue] = useState<string>();
+  const [groupValues, setGroupValues] = useState<string[]>();
   const query = useQuery({
     queryKey: ["user", userId],
     queryFn: () => apiFetch<UserDetail>(`/api/v1/users/${userId}`),
@@ -108,7 +108,7 @@ export default function UserDetailPage() {
         body: JSON.stringify({ groups }),
       }),
     onSuccess: async ({ groups }) => {
-      setGroupValue(groups.join(", "));
+      setGroupValues(groups);
       await Promise.all([
         client.invalidateQueries({ queryKey: ["user", userId] }),
         client.invalidateQueries({ queryKey: ["users"] }),
@@ -196,30 +196,24 @@ export default function UserDetailPage() {
             className="mt-5"
             onSubmit={(event) => {
               event.preventDefault();
-              const groups = (groupValue ?? user.groups.join(", "))
-                .split(",")
-                .map((group) => group.trim())
-                .filter(Boolean);
-              updateGroups.mutate(groups);
+              updateGroups.mutate(groupValues ?? user.groups);
             }}
           >
-            <label>
+            <div>
               <span className="mb-1.5 block text-xs font-medium">Groups</span>
               <span className="flex gap-2">
-                <input
-                  autoComplete="off"
-                  className={inputClass}
-                  onChange={(event) => setGroupValue(event.target.value)}
-                  placeholder="engineering, admin…"
-                  value={groupValue ?? user.groups.join(", ")}
+                <GroupChipInput
+                  disabled={updateGroups.isPending}
+                  groups={groupValues ?? user.groups}
+                  onChange={setGroupValues}
                 />
                 <Button disabled={updateGroups.isPending} type="submit" variant="secondary">
                   {updateGroups.isPending ? "Saving…" : "Save"}
                 </Button>
               </span>
-            </label>
+            </div>
             <p className="mt-1.5 text-xs text-[var(--text-tertiary)]">
-              Separate group names with commas. Group portal access applies immediately.
+              Type a group name and press Enter. Group portal access applies after you save.
             </p>
           </form>
         </section>
