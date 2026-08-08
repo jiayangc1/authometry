@@ -143,9 +143,71 @@ async function createSession(
   response.cookie(csrfCookie, createCsrfToken(), csrfCookieOptions());
 }
 
+interface AdminRefreshSession {
+  sessionId: string;
+  token: string;
+  userId: string;
+  email: string;
+  workspaceId: string;
+  role: string;
+}
+
+async function readAdminRefreshSession(request: Request): Promise<AdminRefreshSession | undefined> {
+  const envelope = request.cookies[refreshCookie] as string | undefined;
+  if (!envelope) return undefined;
+
+  let sessionId: string;
+  let token: string;
+  try {
+    ({ sessionId, token } = await verifyAdminRefreshEnvelope(envelope));
+  } catch {
+    return undefined;
+  }
+
+  const [session] = await query<{
+    admin_user_id: string;
+    workspace_id: string;
+    token_hash: string;
+    email: string;
+    role: string;
+  }>(
+    `SELECT s.admin_user_id, s.workspace_id, s.token_hash, u.email, m.role
+     FROM admin_refresh_sessions s
+     JOIN admin_users u ON u.id = s.admin_user_id AND u.disabled_at IS NULL
+     JOIN workspace_memberships m ON m.workspace_id = s.workspace_id AND m.admin_user_id = s.admin_user_id
+     WHERE s.id = $1 AND s.rotated_at IS NULL AND s.revoked_at IS NULL AND s.expires_at > now()`,
+    [sessionId],
+  );
+  if (!session || !constantTimeEqual(session.token_hash, hashToken(token))) return undefined;
+
+  return {
+    sessionId,
+    token,
+    userId: session.admin_user_id,
+    email: session.email,
+    workspaceId: session.workspace_id,
+    role: session.role,
+  };
+}
+
+async function renewAdminSession(response: Response, session: AdminRefreshSession): Promise<void> {
+  await query(
+    "UPDATE admin_refresh_sessions SET expires_at = now() + interval '30 days' WHERE id = $1",
+    [session.sessionId],
+  );
+  await issueAdminAccessCookie(response, {
+    id: session.userId,
+    email: session.email,
+    workspaceId: session.workspaceId,
+    role: session.role,
+  });
+  const refresh = await signAdminRefreshEnvelope(session.sessionId, session.token);
+  response.cookie(refreshCookie, refresh, cookieOptions(sessionMaxAge));
+}
+
 export async function requireAdmin(
   request: Request,
-  _response: Response,
+  response: Response,
   next: (error?: unknown) => void,
 ) {
   try {
@@ -182,30 +244,48 @@ export async function requireAdmin(
     }
 
     const access = request.cookies[accessCookie] as string | undefined;
-    if (!access) throw new ApiError(401, "authentication_required", "Sign in to continue.");
-    const claims = await verifyAdminAccessToken(access);
-    if (!claims.sub) throw new ApiError(401, "invalid_session", "The session is invalid.");
+    if (access) {
+      try {
+        const claims = await verifyAdminAccessToken(access);
+        if (claims.sub) {
+          request.admin = {
+            userId: claims.sub,
+            email: claims.email,
+            workspaceId: claims.workspaceId,
+            role: claims.role,
+          };
+          next();
+          return;
+        }
+      } catch {
+        // A missing or expired access cookie can be recovered from the stable dashboard session.
+      }
+    }
+
+    const session = await readAdminRefreshSession(request);
+    if (!session) {
+      clearAdminSession(response);
+      throw new ApiError(401, "authentication_required", "Sign in to continue.");
+    }
+    await renewAdminSession(response, session);
     request.admin = {
-      userId: claims.sub,
-      email: claims.email,
-      workspaceId: claims.workspaceId,
-      role: claims.role,
+      userId: session.userId,
+      email: session.email,
+      workspaceId: session.workspaceId,
+      role: session.role,
     };
     next();
   } catch (error) {
-    next(
-      error instanceof ApiError
-        ? error
-        : new ApiError(401, "invalid_session", "The session is invalid or expired."),
-    );
+    next(error instanceof Error ? error : new Error("Admin authentication failed."));
   }
 }
 
 export function optionalAdmin(
   request: Request,
+  response: Response,
 ): Promise<NonNullable<Request["admin"]> | undefined> {
   return new Promise((resolve, reject) => {
-    void requireAdmin(request, {} as Response, (error?: unknown) => {
+    void requireAdmin(request, response, (error?: unknown) => {
       if (
         error instanceof ApiError &&
         ["authentication_required", "invalid_session"].includes(error.code)
@@ -799,52 +879,12 @@ adminAuthRouter.post(
   "/refresh",
   requireCsrf,
   asyncRoute(async (request, response) => {
-    const envelope = request.cookies[refreshCookie] as string | undefined;
-    if (!envelope) {
-      clearAdminSession(response);
-      throw new ApiError(401, "refresh_required", "Sign in to continue.");
-    }
-
-    let sessionId: string;
-    let token: string;
-    try {
-      ({ sessionId, token } = await verifyAdminRefreshEnvelope(envelope));
-    } catch {
+    const session = await readAdminRefreshSession(request);
+    if (!session) {
       clearAdminSession(response);
       throw new ApiError(401, "invalid_refresh", "The session is invalid or expired.");
     }
-
-    const [session] = await query<{
-      admin_user_id: string;
-      workspace_id: string;
-      token_hash: string;
-      email: string;
-      role: string;
-    }>(
-      `SELECT s.admin_user_id, s.workspace_id, s.token_hash, u.email, m.role
-       FROM admin_refresh_sessions s
-       JOIN admin_users u ON u.id = s.admin_user_id AND u.disabled_at IS NULL
-       JOIN workspace_memberships m ON m.workspace_id = s.workspace_id AND m.admin_user_id = s.admin_user_id
-       WHERE s.id = $1 AND s.rotated_at IS NULL AND s.revoked_at IS NULL AND s.expires_at > now()`,
-      [sessionId],
-    );
-    if (!session || !constantTimeEqual(session.token_hash, hashToken(token))) {
-      clearAdminSession(response);
-      throw new ApiError(401, "invalid_refresh", "The session is invalid or expired.");
-    }
-
-    const refresh = await signAdminRefreshEnvelope(sessionId, token);
-    await query(
-      "UPDATE admin_refresh_sessions SET expires_at = now() + interval '30 days' WHERE id = $1",
-      [sessionId],
-    );
-    await issueAdminAccessCookie(response, {
-      id: session.admin_user_id,
-      email: session.email,
-      workspaceId: session.workspace_id,
-      role: session.role,
-    });
-    response.cookie(refreshCookie, refresh, cookieOptions(sessionMaxAge));
+    await renewAdminSession(response, session);
     response.status(204).end();
   }),
 );

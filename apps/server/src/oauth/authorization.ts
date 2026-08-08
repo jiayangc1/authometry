@@ -350,7 +350,7 @@ async function continueMcpAuthorization(
   pending: PendingAuthorizationRow,
   application: OAuthApplicationRow,
 ): Promise<void> {
-  const principal = await optionalAdmin(request);
+  const principal = await optionalAdmin(request, response);
   if (!principal || principal.workspaceId !== application.workspace_id) {
     if (pending.parameters.prompt === "none") {
       response.redirect(oauthRedirect(pending.parameters, "login_required"));
@@ -1433,7 +1433,7 @@ authorizeApiRouter.post(
     let mcpAdmin: McpAdminUser | undefined;
     if (mcpRequest) {
       await enforceAdminCsrf(request, response);
-      const principal = await optionalAdmin(request);
+      const principal = await optionalAdmin(request, response);
       if (
         !principal ||
         principal.workspaceId !== application.workspace_id ||

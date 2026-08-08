@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { Request, Response } from "express";
 import request from "supertest";
 import { createApp } from "../index.js";
+import { requireAdmin } from "./admin.js";
 
 await test("admin login reports configured social providers", async () => {
   const response = await request(createApp()).get("/api/v1/auth/providers").expect(200);
@@ -30,4 +32,20 @@ await test("dashboard social connection changes require an authenticated account
   const response = await request(createApp()).post("/api/v1/auth/connections/google").expect(401);
 
   assert.equal(response.body.error.code, "authentication_required");
+});
+
+await test("admin authentication does not disguise infrastructure failures as logout", async () => {
+  const infrastructureError = new Error("database unavailable");
+  const fakeRequest = {
+    get: () => undefined,
+    get cookies() {
+      throw infrastructureError;
+    },
+  } as unknown as Request;
+
+  const error = await new Promise<unknown>((resolve) => {
+    void requireAdmin(fakeRequest, {} as Response, resolve);
+  });
+
+  assert.equal(error, infrastructureError);
 });
