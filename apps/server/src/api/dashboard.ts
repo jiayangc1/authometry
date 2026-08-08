@@ -21,7 +21,13 @@ const groupNameSchema = z
   .trim()
   .min(1)
   .max(64)
-  .refine((value) => !/[\u0000-\u001f\u007f]/u.test(value), "Group names cannot contain control characters.");
+  .refine(
+    (value) => [...value].every((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      return codePoint >= 32 && codePoint !== 127;
+    }),
+    "Group names cannot contain control characters.",
+  );
 const groupsSchema = z
   .array(groupNameSchema)
   .max(50)
@@ -756,11 +762,7 @@ dashboardRouter.put(
       [request.params.userId, environment.workspaceId, request.params.groupId],
     );
     if (!updated) {
-      throw new ApiError(
-        404,
-        "group_member_target_not_found",
-        "The user or group was not found.",
-      );
+      throw new ApiError(404, "group_member_target_not_found", "The user or group was not found.");
     }
     response.status(204).end();
   }),
@@ -780,11 +782,7 @@ dashboardRouter.delete(
       [request.params.userId, environment.workspaceId, request.params.groupId],
     );
     if (!updated) {
-      throw new ApiError(
-        404,
-        "group_member_target_not_found",
-        "The user or group was not found.",
-      );
+      throw new ApiError(404, "group_member_target_not_found", "The user or group was not found.");
     }
     response.status(204).end();
   }),

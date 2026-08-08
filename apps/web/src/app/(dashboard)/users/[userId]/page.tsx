@@ -213,11 +213,7 @@ export default function UserDetailPage() {
                   placeholder="engineering, admin…"
                   value={groupValue ?? user.groups.join(", ")}
                 />
-                <Button
-                  disabled={updateGroups.isPending}
-                  type="submit"
-                  variant="secondary"
-                >
+                <Button disabled={updateGroups.isPending} type="submit" variant="secondary">
                   {updateGroups.isPending ? "Saving…" : "Save"}
                 </Button>
               </span>
@@ -281,8 +277,8 @@ export default function UserDetailPage() {
                     checked={assigned}
                     disabled={
                       inherited ||
-                      changeApplicationAccess.isPending &&
-                      changeApplicationAccess.variables?.applicationId === application.id
+                      (changeApplicationAccess.isPending &&
+                        changeApplicationAccess.variables?.applicationId === application.id)
                     }
                     onChange={(event) =>
                       changeApplicationAccess.mutate({

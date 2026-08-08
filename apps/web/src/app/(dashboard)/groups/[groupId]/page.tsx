@@ -98,7 +98,9 @@ export default function GroupDetailPage() {
   }
 
   const memberCount = group.data.users.filter((user) => user.assigned).length;
-  const applicationCount = group.data.applications.filter((application) => application.assigned).length;
+  const applicationCount = group.data.applications.filter(
+    (application) => application.assigned,
+  ).length;
 
   return (
     <PageContainer>
