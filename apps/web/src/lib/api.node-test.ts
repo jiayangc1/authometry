@@ -99,3 +99,28 @@ void test("session renewal replaces a missing or stale CSRF cookie", async () =>
     globalThis.fetch = originalFetch;
   }
 });
+
+void test("malformed browser cookies do not crash API requests", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalDocument = globalThis.document;
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: { cookie: "authometry_csrf=%E0%A4%A; authometry_environment=%ZZ" },
+  });
+  globalThis.fetch = async (_input, init) => {
+    const headers = new Headers(init?.headers);
+    assert.equal(headers.has("x-authometry-csrf"), false);
+    assert.equal(headers.has("x-authometry-environment"), false);
+    return Response.json({ ok: true });
+  };
+
+  try {
+    assert.deepEqual(await apiFetch<{ ok: boolean }>("/api/v1/overview"), { ok: true });
+  } finally {
+    globalThis.fetch = originalFetch;
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: originalDocument,
+    });
+  }
+});

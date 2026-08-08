@@ -12,7 +12,12 @@ function cookie(name: string): string | undefined {
 
 export function portalCsrfToken(): string {
   const value = cookie("authometry_portal_csrf");
-  return value ? decodeURIComponent(value) : "";
+  if (!value) return "";
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return "";
+  }
 }
 
 export async function portalApiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {

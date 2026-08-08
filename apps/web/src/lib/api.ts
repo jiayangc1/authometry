@@ -8,6 +8,16 @@ function cookie(name: string): string | undefined {
     .join("=");
 }
 
+function decodedCookie(name: string): string | undefined {
+  const value = cookie(name);
+  if (!value) return undefined;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return undefined;
+  }
+}
+
 export class ApiClientError extends Error {
   constructor(
     readonly status: number,
@@ -26,7 +36,7 @@ async function requestSessionRefresh(csrf: string | undefined): Promise<boolean>
     return fetch("/api/v1/auth/refresh", {
       method: "POST",
       credentials: "include",
-      headers: csrfToken ? { "x-authometry-csrf": decodeURIComponent(csrfToken) } : {},
+      headers: csrfToken ? { "x-authometry-csrf": csrfToken } : {},
     });
   }
 
@@ -51,15 +61,15 @@ function refreshSession(csrf: string | undefined): Promise<boolean> {
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
-  const csrf = cookie("authometry_csrf");
-  const environment = cookie("authometry_environment");
+  const csrf = decodedCookie("authometry_csrf");
+  const environment = decodedCookie("authometry_environment");
   const response = await fetch(path, {
     ...init,
     credentials: "include",
     headers: {
       ...(init.body ? { "content-type": "application/json" } : {}),
-      ...(csrf ? { "x-authometry-csrf": decodeURIComponent(csrf) } : {}),
-      ...(environment ? { "x-authometry-environment": decodeURIComponent(environment) } : {}),
+      ...(csrf ? { "x-authometry-csrf": csrf } : {}),
+      ...(environment ? { "x-authometry-environment": environment } : {}),
       ...init.headers,
     },
   });
