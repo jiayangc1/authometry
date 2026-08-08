@@ -60,6 +60,10 @@ function refreshSession(csrf: string | undefined): Promise<boolean> {
   return refreshPromise;
 }
 
+export function renewDashboardSession(): Promise<boolean> {
+  return refreshSession(decodedCookie("authometry_csrf"));
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
   const csrf = decodedCookie("authometry_csrf");
   const environment = decodedCookie("authometry_environment");
@@ -74,7 +78,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = 
     },
   });
   if (response.status === 401 && retry && !path.includes("/auth/refresh")) {
-    if (await refreshSession(csrf)) return apiFetch<T>(path, init, false);
+    if (await renewDashboardSession()) return apiFetch<T>(path, init, false);
   }
   if (!response.ok) {
     const result = (await response.json().catch(() => undefined)) as

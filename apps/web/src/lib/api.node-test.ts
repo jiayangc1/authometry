@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { apiFetch } from "./api.js";
+import { apiFetch, renewDashboardSession } from "./api.js";
 
 void test("concurrent unauthorized requests share one session refresh", async () => {
   const originalFetch = globalThis.fetch;
@@ -95,6 +95,32 @@ void test("session renewal replaces a missing or stale CSRF cookie", async () =>
     assert.deepEqual(await apiFetch<{ ok: boolean }>("/api/v1/overview"), { ok: true });
     assert.equal(refreshRequests, 2);
     assert.equal(csrfRequests, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+void test("proactive dashboard renewal shares an in-flight refresh", async () => {
+  const originalFetch = globalThis.fetch;
+  let refreshRequests = 0;
+  let releaseRefresh: (() => void) | undefined;
+  const refreshStarted = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+
+  globalThis.fetch = async (input) => {
+    assert.equal(String(input), "/api/v1/auth/refresh");
+    refreshRequests += 1;
+    await refreshStarted;
+    return new Response(null, { status: 204 });
+  };
+
+  try {
+    const renewals = [renewDashboardSession(), renewDashboardSession()];
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(refreshRequests, 1);
+    releaseRefresh?.();
+    assert.deepEqual(await Promise.all(renewals), [true, true]);
   } finally {
     globalThis.fetch = originalFetch;
   }

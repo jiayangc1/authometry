@@ -10,7 +10,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AuthometryLogo, Button, cn } from "@authometry/ui";
 import { navigation, utilityNavigation } from "@/config/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, renewDashboardSession } from "@/lib/api";
 import { SkipLink } from "@/components/layout/skip-link";
 import { CommandMenu } from "./command-menu";
 
@@ -30,6 +30,9 @@ interface EnvironmentResponse {
     is_default: boolean;
   }>;
 }
+
+const sessionRenewalInterval = 8 * 60 * 1000;
+const sessionRenewalCheckInterval = 60 * 1000;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -73,6 +76,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    let lastSuccessfulRenewal = Date.now();
+
+    async function renewIfDue() {
+      if (
+        document.visibilityState === "hidden" ||
+        Date.now() - lastSuccessfulRenewal < sessionRenewalInterval
+      ) {
+        return;
+      }
+      try {
+        if (await renewDashboardSession()) lastSuccessfulRenewal = Date.now();
+      } catch {
+        // A temporary network failure should not end an otherwise valid session.
+      }
+    }
+
+    const interval = window.setInterval(() => void renewIfDue(), sessionRenewalCheckInterval);
+    const onVisibilityChange = () => void renewIfDue();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", onVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onVisibilityChange);
+    };
   }, []);
 
   async function logout() {
