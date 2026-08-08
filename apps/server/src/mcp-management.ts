@@ -329,10 +329,10 @@ export const managementOperations: readonly ManagementOperation[] = [
 
 export const managementOperationInputs: Readonly<Record<string, string>> = {
   "POST /applications":
-    "Body: { name: string, slug: lowercase-hyphenated string, type: web|spa|native|machine|device, description?: string, logoUri?: HTTPS image URL, redirectUris: absolute URI[], postLogoutRedirectUris?: absolute URI[] }.",
+    "Body: { name: string, slug: lowercase-hyphenated string, type: web|spa|native|machine|device, description?: string, logoUri?: HTTPS image URL, redirectUris: absolute URI[], postLogoutRedirectUris?: absolute URI[], portalEnabled?: boolean, launchUri?: OIDC login-initiation URL (defaults to /login on the first redirect URI's origin) }.",
   "POST /applications/slug": "Body: { name: string }.",
   "PATCH /applications/:applicationId":
-    "Body: { version: positive integer, name?: string, description?: string|null, logoUri?: HTTPS image URL|null, redirectUris?: absolute URI[], postLogoutRedirectUris?: absolute URI[], requirePkce?: boolean, requireConsent?: boolean, allowedScopes?: scope name[] }.",
+    "Body: { version: positive integer, name?: string, description?: string|null, logoUri?: HTTPS image URL|null, redirectUris?: absolute URI[], postLogoutRedirectUris?: absolute URI[], requirePkce?: boolean, requireConsent?: boolean, allowedScopes?: scope name[], portalEnabled?: boolean, launchUri?: OIDC login-initiation URL|null }.",
   "DELETE /applications/:applicationId":
     "No body. Permanently deletes a dashboard-owned application and its active sessions, grants, tokens, and credentials.",
   "POST /applications/:applicationId/credentials":

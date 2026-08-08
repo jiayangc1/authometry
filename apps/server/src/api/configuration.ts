@@ -129,6 +129,8 @@ function rowToManifest(row: ResourceRow): AuthometryManifest {
           type: value.type,
           ...(value.description ? { description: value.description } : {}),
           ...(value.logo_uri ? { logoUri: value.logo_uri } : {}),
+          portalEnabled: value.portal_enabled,
+          ...(value.launch_uri ? { launchUri: value.launch_uri } : {}),
           ...(value.client_id_source === "manifest" ? { clientId: value.client_id } : {}),
           redirectUris: value.redirect_uris,
           postLogoutRedirectUris: value.post_logout_redirect_uris,
@@ -368,8 +370,8 @@ async function applyEntry(
            post_logout_redirect_uris, grant_types, response_types, token_endpoint_auth_method,
            require_pkce, require_consent, allowed_scopes, access_token_lifetime_seconds,
            refresh_token_lifetime_seconds, authorization_code_lifetime_seconds, rotate_refresh_tokens,
-           ownership, manifest_path)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'manifest',$22)
+           portal_enabled, launch_uri, ownership, manifest_path)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,'manifest',$24)
          ON CONFLICT (environment_id, slug) DO UPDATE SET
            name = EXCLUDED.name,
            client_id = CASE WHEN EXCLUDED.client_id_source = 'manifest'
@@ -383,7 +385,9 @@ async function applyEntry(
            access_token_lifetime_seconds = EXCLUDED.access_token_lifetime_seconds,
            refresh_token_lifetime_seconds = EXCLUDED.refresh_token_lifetime_seconds,
            authorization_code_lifetime_seconds = EXCLUDED.authorization_code_lifetime_seconds,
-           rotate_refresh_tokens = EXCLUDED.rotate_refresh_tokens, ownership = 'manifest',
+           rotate_refresh_tokens = EXCLUDED.rotate_refresh_tokens,
+           portal_enabled = EXCLUDED.portal_enabled, launch_uri = EXCLUDED.launch_uri,
+           ownership = 'manifest',
            manifest_path = EXCLUDED.manifest_path, version = oauth_applications.version + 1, updated_at = now()
          RETURNING id`,
         [
@@ -408,6 +412,8 @@ async function applyEntry(
           seconds(manifest.spec.tokens.refreshTokenLifetime),
           seconds(manifest.spec.tokens.authorizationCodeLifetime),
           manifest.spec.security.rotateRefreshTokens,
+          manifest.spec.portalEnabled,
+          manifest.spec.launchUri ?? null,
           document.path,
         ],
       );

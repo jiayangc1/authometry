@@ -12,6 +12,7 @@ export interface ApplicationCreateOptions {
   type: ApplicationType;
   description?: string;
   logoUri?: string;
+  launchUri?: string;
   redirectUris: string[];
   postLogoutRedirectUris: string[];
   scopes: string[];
@@ -46,6 +47,7 @@ export function applicationCreatePayload(input: ApplicationCreateOptions) {
     type: input.type,
     description: input.description,
     logoUri: input.logoUri,
+    launchUri: input.launchUri,
     redirectUris: input.redirectUris,
     postLogoutRedirectUris: input.postLogoutRedirectUris,
     allowedScopes: input.scopes.length ? input.scopes : defaultScopes,

@@ -3,7 +3,9 @@ import { extname, join, relative } from "node:path";
 import { parse, stringify } from "yaml";
 import { z } from "zod";
 import {
+  applicationLaunchUriSchema,
   applicationLogoUriSchema,
+  createDefaultApplicationLaunchUri,
   redirectUriSchema,
   scopeNameSchema,
   slugSchema,
@@ -26,44 +28,55 @@ const base = {
 export const applicationManifestSchema = z.object({
   ...base,
   kind: z.literal("Application"),
-  spec: z.object({
-    displayName: z.string().min(2).max(100),
-    type: z.enum(["web", "spa", "native", "machine", "device"]),
-    description: z.string().max(500).optional(),
-    logoUri: applicationLogoUriSchema.optional(),
-    clientId: z.string().min(3).max(128).optional(),
-    redirectUris: z.array(redirectUriSchema).max(25).default([]),
-    postLogoutRedirectUris: z.array(redirectUriSchema).max(25).default([]),
-    grantTypes: z
-      .array(
-        z.enum([
-          "authorization_code",
-          "refresh_token",
-          "client_credentials",
-          "urn:ietf:params:oauth:grant-type:device_code",
-        ]),
-      )
-      .min(1),
-    responseTypes: z.array(z.string()).default(["code"]),
-    scopes: z.array(scopeNameSchema).default(["openid"]),
-    security: z.object({
-      requirePkce: z.boolean().default(true),
-      requireConsent: z.boolean().default(true),
-      rotateRefreshTokens: z.literal(true).default(true),
+  spec: z
+    .object({
+      displayName: z.string().min(2).max(100),
+      type: z.enum(["web", "spa", "native", "machine", "device"]),
+      description: z.string().max(500).optional(),
+      logoUri: applicationLogoUriSchema.optional(),
+      portalEnabled: z.boolean().optional(),
+      launchUri: applicationLaunchUriSchema.optional(),
+      clientId: z.string().min(3).max(128).optional(),
+      redirectUris: z.array(redirectUriSchema).max(25).default([]),
+      postLogoutRedirectUris: z.array(redirectUriSchema).max(25).default([]),
+      grantTypes: z
+        .array(
+          z.enum([
+            "authorization_code",
+            "refresh_token",
+            "client_credentials",
+            "urn:ietf:params:oauth:grant-type:device_code",
+          ]),
+        )
+        .min(1),
+      responseTypes: z.array(z.string()).default(["code"]),
+      scopes: z.array(scopeNameSchema).default(["openid"]),
+      security: z.object({
+        requirePkce: z.boolean().default(true),
+        requireConsent: z.boolean().default(true),
+        rotateRefreshTokens: z.literal(true).default(true),
+      }),
+      tokens: z.object({
+        accessTokenLifetime: z.string().regex(/^\d+(s|m|h|d)$/),
+        refreshTokenLifetime: z.string().regex(/^\d+(s|m|h|d)$/),
+        authorizationCodeLifetime: z
+          .string()
+          .regex(/^\d+(s|m|h)$/)
+          .default("60s"),
+      }),
+      tokenEndpointAuthMethod: z
+        .enum(["none", "client_secret_basic", "client_secret_post"])
+        .default("client_secret_basic"),
+      credentials: z.object({ clientSecret: secretReferenceSchema }).optional(),
+    })
+    .transform((value) => {
+      const launchUri = value.launchUri ?? createDefaultApplicationLaunchUri(value.redirectUris);
+      return {
+        ...value,
+        portalEnabled: value.portalEnabled ?? Boolean(launchUri),
+        ...(launchUri ? { launchUri } : {}),
+      };
     }),
-    tokens: z.object({
-      accessTokenLifetime: z.string().regex(/^\d+(s|m|h|d)$/),
-      refreshTokenLifetime: z.string().regex(/^\d+(s|m|h|d)$/),
-      authorizationCodeLifetime: z
-        .string()
-        .regex(/^\d+(s|m|h)$/)
-        .default("60s"),
-    }),
-    tokenEndpointAuthMethod: z
-      .enum(["none", "client_secret_basic", "client_secret_post"])
-      .default("client_secret_basic"),
-    credentials: z.object({ clientSecret: secretReferenceSchema }).optional(),
-  }),
 });
 
 export const scopeManifestSchema = z.object({

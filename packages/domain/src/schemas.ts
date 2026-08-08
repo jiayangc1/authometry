@@ -61,6 +61,40 @@ export const applicationLogoUriSchema = z
     }
   });
 
+export const applicationLaunchUriSchema = z
+  .string()
+  .trim()
+  .max(2048)
+  .superRefine((value, context) => {
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      context.addIssue({ code: "custom", message: "Enter a valid application launch URL." });
+      return;
+    }
+
+    const localhost = ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+    if (url.protocol !== "https:" && !(localhost && url.protocol === "http:")) {
+      context.addIssue({ code: "custom", message: "Use HTTPS unless the host is localhost." });
+    }
+    if (url.username || url.password) {
+      context.addIssue({ code: "custom", message: "Launch URLs cannot contain credentials." });
+    }
+  });
+
+export function createDefaultApplicationLaunchUri(
+  redirectUris: readonly string[],
+): string | undefined {
+  const firstRedirectUri = redirectUris[0];
+  if (!firstRedirectUri) return undefined;
+  const target = new URL(firstRedirectUri);
+  target.pathname = "/login";
+  target.search = "";
+  target.hash = "";
+  return target.toString();
+}
+
 const uniqueStrings = <T extends z.ZodType<string>>(schema: T, maximum: number) =>
   z
     .array(schema)
@@ -82,6 +116,8 @@ export const applicationInputSchema = z
     redirectUris: uniqueStrings(redirectUriSchema, 25),
     postLogoutRedirectUris: uniqueStrings(redirectUriSchema, 25).default([]),
     allowedScopes: uniqueStrings(scopeNameSchema, 100).min(1).optional(),
+    portalEnabled: z.boolean().optional(),
+    launchUri: applicationLaunchUriSchema.optional(),
   })
   .superRefine((value, context) => {
     if (["web", "spa", "native"].includes(value.type) && value.redirectUris.length === 0) {
@@ -91,6 +127,14 @@ export const applicationInputSchema = z
         message: `A ${value.type} application requires at least one redirect URI.`,
       });
     }
+  })
+  .transform((value) => {
+    const launchUri = value.launchUri ?? createDefaultApplicationLaunchUri(value.redirectUris);
+    return {
+      ...value,
+      portalEnabled: value.portalEnabled ?? Boolean(launchUri),
+      ...(launchUri ? { launchUri } : {}),
+    };
   });
 
 export const applicationUpdateSchema = z.object({
@@ -103,7 +147,7 @@ export const applicationUpdateSchema = z.object({
   requireConsent: z.boolean().optional(),
   allowedScopes: uniqueStrings(scopeNameSchema, 100).optional(),
   portalEnabled: z.boolean().optional(),
-  launchUri: applicationLogoUriSchema.nullable().optional(),
+  launchUri: applicationLaunchUriSchema.nullable().optional(),
   version: z.number().int().positive(),
 });
 

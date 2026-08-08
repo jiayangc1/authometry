@@ -2,6 +2,7 @@ import { compare, hash } from "bcryptjs";
 import { Router } from "express";
 import { z } from "zod";
 import {
+  applicationLaunchUriSchema,
   applicationInputSchema,
   applicationUpdateSchema,
   createApplicationSlug,
@@ -15,21 +16,6 @@ import { type IdentityUserLifecycleRow, userLifecycleData } from "../lib/user-li
 import { auditMutation, requireEnvironment } from "./context.js";
 
 export const dashboardRouter = Router();
-const launchUriSchema = z
-  .string()
-  .url()
-  .refine(
-    (value) => {
-      const target = new URL(value);
-      const local = ["localhost", "127.0.0.1", "::1"].includes(target.hostname);
-      return (
-        !target.username &&
-        !target.password &&
-        (target.protocol === "https:" || (local && target.protocol === "http:"))
-      );
-    },
-    { message: "Launch URLs must use HTTPS and cannot contain embedded credentials." },
-  );
 dashboardRouter.use(requireEnvironment);
 dashboardRouter.use(auditMutation);
 dashboardRouter.use("/applications", (request, _response, next) => {
@@ -161,8 +147,9 @@ dashboardRouter.post(
         `INSERT INTO oauth_applications
           (workspace_id, environment_id, name, slug, client_id, type, description, logo_uri, redirect_uris,
            post_logout_redirect_uris, grant_types, token_endpoint_auth_method, require_pkce, require_consent,
-           allowed_scopes, access_token_lifetime_seconds, refresh_token_lifetime_seconds)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
+           allowed_scopes, access_token_lifetime_seconds, refresh_token_lifetime_seconds,
+           portal_enabled, launch_uri)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id`,
         [
           environment.workspaceId,
           environment.id,
@@ -185,6 +172,8 @@ dashboardRouter.post(
           input.allowedScopes ?? (input.type === "machine" ? [] : ["openid", "profile", "email"]),
           defaults?.default_access_token_lifetime_seconds ?? 900,
           defaults?.default_refresh_token_lifetime_seconds ?? 2_592_000,
+          input.portalEnabled,
+          input.launchUri ?? null,
         ],
       );
       const id = created.rows[0]?.id;
@@ -249,7 +238,7 @@ dashboardRouter.patch(
   "/applications/:applicationId",
   asyncRoute(async (request, response) => {
     const input = applicationUpdateSchema
-      .extend({ launchUri: launchUriSchema.nullable().optional() })
+      .extend({ launchUri: applicationLaunchUriSchema.nullable().optional() })
       .parse(request.body);
     const [existing] = await query<{
       ownership: string;

@@ -115,6 +115,7 @@ applications
   .option("--type <type>", `Client type: ${applicationTypes.join(", ")}`, "web")
   .option("--description <description>", "Application description")
   .option("--logo-uri <uri>", "HTTPS URL for the application logo")
+  .option("--launch-uri <uri>", "OIDC login-initiation URL for the employee portal")
   .option(
     "--redirect-uri <uri>",
     "Exact OAuth callback URI; repeat for additional deployments",
@@ -140,6 +141,7 @@ applications
         type: string;
         description?: string;
         logoUri?: string;
+        launchUri?: string;
         redirectUri: string[];
         postLogoutRedirectUri: string[];
         scope: string[];
@@ -162,6 +164,7 @@ applications
         ...(input.slug ? { slug: input.slug } : {}),
         ...(input.description ? { description: input.description } : {}),
         ...(input.logoUri ? { logoUri: input.logoUri } : {}),
+        ...(input.launchUri ? { launchUri: input.launchUri } : {}),
       };
       const payload = applicationCreatePayload(createOptions);
       if (input.outputEnv) {

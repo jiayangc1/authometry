@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { applicationManifestSchema } from "@authometry/config";
 import {
   applicationCreatePayload,
   applicationEnvironment,
@@ -16,8 +17,8 @@ void test("builds a SaaS application payload with agent-selected OAuth settings"
       name: "Customer Portal",
       type: "web",
       logoUri: "https://cdn.example.com/customer-portal.png",
-      redirectUris: ["https://app.example.com/auth/callback"],
-      postLogoutRedirectUris: ["https://app.example.com/"],
+      redirectUris: ["https://customer.example.com/auth/callback"],
+      postLogoutRedirectUris: ["https://customer.example.com/"],
       scopes: ["openid", "profile", "email", "offline_access"],
     }),
     {
@@ -26,9 +27,11 @@ void test("builds a SaaS application payload with agent-selected OAuth settings"
       type: "web",
       description: undefined,
       logoUri: "https://cdn.example.com/customer-portal.png",
-      redirectUris: ["https://app.example.com/auth/callback"],
-      postLogoutRedirectUris: ["https://app.example.com/"],
+      redirectUris: ["https://customer.example.com/auth/callback"],
+      postLogoutRedirectUris: ["https://customer.example.com/"],
       allowedScopes: ["openid", "profile", "email", "offline_access"],
+      portalEnabled: true,
+      launchUri: "https://customer.example.com/login",
     },
   );
   assert.throws(
@@ -37,7 +40,7 @@ void test("builds a SaaS application payload with agent-selected OAuth settings"
         name: "Customer Portal",
         type: "web",
         logoUri: "http://cdn.example.com/customer-portal.png",
-        redirectUris: ["https://app.example.com/auth/callback"],
+        redirectUris: ["https://customer.example.com/auth/callback"],
         postLogoutRedirectUris: [],
         scopes: [],
       }),
@@ -65,6 +68,25 @@ void test("builds a SaaS application payload with agent-selected OAuth settings"
     ),
     'VITE_AUTHOMETRY_APPLICATION_ID="app_public"\nVITE_AUTHOMETRY_ISSUER="https://authometry.ch3n.cc"\nVITE_AUTHOMETRY_CLIENT_ID="amt_client_public"\n',
   );
+});
+
+void test("defaults manifest applications into the employee portal launcher", () => {
+  const application = applicationManifestSchema.parse({
+    apiVersion: "authometry.dev/v1alpha1",
+    kind: "Application",
+    metadata: { name: "customer-portal" },
+    spec: {
+      displayName: "Customer Portal",
+      type: "web",
+      redirectUris: ["https://customer.example.com/auth/callback"],
+      grantTypes: ["authorization_code", "refresh_token"],
+      security: { requirePkce: true, requireConsent: true, rotateRefreshTokens: true },
+      tokens: { accessTokenLifetime: "15m", refreshTokenLifetime: "30d" },
+    },
+  });
+
+  assert.equal(application.spec.portalEnabled, true);
+  assert.equal(application.spec.launchUri, "https://customer.example.com/login");
 });
 
 void test("writes one-time credentials without replacing existing values implicitly", async () => {

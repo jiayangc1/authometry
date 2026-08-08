@@ -125,6 +125,8 @@ spec:
   displayName: Customer portal
   description: Customer account access
   logoUri: https://cdn.example.com/customer-portal.png
+  portalEnabled: true
+  launchUri: https://portal.example.com/login
   type: web
   redirectUris:
     - https://portal.example.com/auth/callback
@@ -149,19 +151,28 @@ spec:
           name: CUSTOMER_PORTAL_CLIENT_SECRET
 ```
 
-| Field                          | Rules                                                            |
-| ------------------------------ | ---------------------------------------------------------------- |
-| `type`                         | `web`, `spa`, `native`, `machine`, or `device`.                  |
-| `clientId`                     | Optional stable client ID; otherwise the server supplies one.    |
-| `logoUri`                      | Optional HTTPS image URL used by the employee app launcher.      |
-| `redirectUris`                 | Up to 25 exact absolute callback URIs.                           |
-| `postLogoutRedirectUris`       | Up to 25 exact logout callback URIs.                             |
-| `grantTypes`                   | One or more supported grant identifiers.                         |
-| `responseTypes`                | Defaults to `[code]`; deployed v1 supports only `code`.          |
-| `scopes`                       | Built-in or declared `Scope` values.                             |
-| `security.rotateRefreshTokens` | Must be `true`.                                                  |
-| token lifetimes                | Integer plus `s`, `m`, `h`, or `d`; code lifetime excludes days. |
-| `tokenEndpointAuthMethod`      | `none`, `client_secret_basic`, or `client_secret_post`.          |
+| Field                          | Rules                                                                   |
+| ------------------------------ | ----------------------------------------------------------------------- |
+| `type`                         | `web`, `spa`, `native`, `machine`, or `device`.                         |
+| `clientId`                     | Optional stable client ID; otherwise the server supplies one.           |
+| `logoUri`                      | Optional HTTPS image URL used by the employee app launcher.             |
+| `portalEnabled`                | Publish interactive apps to assigned employees by default.              |
+| `launchUri`                    | OIDC login-initiation URL; defaults to `/login` on the callback origin. |
+| `redirectUris`                 | Up to 25 exact absolute callback URIs.                                  |
+| `postLogoutRedirectUris`       | Up to 25 exact logout callback URIs.                                    |
+| `grantTypes`                   | One or more supported grant identifiers.                                |
+| `responseTypes`                | Defaults to `[code]`; deployed v1 supports only `code`.                 |
+| `scopes`                       | Built-in or declared `Scope` values.                                    |
+| `security.rotateRefreshTokens` | Must be `true`.                                                         |
+| token lifetimes                | Integer plus `s`, `m`, `h`, or `d`; code lifetime excludes days.        |
+| `tokenEndpointAuthMethod`      | `none`, `client_secret_basic`, or `client_secret_post`.                 |
+
+If `launchUri` is omitted, Authometry derives the real service URL from the first redirect URI. For
+example, `https://portal.example.com/auth/callback` becomes
+`https://portal.example.com/login`. Set `launchUri` explicitly when the service uses a different
+host or path. Authometry adds the standard `iss` issuer hint when an employee launches the app. The
+service should immediately begin Authorization Code with PKCE so the employee's existing portal
+session completes sign-in without another password.
 
 ### Secret references
 

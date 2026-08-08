@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import {
+  applicationLaunchUriSchema,
   applicationLogoUriSchema,
   createApplicationSlug,
   redirectUriSchema,
@@ -24,6 +25,7 @@ const schema = z.object({
   description: z.string().max(500).optional(),
   logoUri: z.union([z.literal(""), applicationLogoUriSchema]),
   redirectUri: z.string().optional(),
+  launchUri: z.union([z.literal(""), applicationLaunchUriSchema]),
 });
 type Values = z.infer<typeof schema>;
 type ApplicationType = "web" | "spa" | "native" | "machine" | "device";
@@ -78,7 +80,14 @@ export default function NewApplicationPage() {
   const [acknowledged, setAcknowledged] = useState(false);
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", slug: "", description: "", logoUri: "", redirectUri: "" },
+    defaultValues: {
+      name: "",
+      slug: "",
+      description: "",
+      logoUri: "",
+      redirectUri: "",
+      launchUri: "",
+    },
   });
   useUnsavedChanges(form.formState.isDirty && !secret);
   async function submit(values: Values) {
@@ -103,6 +112,7 @@ export default function NewApplicationPage() {
           logoUri: values.logoUri || undefined,
           redirectUris: values.redirectUri ? [values.redirectUri] : [],
           postLogoutRedirectUris: [],
+          launchUri: values.launchUri || undefined,
         }),
       },
     );
@@ -262,22 +272,46 @@ export default function NewApplicationPage() {
             )}
           </label>
           {type !== "machine" && (
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium">Redirect URI</span>
-              <input
-                autoComplete="off"
-                className={`${inputClass} technical-value`}
-                placeholder="https://your-app.example/auth/callback…"
-                spellCheck={false}
-                type="url"
-                {...form.register("redirectUri")}
-              />
-              {form.formState.errors.redirectUri && (
-                <span aria-live="polite" className="mt-1 block text-xs text-[var(--danger)]">
-                  {form.formState.errors.redirectUri.message}
+            <>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium">Redirect URI</span>
+                <input
+                  autoComplete="off"
+                  className={`${inputClass} technical-value`}
+                  placeholder="https://your-app.example/auth/callback…"
+                  spellCheck={false}
+                  type="url"
+                  {...form.register("redirectUri")}
+                />
+                {form.formState.errors.redirectUri && (
+                  <span aria-live="polite" className="mt-1 block text-xs text-[var(--danger)]">
+                    {form.formState.errors.redirectUri.message}
+                  </span>
+                )}
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium">
+                  Employee portal sign-in URL{" "}
+                  <span className="font-normal text-[var(--text-tertiary)]">Optional</span>
                 </span>
-              )}
-            </label>
+                <input
+                  autoComplete="url"
+                  className={`${inputClass} technical-value`}
+                  placeholder="Defaults to /login on the redirect URI host"
+                  spellCheck={false}
+                  type="url"
+                  {...form.register("launchUri")}
+                />
+                <span className="mt-1 block text-xs text-[var(--text-tertiary)]">
+                  Use the service&apos;s OIDC login-initiation URL if it has a different path.
+                </span>
+                {form.formState.errors.launchUri && (
+                  <span aria-live="polite" className="mt-1 block text-xs text-[var(--danger)]">
+                    {form.formState.errors.launchUri.message}
+                  </span>
+                )}
+              </label>
+            </>
           )}
         </div>
         <div className="mt-7 flex justify-end gap-2 border-t border-[var(--border)] pt-5">
