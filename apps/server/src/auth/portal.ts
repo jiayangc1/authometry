@@ -866,17 +866,33 @@ portalRouter.get(
       last_launched_at: Date | null;
       provisioning_enabled: boolean;
     }>(
-      `SELECT a.id, a.name, a.slug, a.description, a.logo_uri, a.launch_uri, ua.last_launched_at,
+      `SELECT a.id, a.name, a.slug, a.description, a.logo_uri, a.launch_uri,
+              direct.last_launched_at,
               EXISTS (
                 SELECT 1 FROM webhooks w
                 WHERE w.environment_id = a.environment_id AND w.purpose = 'provisioning'
                   AND w.status = 'enabled'
               ) AS provisioning_enabled
-       FROM user_application_assignments ua
-       JOIN oauth_applications a ON a.id = ua.application_id
-       WHERE ua.user_id = $1 AND ua.environment_id = $2 AND a.portal_enabled = true
+       FROM oauth_applications a
+       LEFT JOIN user_application_assignments direct
+         ON direct.application_id = a.id AND direct.environment_id = a.environment_id
+           AND direct.user_id = $1
+       WHERE a.environment_id = $2 AND a.portal_enabled = true
          AND a.status = 'active' AND a.launch_uri IS NOT NULL
-       ORDER BY ua.last_launched_at DESC NULLS LAST, a.name`,
+         AND (
+           direct.id IS NOT NULL OR EXISTS (
+             SELECT 1
+             FROM group_application_assignments ga
+             JOIN identity_groups g ON g.id = ga.group_id
+             JOIN identity_users u ON u.id = $1 AND u.workspace_id = g.workspace_id
+             WHERE ga.environment_id = a.environment_id AND ga.application_id = a.id
+               AND EXISTS (
+                 SELECT 1 FROM unnest(u.groups) user_group
+                 WHERE lower(user_group) = lower(g.name)
+               )
+           )
+         )
+       ORDER BY direct.last_launched_at DESC NULLS LAST, a.name`,
       [portal.id, portal.environment_id],
     );
     response.json({ data: applications });
@@ -894,11 +910,27 @@ portalRouter.post(
       issuer: string;
     }>(
       `SELECT a.id, a.name, a.launch_uri, e.issuer
-       FROM user_application_assignments ua
-       JOIN oauth_applications a ON a.id = ua.application_id
+       FROM oauth_applications a
        JOIN environments e ON e.id = a.environment_id
-       WHERE ua.user_id = $1 AND ua.environment_id = $2 AND ua.application_id = $3
+       WHERE a.environment_id = $2 AND a.id = $3
          AND a.portal_enabled = true AND a.status = 'active' AND a.launch_uri IS NOT NULL
+         AND (
+           EXISTS (
+             SELECT 1 FROM user_application_assignments direct
+             WHERE direct.user_id = $1 AND direct.environment_id = $2
+               AND direct.application_id = a.id
+           ) OR EXISTS (
+             SELECT 1
+             FROM group_application_assignments ga
+             JOIN identity_groups g ON g.id = ga.group_id
+             JOIN identity_users u ON u.id = $1 AND u.workspace_id = g.workspace_id
+             WHERE ga.environment_id = $2 AND ga.application_id = a.id
+               AND EXISTS (
+                 SELECT 1 FROM unnest(u.groups) user_group
+                 WHERE lower(user_group) = lower(g.name)
+               )
+           )
+         )
          AND EXISTS (
            SELECT 1 FROM webhooks w WHERE w.environment_id = a.environment_id
              AND w.purpose = 'provisioning' AND w.status = 'enabled'

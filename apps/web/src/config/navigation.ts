@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Stamp,
   Users,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 
@@ -32,6 +33,7 @@ export const navigation: Array<{ label: string; items: NavigationItem[] }> = [
       { label: "Applications", href: "/applications", icon: AppWindow },
       { label: "Agents", href: "/agents", icon: Bot },
       { label: "Users", href: "/users", icon: Users },
+      { label: "Groups", href: "/groups", icon: UsersRound },
       { label: "Sessions", href: "/sessions", icon: FileClock },
     ],
   },

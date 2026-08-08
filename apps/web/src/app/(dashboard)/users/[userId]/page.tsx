@@ -12,6 +12,7 @@ import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
 import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { ResetUserPasswordDialog } from "@/components/users/reset-user-password-dialog";
+import { inputClass } from "@/components/auth/auth-shell";
 import { apiFetch } from "@/lib/api";
 
 interface UserDetail {
@@ -50,6 +51,8 @@ interface UserDetail {
     id: string;
     name: string;
     slug: string;
+    directly_assigned: boolean;
+    inherited_from_groups: string[];
     provisioning_enabled: boolean;
   }>;
 }
@@ -59,6 +62,7 @@ export default function UserDetailPage() {
   const client = useQueryClient();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [groupValue, setGroupValue] = useState<string>();
   const query = useQuery({
     queryKey: ["user", userId],
     queryFn: () => apiFetch<UserDetail>(`/api/v1/users/${userId}`),
@@ -97,6 +101,23 @@ export default function UserDetailPage() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const updateGroups = useMutation({
+    mutationFn: (groups: string[]) =>
+      apiFetch<{ groups: string[] }>(`/api/v1/users/${userId}/groups`, {
+        method: "PATCH",
+        body: JSON.stringify({ groups }),
+      }),
+    onSuccess: async ({ groups }) => {
+      setGroupValue(groups.join(", "));
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["user", userId] }),
+        client.invalidateQueries({ queryKey: ["users"] }),
+        client.invalidateQueries({ queryKey: ["groups"] }),
+      ]);
+      toast.success("Groups updated");
+    },
+    onError: (error) => toast.error(error.message),
+  });
   if (!query.data) {
     return (
       <PageContainer>
@@ -127,7 +148,6 @@ export default function UserDetailPage() {
       ].join(", ") || "None",
     ],
     ["MFA", user.mfa_enabled ? "Enabled" : "Not enabled"],
-    ["Groups", user.groups.join(", ") || "None"],
     ["Created", <FullDateTime key="created" value={user.created_at} />],
     [
       "Last authentication",
@@ -172,6 +192,40 @@ export default function UserDetailPage() {
               </div>
             ))}
           </dl>
+          <form
+            className="mt-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const groups = (groupValue ?? user.groups.join(", "))
+                .split(",")
+                .map((group) => group.trim())
+                .filter(Boolean);
+              updateGroups.mutate(groups);
+            }}
+          >
+            <label>
+              <span className="mb-1.5 block text-xs font-medium">Groups</span>
+              <span className="flex gap-2">
+                <input
+                  autoComplete="off"
+                  className={inputClass}
+                  onChange={(event) => setGroupValue(event.target.value)}
+                  placeholder="engineering, admin…"
+                  value={groupValue ?? user.groups.join(", ")}
+                />
+                <Button
+                  disabled={updateGroups.isPending}
+                  type="submit"
+                  variant="secondary"
+                >
+                  {updateGroups.isPending ? "Saving…" : "Save"}
+                </Button>
+              </span>
+            </label>
+            <p className="mt-1.5 text-xs text-[var(--text-tertiary)]">
+              Separate group names with commas. Group portal access applies immediately.
+            </p>
+          </form>
         </section>
         <section>
           <SectionHeader title="Sessions" />
@@ -215,9 +269,9 @@ export default function UserDetailPage() {
         {user.available_applications.length ? (
           <div className="max-w-4xl divide-y divide-[var(--border-subtle)] border-y border-[var(--border)]">
             {user.available_applications.map((application) => {
-              const assigned = user.application_assignments.some(
-                ({ application_id: applicationId }) => applicationId === application.id,
-              );
+              const directlyAssigned = application.directly_assigned;
+              const inherited = application.inherited_from_groups.length > 0;
+              const assigned = directlyAssigned || inherited;
               return (
                 <label
                   className="flex cursor-pointer items-center gap-3 px-2 py-3 hover:bg-[var(--surface-hover)]"
@@ -226,6 +280,7 @@ export default function UserDetailPage() {
                   <Checkbox
                     checked={assigned}
                     disabled={
+                      inherited ||
                       changeApplicationAccess.isPending &&
                       changeApplicationAccess.variables?.applicationId === application.id
                     }
@@ -242,7 +297,9 @@ export default function UserDetailPage() {
                   <span className="min-w-0 flex-1">
                     <span className="block text-[13px] font-medium">{application.name}</span>
                     <span className="technical-value block text-[var(--text-tertiary)]">
-                      {application.slug}
+                      {inherited
+                        ? `Via ${application.inherited_from_groups.join(", ")}`
+                        : application.slug}
                     </span>
                   </span>
                   <StatusBadge

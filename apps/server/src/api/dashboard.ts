@@ -16,6 +16,20 @@ import { type IdentityUserLifecycleRow, userLifecycleData } from "../lib/user-li
 import { auditMutation, requireEnvironment } from "./context.js";
 
 export const dashboardRouter = Router();
+const groupNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .refine((value) => !/[\u0000-\u001f\u007f]/u.test(value), "Group names cannot contain control characters.");
+const groupsSchema = z
+  .array(groupNameSchema)
+  .max(50)
+  .transform((groups) => {
+    const unique = new Map<string, string>();
+    for (const group of groups) unique.set(group.toLocaleLowerCase(), group);
+    return [...unique.values()];
+  });
 dashboardRouter.use(requireEnvironment);
 dashboardRouter.use(auditMutation);
 dashboardRouter.use("/applications", (request, _response, next) => {
@@ -471,7 +485,7 @@ dashboardRouter.post(
         name: z.string().min(2),
         email: z.string().email(),
         password: z.string().min(12),
-        groups: z.array(z.string()).default([]),
+        groups: groupsSchema.default([]),
       })
       .parse(request.body);
     const environment = request.environment!;
@@ -490,6 +504,14 @@ dashboardRouter.post(
       );
       const createdUser = created.rows[0];
       if (!createdUser) throw new Error("User was not created.");
+      if (createdUser.groups.length) {
+        await client.query(
+          `INSERT INTO identity_groups(workspace_id, name, created_by)
+           SELECT $1, group_name, $3 FROM unnest($2::text[]) AS group_name
+           ON CONFLICT DO NOTHING`,
+          [environment.workspaceId, createdUser.groups, request.admin!.userId],
+        );
+      }
       await client.query(
         `INSERT INTO audit_events
           (workspace_id, environment_id, category, severity, event_type, summary, actor_type,
@@ -553,6 +575,22 @@ dashboardRouter.get(
       query(
         `SELECT a.id, a.name, a.slug, a.portal_enabled, a.launch_uri,
                 EXISTS (
+                  SELECT 1 FROM user_application_assignments direct
+                  WHERE direct.environment_id = a.environment_id AND direct.application_id = a.id
+                    AND direct.user_id = $2
+                ) AS directly_assigned,
+                COALESCE((
+                  SELECT array_agg(g.name ORDER BY g.name)
+                  FROM group_application_assignments ga
+                  JOIN identity_groups g ON g.id = ga.group_id
+                  JOIN identity_users grouped_user ON grouped_user.id = $2
+                  WHERE ga.environment_id = a.environment_id AND ga.application_id = a.id
+                    AND EXISTS (
+                      SELECT 1 FROM unnest(grouped_user.groups) user_group
+                      WHERE lower(user_group) = lower(g.name)
+                    )
+                ), '{}') AS inherited_from_groups,
+                EXISTS (
                   SELECT 1 FROM webhooks w WHERE w.environment_id = a.environment_id
                     AND w.purpose = 'provisioning' AND w.status = 'enabled'
                 ) AS provisioning_enabled
@@ -560,7 +598,7 @@ dashboardRouter.get(
          WHERE a.environment_id = $1 AND a.status = 'active' AND a.client_id_source <> 'dynamic'
            AND a.portal_enabled = true AND a.launch_uri IS NOT NULL
          ORDER BY a.name`,
-        [request.environment!.id],
+        [request.environment!.id, request.params.userId],
       ),
     ]);
     response.json({
@@ -570,6 +608,262 @@ dashboardRouter.get(
       application_assignments: assignments,
       available_applications: availableApplications,
     });
+  }),
+);
+
+dashboardRouter.patch(
+  "/users/:userId/groups",
+  asyncRoute(async (request, response) => {
+    const input = z.object({ groups: groupsSchema }).parse(request.body);
+    const environment = request.environment!;
+    const user = await transaction(async (client) => {
+      const currentResult = await client.query<IdentityUserLifecycleRow>(
+        `SELECT id, email, name, groups, status, email_verified_at
+         FROM identity_users WHERE id = $1 AND workspace_id = $2 FOR UPDATE`,
+        [request.params.userId, environment.workspaceId],
+      );
+      const current = currentResult.rows[0];
+      if (!current) throw new ApiError(404, "user_not_found", "The user was not found.");
+      if (input.groups.length) {
+        await client.query(
+          `INSERT INTO identity_groups(workspace_id, name, created_by)
+           SELECT $1, group_name, $3 FROM unnest($2::text[]) AS group_name
+           ON CONFLICT DO NOTHING`,
+          [environment.workspaceId, input.groups, request.admin!.userId],
+        );
+      }
+      const updatedResult = await client.query<IdentityUserLifecycleRow>(
+        `UPDATE identity_users SET groups = $2, updated_at = now()
+         WHERE id = $1 RETURNING id, email, name, groups, status, email_verified_at`,
+        [current.id, input.groups],
+      );
+      const updated = updatedResult.rows[0]!;
+      await client.query(
+        `INSERT INTO audit_events
+          (workspace_id, environment_id, category, severity, event_type, summary, actor_type,
+           actor_id, actor_name, resource_type, resource_id, changes)
+         SELECT $1, e.id, 'user', 'info', 'user.groups_updated', $2, 'admin', $3, $4,
+                'user', $5, $6
+         FROM environments e
+         WHERE e.workspace_id = $1 AND
+           (e.id = $7 OR EXISTS (
+             SELECT 1 FROM webhooks w
+             WHERE w.environment_id = e.id AND w.purpose = 'provisioning' AND w.status = 'enabled'
+           ))`,
+        [
+          environment.workspaceId,
+          `${updated.email} groups updated`,
+          request.admin!.userId,
+          request.admin!.email,
+          updated.id,
+          { before: { groups: current.groups }, after: { groups: updated.groups } },
+          environment.id,
+        ],
+      );
+      return updated;
+    });
+    response.json({ groups: user.groups });
+  }),
+);
+
+dashboardRouter.get(
+  "/groups",
+  asyncRoute(async (request, response) => {
+    const groups = await query(
+      `SELECT g.id, g.name, g.created_at,
+              (SELECT count(*)::integer FROM identity_users u
+               WHERE u.workspace_id = g.workspace_id AND EXISTS (
+                 SELECT 1 FROM unnest(u.groups) user_group
+                 WHERE lower(user_group) = lower(g.name)
+               )) AS member_count,
+              (SELECT count(*)::integer FROM group_application_assignments ga
+               WHERE ga.group_id = g.id AND ga.environment_id = $2) AS application_count
+       FROM identity_groups g
+       WHERE g.workspace_id = $1
+       ORDER BY lower(g.name)`,
+      [request.environment!.workspaceId, request.environment!.id],
+    );
+    response.json({ data: groups, meta: { total: groups.length } });
+  }),
+);
+
+dashboardRouter.post(
+  "/groups",
+  asyncRoute(async (request, response) => {
+    const input = z.object({ name: groupNameSchema }).parse(request.body);
+    const [group] = await query<{ id: string; name: string }>(
+      `INSERT INTO identity_groups(workspace_id, name, created_by)
+       VALUES ($1, $2, $3)
+       ON CONFLICT DO NOTHING
+       RETURNING id, name`,
+      [request.environment!.workspaceId, input.name, request.admin!.userId],
+    );
+    if (!group) throw new ApiError(409, "group_exists", "A group with this name already exists.");
+    response.status(201).json(group);
+  }),
+);
+
+dashboardRouter.get(
+  "/groups/:groupId",
+  asyncRoute(async (request, response) => {
+    const environment = request.environment!;
+    const [group] = await query<{ id: string; name: string; created_at: string }>(
+      `SELECT id, name, created_at FROM identity_groups WHERE id = $1 AND workspace_id = $2`,
+      [request.params.groupId, environment.workspaceId],
+    );
+    if (!group) throw new ApiError(404, "group_not_found", "The group was not found.");
+    const [users, applications] = await Promise.all([
+      query(
+        `SELECT id, name, email, status, EXISTS (
+           SELECT 1 FROM unnest(groups) user_group WHERE lower(user_group) = lower($2)
+         ) AS assigned
+         FROM identity_users WHERE workspace_id = $1 ORDER BY lower(name), lower(email)`,
+        [environment.workspaceId, group.name],
+      ),
+      query(
+        `SELECT a.id, a.name, a.slug,
+                (ga.id IS NOT NULL) AS assigned,
+                EXISTS (
+                  SELECT 1 FROM webhooks w WHERE w.environment_id = a.environment_id
+                    AND w.purpose = 'provisioning' AND w.status = 'enabled'
+                ) AS provisioning_enabled
+         FROM oauth_applications a
+         LEFT JOIN group_application_assignments ga
+           ON ga.application_id = a.id AND ga.environment_id = a.environment_id AND ga.group_id = $2
+         WHERE a.environment_id = $1 AND a.status = 'active' AND a.client_id_source <> 'dynamic'
+           AND a.portal_enabled = true AND a.launch_uri IS NOT NULL
+         ORDER BY lower(a.name)`,
+        [environment.id, group.id],
+      ),
+    ]);
+    response.json({ ...group, users, applications });
+  }),
+);
+
+dashboardRouter.put(
+  "/groups/:groupId/users/:userId",
+  asyncRoute(async (request, response) => {
+    const environment = request.environment!;
+    const [updated] = await query<{ id: string }>(
+      `UPDATE identity_users u
+       SET groups = CASE WHEN EXISTS (
+             SELECT 1 FROM unnest(u.groups) user_group WHERE lower(user_group) = lower(g.name)
+           ) THEN u.groups ELSE array_append(u.groups, g.name) END,
+           updated_at = now()
+       FROM identity_groups g
+       WHERE u.id = $1 AND u.workspace_id = $2 AND g.id = $3 AND g.workspace_id = $2
+       RETURNING u.id`,
+      [request.params.userId, environment.workspaceId, request.params.groupId],
+    );
+    if (!updated) {
+      throw new ApiError(
+        404,
+        "group_member_target_not_found",
+        "The user or group was not found.",
+      );
+    }
+    response.status(204).end();
+  }),
+);
+
+dashboardRouter.delete(
+  "/groups/:groupId/users/:userId",
+  asyncRoute(async (request, response) => {
+    const environment = request.environment!;
+    const [updated] = await query<{ id: string }>(
+      `UPDATE identity_users u
+       SET groups = ARRAY(SELECT existing FROM unnest(u.groups) existing WHERE lower(existing) <> lower(g.name)),
+           updated_at = now()
+       FROM identity_groups g
+       WHERE u.id = $1 AND u.workspace_id = $2 AND g.id = $3 AND g.workspace_id = $2
+       RETURNING u.id`,
+      [request.params.userId, environment.workspaceId, request.params.groupId],
+    );
+    if (!updated) {
+      throw new ApiError(
+        404,
+        "group_member_target_not_found",
+        "The user or group was not found.",
+      );
+    }
+    response.status(204).end();
+  }),
+);
+
+dashboardRouter.put(
+  "/groups/:groupId/applications/:applicationId",
+  asyncRoute(async (request, response) => {
+    const environment = request.environment!;
+    const [assignment] = await query(
+      `INSERT INTO group_application_assignments
+        (workspace_id, environment_id, group_id, application_id, assigned_by)
+       SELECT $1, $2, g.id, a.id, $5
+       FROM identity_groups g
+       JOIN oauth_applications a ON a.id = $4 AND a.environment_id = $2
+       WHERE g.id = $3 AND g.workspace_id = $1 AND a.portal_enabled = true
+         AND a.status = 'active' AND a.launch_uri IS NOT NULL
+       ON CONFLICT (environment_id, group_id, application_id)
+       DO UPDATE SET assigned_by = EXCLUDED.assigned_by, assigned_at = now()
+       RETURNING *`,
+      [
+        environment.workspaceId,
+        environment.id,
+        request.params.groupId,
+        request.params.applicationId,
+        request.admin!.userId,
+      ],
+    );
+    if (!assignment) {
+      throw new ApiError(
+        404,
+        "group_application_target_not_found",
+        "The group or portal-enabled application was not found.",
+      );
+    }
+    response.json(assignment);
+  }),
+);
+
+dashboardRouter.delete(
+  "/groups/:groupId/applications/:applicationId",
+  asyncRoute(async (request, response) => {
+    await query(
+      `DELETE FROM group_application_assignments
+       WHERE group_id = $1 AND application_id = $2 AND environment_id = $3 AND workspace_id = $4`,
+      [
+        request.params.groupId,
+        request.params.applicationId,
+        request.environment!.id,
+        request.environment!.workspaceId,
+      ],
+    );
+    response.status(204).end();
+  }),
+);
+
+dashboardRouter.delete(
+  "/groups/:groupId",
+  asyncRoute(async (request, response) => {
+    const environment = request.environment!;
+    await transaction(async (client) => {
+      const groupResult = await client.query<{ id: string; name: string }>(
+        `SELECT id, name FROM identity_groups WHERE id = $1 AND workspace_id = $2 FOR UPDATE`,
+        [request.params.groupId, environment.workspaceId],
+      );
+      const group = groupResult.rows[0];
+      if (!group) throw new ApiError(404, "group_not_found", "The group was not found.");
+      await client.query(
+        `UPDATE identity_users
+         SET groups = ARRAY(SELECT existing FROM unnest(groups) existing WHERE lower(existing) <> lower($2)),
+             updated_at = now()
+         WHERE workspace_id = $1 AND EXISTS (
+           SELECT 1 FROM unnest(groups) existing WHERE lower(existing) = lower($2)
+         )`,
+        [environment.workspaceId, group.name],
+      );
+      await client.query("DELETE FROM identity_groups WHERE id = $1", [group.id]);
+    });
+    response.status(204).end();
   }),
 );
 

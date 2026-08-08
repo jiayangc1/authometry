@@ -10,6 +10,7 @@ import {
   Search,
   Settings,
   Users,
+  UsersRound,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -41,6 +42,7 @@ export function CommandMenu({
     ["Applications", "/applications", AppWindow],
     ["Authorization traces", "/traces", ListTree],
     ["Users", "/users", Users],
+    ["Groups", "/groups", UsersRound],
     ["Settings", "/settings/general", Settings],
   ];
   function go(path: string) {
