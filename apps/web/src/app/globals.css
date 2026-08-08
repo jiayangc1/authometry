@@ -79,24 +79,16 @@
 }
 
 .portal-surface {
-  --portal-canvas: #f4f5f9;
+  --portal-canvas: #f3f4f7;
   --portal-paper: #ffffff;
-  --portal-ink: #161722;
-  --portal-muted: #696b7b;
-  --portal-line: #e2e3ea;
-  --portal-accent: #635bff;
-  --portal-accent-soft: #eeecff;
-  --portal-ready: #0f8a65;
+  --portal-ink: #171820;
+  --portal-muted: #696b78;
+  --portal-line: #dedfe5;
+  --portal-accent: #6d5dfb;
+  --portal-accent-soft: #efedff;
+  --portal-ready: #168b69;
   min-width: 320px;
-  background:
-    linear-gradient(
-      90deg,
-      transparent 0,
-      transparent calc(50% - 1px),
-      rgb(99 91 255 / 0.025) 50%,
-      transparent calc(50% + 1px)
-    ),
-    var(--portal-canvas);
+  background: var(--portal-canvas);
 }
 
 .dark .portal-surface {

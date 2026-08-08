@@ -6,6 +6,7 @@ export interface PortalMe {
     groups: string[];
     passwordEnabled: boolean;
     mfaEnabled: boolean;
+    avatarUrl: string | null;
   };
   workspace: { id: string; name: string; slug: string };
   environment: { id: string; name: string };

@@ -4,6 +4,8 @@ import request from "supertest";
 import { createApp } from "../index.js";
 import { socialCallbackUri } from "../lib/social.js";
 import { createPortalLaunchUrl } from "./portal.js";
+import { preparePortalAvatar } from "./portal.js";
+import sharp from "sharp";
 
 await test("employee portal reports configured social providers", async () => {
   const response = await request(createApp()).get("/api/v1/portal/auth/providers").expect(200);
@@ -59,4 +61,29 @@ await test("employee portal launches services with a third-party login issuer hi
   assert.equal(launch.origin + launch.pathname, "https://cams.example.test/login");
   assert.equal(launch.searchParams.get("source"), "launcher");
   assert.equal(launch.searchParams.get("iss"), "https://identity.example.test/w/acme");
+});
+
+await test("employee portal normalizes profile pictures to a square WebP", async () => {
+  const source = await sharp({
+    create: { width: 900, height: 500, channels: 3, background: "#635bff" },
+  })
+    .png()
+    .toBuffer();
+  const avatar = await preparePortalAvatar(source);
+  const metadata = await sharp(avatar).metadata();
+
+  assert.equal(metadata.format, "webp");
+  assert.equal(metadata.width, 512);
+  assert.equal(metadata.height, 512);
+});
+
+await test("employee portal rejects invalid profile picture bytes", async () => {
+  await assert.rejects(
+    () => preparePortalAvatar(Buffer.from("not an image")),
+    (error: unknown) =>
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "invalid_profile_picture",
+  );
 });

@@ -1,5 +1,6 @@
 import { compare, hash } from "bcryptjs";
-import { Router, type NextFunction, type Request, type Response } from "express";
+import express, { Router, type NextFunction, type Request, type Response } from "express";
+import sharp from "sharp";
 import { z } from "zod";
 import { env } from "../env.js";
 import { query, transaction } from "../db.js";
@@ -39,6 +40,7 @@ interface PortalIdentityRow {
   custom_claims: Record<string, unknown>;
   mfa_enabled: boolean;
   mfa_totp_secret_encrypted: string | null;
+  avatar_updated_at: Date | null;
   workspace_name: string;
   workspace_slug: string;
   environment_name: string;
@@ -107,7 +109,8 @@ async function portalIdentity(
   const [identity] = await query<PortalIdentityRow>(
     `SELECT u.id, u.workspace_id, e.id AS environment_id, s.id AS session_id, u.email, u.name,
             u.password_hash, u.status, u.groups, u.custom_claims, u.mfa_enabled,
-            u.mfa_totp_secret_encrypted, w.name AS workspace_name, w.slug AS workspace_slug,
+            u.mfa_totp_secret_encrypted, u.avatar_updated_at, w.name AS workspace_name,
+            w.slug AS workspace_slug,
             e.name AS environment_name, ws.session_lifetime_seconds
      FROM user_sessions s
      JOIN identity_users u ON u.id = s.user_id
@@ -211,6 +214,18 @@ async function loginContext(workspaceSlug: string, email?: string) {
 }
 
 export const portalRouter = Router();
+
+export async function preparePortalAvatar(input: Buffer): Promise<Buffer> {
+  try {
+    return await sharp(input, { limitInputPixels: 24_000_000 })
+      .rotate()
+      .resize(512, 512, { fit: "cover", position: "attention" })
+      .webp({ quality: 84, effort: 4 })
+      .toBuffer();
+  } catch {
+    throw new ApiError(422, "invalid_profile_picture", "Choose a valid JPG, PNG, or WebP image.");
+  }
+}
 
 portalRouter.get("/auth/providers", (_request, response) => {
   response.json({
@@ -547,6 +562,9 @@ portalRouter.get(
         groups: portal.groups,
         passwordEnabled: Boolean(portal.password_hash),
         mfaEnabled: portal.mfa_enabled,
+        avatarUrl: portal.avatar_updated_at
+          ? `/api/v1/portal/profile/avatar?v=${portal.avatar_updated_at.getTime()}`
+          : null,
       },
       workspace: {
         id: portal.workspace_id,
@@ -572,6 +590,70 @@ portalRouter.patch(
       [request.portal!.id, input.name],
     );
     response.json({ user });
+  }),
+);
+
+portalRouter.get(
+  "/profile/avatar",
+  asyncRoute(async (request, response) => {
+    const [avatar] = await query<{
+      avatar_data: Buffer;
+      avatar_content_type: string;
+      avatar_updated_at: Date;
+    }>(
+      `SELECT avatar_data, avatar_content_type, avatar_updated_at
+       FROM identity_users WHERE id = $1 AND avatar_data IS NOT NULL`,
+      [request.portal!.id],
+    );
+    if (!avatar) {
+      throw new ApiError(404, "profile_picture_not_found", "No profile picture is set.");
+    }
+    response.set({
+      "Cache-Control": "private, max-age=31536000, immutable",
+      "Content-Type": avatar.avatar_content_type,
+      ETag: `"${avatar.avatar_updated_at.getTime()}-${avatar.avatar_data.length}"`,
+    });
+    response.send(avatar.avatar_data);
+  }),
+);
+
+portalRouter.put(
+  "/profile/avatar",
+  express.raw({ type: () => true, limit: "5mb" }),
+  asyncRoute(async (request, response) => {
+    const contentType = request.get("content-type")?.split(";", 1)[0]?.toLowerCase();
+    if (!contentType || !["image/jpeg", "image/png", "image/webp"].includes(contentType)) {
+      throw new ApiError(415, "unsupported_profile_picture", "Choose a JPG, PNG, or WebP image.");
+    }
+    if (!Buffer.isBuffer(request.body) || request.body.length === 0) {
+      throw new ApiError(422, "empty_profile_picture", "Choose an image to upload.");
+    }
+    const avatar = await preparePortalAvatar(request.body);
+    const [user] = await query<{ avatar_updated_at: Date }>(
+      `UPDATE identity_users
+       SET avatar_data = $2, avatar_content_type = 'image/webp', avatar_updated_at = now(),
+           updated_at = now()
+       WHERE id = $1
+       RETURNING avatar_updated_at`,
+      [request.portal!.id, avatar],
+    );
+    response.json({
+      avatarUrl: `/api/v1/portal/profile/avatar?v=${user!.avatar_updated_at.getTime()}`,
+    });
+  }),
+);
+
+portalRouter.delete(
+  "/profile/avatar",
+  asyncRoute(async (request, response) => {
+    await query(
+      `UPDATE identity_users
+       SET avatar_data = NULL, avatar_content_type = NULL, avatar_updated_at = NULL,
+           updated_at = now()
+       WHERE id = $1`,
+      [request.portal!.id],
+    );
+    response.status(204).end();
   }),
 );
 

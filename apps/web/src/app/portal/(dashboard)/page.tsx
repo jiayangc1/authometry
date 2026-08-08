@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, AppWindow, Clock3, LoaderCircle, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowUpRight, AppWindow, Check, Clock3, LoaderCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button, EmptyState } from "@authometry/ui";
@@ -20,25 +20,16 @@ interface PortalApplication {
   provisioning_enabled: boolean;
 }
 
-const cardTones = [
-  "from-[#635bff] to-[#817bff]",
-  "from-[#167c66] to-[#2aa887]",
-  "from-[#3559a8] to-[#5478c9]",
-  "from-[#8a4d73] to-[#af6c95]",
-] as const;
-
-function ApplicationLogo({ application, tone }: { application: PortalApplication; tone: string }) {
+function ApplicationLogo({ application }: { application: PortalApplication }) {
   const [failed, setFailed] = useState(false);
   const fallback = application.name.slice(0, 2).toUpperCase();
 
   return (
-    <span
-      className={`flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-gradient-to-br ${tone} text-sm font-semibold text-white shadow-sm`}
-    >
+    <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-[15px] bg-[var(--portal-accent)] text-base font-semibold text-white ring-1 ring-black/5">
       {application.logo_uri && !failed ? (
         <img
           alt=""
-          className="size-full bg-white object-contain p-1.5"
+          className="size-full object-cover"
           onError={() => setFailed(true)}
           referrerPolicy="no-referrer"
           src={application.logo_uri}
@@ -90,72 +81,42 @@ export default function PortalApplicationsPage() {
 
   const firstName = me.data?.user.name.split(/\s+/)[0] ?? "there";
   return (
-    <div>
-      <section className="relative overflow-hidden rounded-[20px] border border-[var(--portal-line)] bg-[var(--portal-paper)]">
-        <div className="absolute inset-y-0 left-0 w-1.5 bg-[var(--portal-accent)]" />
-        <div className="grid gap-6 px-6 py-6 sm:px-8 sm:py-8 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div>
-            <div className="mb-4 flex items-center gap-2">
-              <span className="flex size-7 items-center justify-center rounded-full bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]">
-                <Sparkles aria-hidden="true" className="size-3.5" />
-              </span>
-              <p className="portal-caption">
-                ACCESS PASS / {me.data?.workspace.slug.toUpperCase() ?? "WORKSPACE"}
-              </p>
-            </div>
-            <h1 className="text-[30px] leading-9 font-semibold tracking-[-0.045em] text-balance">
-              Good to see you, {firstName}.
-            </h1>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--portal-muted)]">
-              These are the services your company has approved for you. Open one and your current
-              Authometry session handles sign-in.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl border border-[var(--portal-line)] bg-[var(--portal-canvas)] px-4 py-3">
-            <span className="flex size-8 items-center justify-center rounded-full bg-[#e8f7f1] text-[var(--portal-ready)] dark:bg-[#17352c]">
-              <ShieldCheck aria-hidden="true" className="size-4" />
-            </span>
-            <div>
-              <p className="text-xs font-semibold">Session verified</p>
-              <p className="text-[11px] text-[var(--portal-muted)]">{me.data?.user.email}</p>
-            </div>
-          </div>
+    <div className="mx-auto max-w-4xl">
+      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="portal-caption mb-2">{me.data?.workspace.name ?? "YOUR WORKSPACE"}</p>
+          <h1 className="text-[34px] leading-[1.08] font-semibold tracking-[-0.05em] text-balance sm:text-[42px]">
+            Welcome back, {firstName}.
+          </h1>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--portal-muted)]">
+            Open a company app. Your Authometry session signs you in securely.
+          </p>
         </div>
-        <div className="grid grid-cols-2 border-t border-[var(--portal-line)] sm:grid-cols-3">
-          <div className="px-6 py-3 sm:px-8">
-            <p className="portal-caption">WORKSPACE</p>
-            <p className="mt-0.5 truncate text-xs font-medium">{me.data?.workspace.name ?? "—"}</p>
-          </div>
-          <div className="border-l border-[var(--portal-line)] px-6 py-3">
-            <p className="portal-caption">ENVIRONMENT</p>
-            <p className="mt-0.5 truncate text-xs font-medium">
-              {me.data?.environment.name ?? "—"}
-            </p>
-          </div>
-          <div className="hidden border-l border-[var(--portal-line)] px-6 py-3 sm:block">
-            <p className="portal-caption">SECURITY</p>
-            <p className="mt-0.5 truncate text-xs font-medium">
-              {me.data?.user.mfaEnabled ? "MFA protected" : "Password protected"}
-            </p>
-          </div>
+        <div className="flex w-fit items-center gap-2 rounded-full border border-[var(--portal-line)] bg-[var(--portal-paper)] py-1.5 pr-3 pl-1.5 text-[11px] font-medium shadow-[0_1px_2px_rgba(20,20,30,.04)]">
+          <span className="flex size-6 items-center justify-center rounded-full bg-[#e7f7f1] text-[var(--portal-ready)] dark:bg-[#17352c]">
+            <Check aria-hidden="true" className="size-3.5" strokeWidth={2.5} />
+          </span>
+          Session verified
         </div>
-      </section>
+      </header>
 
-      <section className="mt-10">
-        <div className="mb-4 flex items-end justify-between gap-4">
+      <section className="mt-14 sm:mt-16">
+        <div className="mb-5 flex items-end justify-between gap-4">
           <div>
-            <p className="portal-caption mb-1">LAUNCH RUNWAY</p>
-            <h2 className="text-lg font-semibold tracking-[-0.025em]">Your applications</h2>
+            <h2 className="text-base font-semibold tracking-[-0.025em]">Your apps</h2>
+            <p className="mt-1 text-xs text-[var(--portal-muted)]">
+              Access approved for {me.data?.user.email}
+            </p>
           </div>
           <p className="text-xs text-[var(--portal-muted)]">
             {applications.data?.data.length ?? 0} assigned
           </p>
         </div>
         {applications.isLoading ? (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3">
             {[0, 1, 2, 3].map((item) => (
               <div
-                className="h-36 animate-pulse rounded-xl border border-[var(--portal-line)] bg-[var(--portal-paper)]"
+                className="h-28 animate-pulse rounded-2xl border border-[var(--portal-line)] bg-[var(--portal-paper)]"
                 key={item}
               />
             ))}
@@ -169,30 +130,29 @@ export default function PortalApplicationsPage() {
             />
           </div>
         ) : applications.data?.data.length ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {applications.data.data.map((application, index) => (
+          <div className="grid gap-3">
+            {applications.data.data.map((application) => (
               <article
-                className="group flex min-h-36 flex-col rounded-xl border border-[var(--portal-line)] bg-[var(--portal-paper)] p-4 transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(40,40,70,.08)]"
+                className="group flex flex-col gap-5 rounded-2xl border border-[var(--portal-line)] bg-[var(--portal-paper)] p-4 shadow-[0_1px_2px_rgba(20,20,30,.03)] transition-[border-color,box-shadow] hover:border-[color:var(--portal-accent)/.35] hover:shadow-[0_12px_32px_rgba(32,30,60,.07)] sm:flex-row sm:items-center sm:p-5"
                 key={application.id}
               >
-                <div className="flex items-start gap-3">
-                  <ApplicationLogo
-                    application={application}
-                    tone={cardTones[index % cardTones.length] ?? cardTones[0]}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-sm font-semibold">{application.name}</h3>
-                    <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-[var(--portal-muted)]">
+                <div className="flex min-w-0 flex-1 items-center gap-4">
+                  <ApplicationLogo application={application} />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="truncate text-sm font-semibold">{application.name}</h3>
+                      <span
+                        className={`size-1.5 shrink-0 rounded-full ${application.provisioning_enabled ? "bg-[var(--portal-ready)]" : "bg-[var(--warning)]"}`}
+                        title={application.provisioning_enabled ? "Ready" : "Provisioning required"}
+                      />
+                    </div>
+                    <p className="mt-1 line-clamp-2 max-w-lg text-xs leading-5 text-[var(--portal-muted)]">
                       {application.description || "Company-managed access"}
                     </p>
                   </div>
-                  <span
-                    className={`mt-1 size-2 rounded-full ${application.provisioning_enabled ? "bg-[var(--portal-ready)]" : "bg-[var(--warning)]"}`}
-                    title={application.provisioning_enabled ? "Ready" : "Provisioning required"}
-                  />
                 </div>
-                <div className="mt-auto flex items-end justify-between gap-3 pt-4">
-                  <p className="flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--portal-muted)]">
+                <div className="flex items-center justify-between gap-4 sm:justify-end">
+                  <p className="flex min-w-0 items-center gap-1.5 text-[11px] whitespace-nowrap text-[var(--portal-muted)]">
                     <Clock3 aria-hidden="true" className="size-3" />
                     {application.last_launched_at ? (
                       <>
@@ -203,6 +163,7 @@ export default function PortalApplicationsPage() {
                     )}
                   </p>
                   <Button
+                    className="rounded-full px-4"
                     disabled={!application.provisioning_enabled || launching === application.id}
                     onClick={() => void launch(application)}
                     size="compact"
