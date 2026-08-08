@@ -1,5 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+function dashboardReturnTo(request: NextRequest): URL {
+  const fallback = new URL("/overview", request.url);
+  const returnTo = request.nextUrl.searchParams.get("returnTo");
+  if (!returnTo?.startsWith("/") || returnTo.startsWith("//")) return fallback;
+
+  try {
+    const target = new URL(returnTo, request.url);
+    return target.origin === request.nextUrl.origin ? target : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function proxy(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/portal")) {
     const hasPortalSession = request.cookies.has("authometry_user_session");
@@ -16,6 +29,9 @@ export function proxy(request: NextRequest) {
   const hasSession =
     request.cookies.has("authometry_admin_access") ||
     request.cookies.has("authometry_admin_refresh");
+  if (request.nextUrl.pathname === "/login") {
+    return hasSession ? NextResponse.redirect(dashboardReturnTo(request)) : NextResponse.next();
+  }
   if (!hasSession) {
     const login = new URL("/login", request.url);
     login.searchParams.set("returnTo", request.nextUrl.pathname + request.nextUrl.search);
@@ -39,6 +55,7 @@ export const config = {
     "/developer/:path*",
     "/dev/:path*",
     "/select-workspace",
+    "/login",
     "/portal/:path*",
   ],
 };
