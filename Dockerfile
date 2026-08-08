@@ -40,17 +40,21 @@ CMD ["node", "apps/web/server.js"]
 FROM source AS server-builder
 RUN pnpm --filter @authometry/server build
 
-FROM source AS server-runtime-dependencies
-RUN pnpm --filter @authometry/server deploy --prod --legacy /server
-
 FROM node:24-alpine AS server
+ARG TARGETARCH
 ENV NODE_ENV=production
 ENV PORT=4000
 WORKDIR /app
-RUN apk add --no-cache curl && addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 authometry
+RUN apk add --no-cache curl \
+  && addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 authometry \
+  && sharp_cpu="${TARGETARCH}" \
+  && if [ "${sharp_cpu}" = "amd64" ]; then sharp_cpu="x64"; fi \
+  && npm install --no-save --no-package-lock --omit=dev --include=optional \
+    --os=linux --libc=musl --cpu="${sharp_cpu}" sharp@0.34.5 \
+  && chown -R authometry:nodejs /app/node_modules
 COPY --from=server-builder --chown=authometry:nodejs /app/apps/server/dist ./dist
 COPY --from=server-builder --chown=authometry:nodejs /app/apps/server/migrations ./migrations
-COPY --from=server-runtime-dependencies --chown=authometry:nodejs /server/node_modules ./node_modules
 USER authometry
 EXPOSE 4000
 CMD ["node", "dist/index.js"]
