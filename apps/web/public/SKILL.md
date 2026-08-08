@@ -76,7 +76,40 @@ Use Authorization Code with S256 PKCE for every interactive client, including co
 9. Regenerate the local session ID for a backend-assisted client, then establish the application's own secure session. For a public client, use the OIDC library's authenticated state and do not invent a server session that the application does not have.
 10. Accept a post-login return path only when it begins with one `/` and is not absolute, protocol-relative, backslash-based, encoded to escape the origin, or malformed.
 
-## 5. Handle tokens, APIs, and logout
+## 5. Add the Authometry provider button
+
+Implement a visible **Continue with Authometry** button in the application's existing sign-in interface. Do not leave login available only as a bare text link or undocumented route. Match the app's component system when one exists; otherwise use this accessible baseline:
+
+```html
+<a class="authometry-button" href="/auth/login">
+  <img src="https://authometry.ch3n.cc/brand/authometry-icon-192.png" alt="" width="24" height="24" />
+  Continue with Authometry
+</a>
+
+<style>
+  .authometry-button {
+    display: inline-flex; height: 44px; align-items: center; gap: 10px;
+    padding: 0 16px; border: 1px solid #d8d8df; border-radius: 10px;
+    background: #fff; color: #18181b; box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
+    font: 600 14px/1 system-ui, sans-serif; text-decoration: none;
+  }
+  .authometry-button:hover { background: #fafaff; border-color: #bbb9cb; }
+  .authometry-button:focus-visible { outline: 2px solid #7c73ff; outline-offset: 2px; }
+  .authometry-button img { width: 24px; height: 24px; }
+</style>
+```
+
+Replace `/auth/login` with the local login handler created in step 4. For self-hosted Authometry, replace the image origin with the configured issuer; never make the button link directly to the provider's authorization endpoint.
+
+Choose the appearance that fits the surrounding sign-in UI, and implement its hover state as well as its default state:
+
+- **Light:** use the baseline white button above.
+- **Dark:** use `border: #34343a`, `background: #18181b`, and `color: #fff`; on hover use `border-color: #575260` and `background: #232326`.
+- **Brand:** use `border: #635bff`, `background: #635bff`, and `color: #fff`; on hover use `border-color: #554ce8` and `background: #554ce8`.
+
+When the application has theme switching, make the button follow the active theme instead of permanently choosing the light variant. Preserve the visible Authometry icon, readable label, keyboard focus indicator, and at least a 44-pixel default control height. Use a button element only when JavaScript starts the local login action; use a link when navigation starts it.
+
+## 6. Handle tokens, APIs, and logout
 
 - Keep client secrets and tokens on the server for backend-assisted applications. Prefer a backend-for-frontend when the app already has a backend. A pure SPA must use a public client, rely on Authometry's credential-free OAuth CORS support, and keep tokens in memory or short-lived `sessionStorage`, never `localStorage`.
 - Encrypt server-held refresh tokens at rest and replace them atomically after every refresh. On `invalid_grant`, clear the unusable token and require sign-in instead of retrying it.
@@ -86,13 +119,14 @@ Use Authorization Code with S256 PKCE for every interactive client, including co
 
 For a `machine` client, use Client Credentials and request only assigned API scopes; do not request `openid`. For a `device` client, use the discovered Device Authorization endpoint, show its user code and verification URI, honor the polling interval, and stop on approval, denial, or expiry. Never use implicit or resource-owner password grants.
 
-## 6. Verify and report
+## 7. Verify and report
 
 Run the repository's native lint, typecheck, build, and test commands. Add focused tests for callback errors, state and nonce rejection, single-use attempts, session regeneration, protected routes, safe return paths, refresh rotation, and logout.
 
 Verify without printing secrets:
 
 - The CLI-created issuer's discovery document reports the exact same issuer.
+- The sign-in interface renders a keyboard-accessible Authometry provider button with the correct light, dark, or brand appearance and points it to the local login handler.
 - Login redirects use unique state, nonce, and S256 PKCE values.
 - The exact registered callback completes sign-in and creates a local session.
 - Modified, expired, replayed, or mismatched state and nonce values are rejected.
