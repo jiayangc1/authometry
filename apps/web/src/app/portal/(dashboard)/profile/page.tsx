@@ -102,7 +102,7 @@ export default function PortalProfilePage() {
               />
               <button
                 aria-label="Choose profile picture"
-                className="absolute right-0 bottom-0 flex size-9 items-center justify-center rounded-full bg-[var(--portal-ink)] text-white shadow-md transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-60"
+                className="absolute right-0 bottom-0 flex size-9 items-center justify-center rounded-full bg-[var(--portal-ink)] text-white shadow-md transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
                 disabled={uploading}
                 onClick={() => fileInput.current?.click()}
                 type="button"
