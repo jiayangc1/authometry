@@ -90,7 +90,31 @@ export async function dispatchPendingWebhooks(): Promise<void> {
   }
 }
 
+export async function expireStaleAuthorizationTraces(): Promise<void> {
+  await query(
+    `UPDATE authorization_traces t
+     SET status = 'warning', event_type = 'authorization_request_expired',
+         completed_at = t.started_at + interval '10 minutes', duration_ms = 600000,
+         oauth_error = 'authorization_request_expired',
+         steps = t.steps || jsonb_build_array(jsonb_build_object(
+           'id', t.request_id || '_step_expired',
+           'index', jsonb_array_length(t.steps),
+           'name', 'Authorization request expired',
+           'status', 'warning',
+           'summary', 'No response within 10 minutes',
+           'description', 'The authorization flow was not completed before it expired.',
+           'startedOffsetMs', 600000))
+     WHERE t.status = 'pending'
+       AND t.started_at <= now() - interval '10 minutes'
+       AND NOT EXISTS (
+         SELECT 1 FROM pending_authorization_requests p
+         WHERE p.request_id = t.request_id AND p.expires_at > now()
+       )`,
+  );
+}
+
 export async function runRetention(): Promise<void> {
+  await expireStaleAuthorizationTraces();
   await Promise.all([
     query("DELETE FROM revoked_access_tokens WHERE expires_at < now()"),
     query("DELETE FROM social_login_states WHERE expires_at < now() - interval '1 day'"),
