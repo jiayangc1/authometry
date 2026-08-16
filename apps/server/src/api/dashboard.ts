@@ -22,10 +22,11 @@ const groupNameSchema = z
   .min(1)
   .max(64)
   .refine(
-    (value) => [...value].every((character) => {
-      const codePoint = character.codePointAt(0) ?? 0;
-      return codePoint >= 32 && codePoint !== 127;
-    }),
+    (value) =>
+      [...value].every((character) => {
+        const codePoint = character.codePointAt(0) ?? 0;
+        return codePoint >= 32 && codePoint !== 127;
+      }),
     "Group names cannot contain control characters.",
   );
 const groupsSchema = z
@@ -568,13 +569,16 @@ dashboardRouter.get(
         [request.params.userId],
       ),
       query(
-        `SELECT ua.application_id, ua.assigned_at, ua.last_launched_at, a.name, a.slug,
+        `SELECT ua.application_id, ua.assigned_at, launch.last_launched_at, a.name, a.slug,
                 EXISTS (
                   SELECT 1 FROM webhooks w WHERE w.environment_id = a.environment_id
                     AND w.purpose = 'provisioning' AND w.status = 'enabled'
                 ) AS provisioning_enabled
          FROM user_application_assignments ua
          JOIN oauth_applications a ON a.id = ua.application_id
+         LEFT JOIN user_application_launches launch
+           ON launch.environment_id = ua.environment_id
+             AND launch.application_id = ua.application_id AND launch.user_id = ua.user_id
          WHERE ua.user_id = $1 AND ua.environment_id = $2 ORDER BY a.name`,
         [request.params.userId, request.environment!.id],
       ),

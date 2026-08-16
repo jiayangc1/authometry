@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { z } from "zod";
 import { env } from "../env.js";
 import { query, transaction } from "../db.js";
+import { recordPortalApplicationLaunch } from "../lib/application-usage.js";
 import {
   constantTimeEqual,
   decrypt,
@@ -867,7 +868,7 @@ portalRouter.get(
       provisioning_enabled: boolean;
     }>(
       `SELECT a.id, a.name, a.slug, a.description, a.logo_uri, a.launch_uri,
-              direct.last_launched_at,
+              launch.last_launched_at,
               EXISTS (
                 SELECT 1 FROM webhooks w
                 WHERE w.environment_id = a.environment_id AND w.purpose = 'provisioning'
@@ -877,6 +878,9 @@ portalRouter.get(
        LEFT JOIN user_application_assignments direct
          ON direct.application_id = a.id AND direct.environment_id = a.environment_id
            AND direct.user_id = $1
+       LEFT JOIN user_application_launches launch
+         ON launch.application_id = a.id AND launch.environment_id = a.environment_id
+           AND launch.user_id = $1
        WHERE a.environment_id = $2 AND a.portal_enabled = true
          AND a.status = 'active' AND a.launch_uri IS NOT NULL
          AND (
@@ -892,7 +896,7 @@ portalRouter.get(
                )
            )
          )
-       ORDER BY direct.last_launched_at DESC NULLS LAST, a.name`,
+       ORDER BY launch.last_launched_at DESC NULLS LAST, a.name`,
       [portal.id, portal.environment_id],
     );
     response.json({ data: applications });
@@ -946,10 +950,14 @@ portalRouter.post(
     }
     const launchUri = createPortalLaunchUrl(application.launch_uri, application.issuer);
     await transaction(async (client) => {
-      await client.query(
-        `UPDATE user_application_assignments SET last_launched_at = now()
-         WHERE user_id = $1 AND environment_id = $2 AND application_id = $3`,
-        [portal.id, portal.environment_id, application.id],
+      await recordPortalApplicationLaunch(
+        {
+          workspaceId: portal.workspace_id,
+          environmentId: portal.environment_id,
+          applicationId: application.id,
+          userId: portal.id,
+        },
+        (text, values) => client.query(text, values),
       );
       await client.query(
         `INSERT INTO audit_events

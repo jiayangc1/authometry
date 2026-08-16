@@ -14,6 +14,7 @@ import {
   sha256Base64Url,
 } from "../lib/crypto.js";
 import { ApiError, asyncRoute } from "../lib/http.js";
+import { recordApplicationUsage } from "../lib/application-usage.js";
 import { verifyIdentityMfa } from "../lib/identity-mfa.js";
 import { evaluateAll } from "../lib/policy.js";
 import { exchangeSocialCode, socialAuthorizationUrl, socialCallbackUri } from "../lib/social.js";
@@ -336,6 +337,7 @@ async function mcpAuthorizationRedirect(
         ]),
       ],
     );
+    await recordApplicationUsage(application.id, (text, values) => client.query(text, values));
   });
   const redirect = new URL(pending.parameters.redirect_uri);
   redirect.searchParams.set("code", code);
@@ -632,6 +634,7 @@ async function authorizationRedirect(
         parameters.task_id ?? null,
       ],
     );
+    await recordApplicationUsage(application.id, (text, values) => client.query(text, values));
   });
   const redirect = new URL(parameters.redirect_uri);
   redirect.searchParams.set("code", code);

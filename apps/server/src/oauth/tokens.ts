@@ -4,6 +4,7 @@ import { decodeJwt } from "jose";
 import { createApplicationSlug, redirectUriSchema } from "@authometry/domain";
 import { z } from "zod";
 import { query, transaction } from "../db.js";
+import { recordApplicationUsage } from "../lib/application-usage.js";
 import { hashToken, randomId, randomToken } from "../lib/crypto.js";
 import { ApiError, asyncRoute } from "../lib/http.js";
 import { issueTokenSet, verifyPkce } from "../lib/oauth.js";
@@ -899,6 +900,7 @@ tokenRouter.post(
         "Signed token response",
         "The request passed validation and tokens were issued.",
       );
+      await recordApplicationUsage(application.id);
       await trace.finish("success");
       response.json(tokens);
     } catch (error) {
