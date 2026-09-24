@@ -47,23 +47,33 @@ export function createApp() {
     origin: true,
     credentials: false,
     methods: ["GET", "HEAD", "POST", "OPTIONS"],
-    allowedHeaders: ["authorization", "content-type", "dpop"],
-    exposedHeaders: ["dpop-nonce", "www-authenticate", "x-request-id"],
+    allowedHeaders: [
+      "authorization",
+      "content-type",
+      "dpop",
+      "mcp-protocol-version",
+      "mcp-session-id",
+      "last-event-id",
+    ],
+    exposedHeaders: ["dpop-nonce", "www-authenticate", "x-request-id", "mcp-session-id"],
     maxAge: 600,
   });
+  const isProtocolPath = (path: string) => /(^|\/)(oauth|\.well-known|mcp)(\/|$)/.test(path);
   app.use((request, response, next) => {
-    if (/(^|\/)(oauth|\.well-known)(\/|$)/.test(request.path)) {
+    if (isProtocolPath(request.path)) {
       protocolCors(request, response, next);
       return;
     }
     next();
   });
-  app.use(
-    cors({
-      origin: env.NODE_ENV === "development" ? env.PUBLIC_ORIGIN : false,
-      credentials: true,
-    }),
-  );
+  const dashboardCors = cors({
+    origin: env.NODE_ENV === "development" ? env.PUBLIC_ORIGIN : false,
+    credentials: true,
+  });
+  app.use((request, response, next) => {
+    if (isProtocolPath(request.path)) return next();
+    dashboardCors(request, response, next);
+  });
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: false, limit: "256kb" }));
   app.use(cookieParser(env.COOKIE_SECRET));

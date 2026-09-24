@@ -45,6 +45,30 @@ await test("public OAuth endpoints allow credential-free browser clients across 
   assert.equal(response.headers["access-control-allow-credentials"], undefined);
 });
 
+await test("MCP allows browser client preflight and exposes its OAuth challenge", async () => {
+  const app = createApp();
+  const preflight = await request(app)
+    .options("/mcp")
+    .set("origin", "https://client.example")
+    .set("access-control-request-method", "POST")
+    .set(
+      "access-control-request-headers",
+      "authorization,content-type,mcp-protocol-version,mcp-session-id",
+    )
+    .expect(204);
+  assert.equal(preflight.headers["access-control-allow-origin"], "https://client.example");
+  assert.match(preflight.headers["access-control-allow-headers"] as string, /mcp-protocol-version/);
+  assert.match(preflight.headers["access-control-expose-headers"] as string, /www-authenticate/);
+
+  const challenge = await request(app)
+    .post("/mcp")
+    .set("origin", "https://client.example")
+    .send({})
+    .expect(401);
+  assert.equal(challenge.headers["access-control-allow-origin"], "https://client.example");
+  assert.match(challenge.headers["www-authenticate"] as string, /resource_metadata=/);
+});
+
 await test("MCP challenges unauthenticated clients with OAuth resource metadata", async () => {
   const response = await request(createApp()).post("/mcp").send({}).expect(401);
 
