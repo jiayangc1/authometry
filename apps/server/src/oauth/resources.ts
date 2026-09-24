@@ -37,6 +37,8 @@ export function mcpResourceForIssuer(issuer: string): string {
   return resource.toString().replace(/\/$/, "");
 }
 
+export const mcpIdentityScopes = ["openid", "email", "profile"] as const;
+
 export function mcpResourceMetadataUrl(resource: string): string {
   const parsed = new URL(resource);
   return `${parsed.origin}/.well-known/oauth-protected-resource${parsed.pathname}`;
@@ -185,10 +187,13 @@ resourceRouter.get(
     const clientId = typeof payload.client_id === "string" ? payload.client_id : "";
     const application = clientId ? await findApplicationByClientId(clientId) : undefined;
     const audience = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+    const isMcpAdmin = payload.authometry_principal === "admin";
     if (
       !application ||
       payload.iss !== application.issuer ||
-      !audience.includes(application.client_id)
+      !audience.includes(
+        isMcpAdmin ? mcpResourceForIssuer(application.issuer) : application.client_id,
+      )
     ) {
       throw new ApiError(
         401,
@@ -197,13 +202,38 @@ resourceRouter.get(
       );
     }
     assertApplicationRoute(application, request);
+    const scopes = typeof payload.scope === "string" ? payload.scope.split(" ") : [];
+    if (isMcpAdmin) {
+      if (!scopes.includes("mcp:read") || payload.workspace_id !== application.workspace_id) {
+        throw new ApiError(401, "invalid_token", "The MCP admin token is invalid.");
+      }
+      const [admin] = await query<{
+        id: string;
+        email: string;
+        name: string;
+        email_verified_at: Date | null;
+      }>(
+        `SELECT u.id, u.email, u.name, u.email_verified_at
+         FROM admin_users u JOIN workspace_memberships m ON m.admin_user_id = u.id
+         WHERE u.id = $1 AND m.workspace_id = $2 AND u.disabled_at IS NULL`,
+        [payload.sub, application.workspace_id],
+      );
+      if (!admin) throw new ApiError(401, "invalid_token", "The Authometry admin is not active.");
+      response.json({
+        sub: admin.id,
+        ...(scopes.includes("profile") ? { name: admin.name } : {}),
+        ...(scopes.includes("email")
+          ? { email: admin.email, email_verified: Boolean(admin.email_verified_at) }
+          : {}),
+      });
+      return;
+    }
     const [user] = await query<IdentityUserRow>(
       "SELECT * FROM identity_users WHERE id = $1 AND workspace_id = $2",
       [payload.sub, application.workspace_id],
     );
     if (!user || user.status !== "active")
       throw new ApiError(401, "invalid_token", "The user is not active.");
-    const scopes = typeof payload.scope === "string" ? payload.scope.split(" ") : [];
     const claims = await mappedClaims(
       application.environment_id,
       {

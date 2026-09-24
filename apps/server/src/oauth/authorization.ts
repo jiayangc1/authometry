@@ -20,7 +20,7 @@ import { evaluateAll } from "../lib/policy.js";
 import { exchangeSocialCode, socialAuthorizationUrl, socialCallbackUri } from "../lib/social.js";
 import { TraceRecorder } from "../lib/trace.js";
 import { assertApplicationRoute, findApplicationByClientId } from "./common.js";
-import { mcpResourceForIssuer, resourceIndicatorsMatch } from "./resources.js";
+import { mcpIdentityScopes, mcpResourceForIssuer, resourceIndicatorsMatch } from "./resources.js";
 import {
   actionCoveredByScopes,
   findAgentForClient,
@@ -46,14 +46,16 @@ interface McpAdminUser {
   role: string;
 }
 
-function isMcpAuthorization(
+export function isMcpAuthorization(
   parameters: AuthorizationParameters,
   application: OAuthApplicationRow,
 ): boolean {
   const scopes = parameters.scope.split(" ").filter(Boolean);
   return (
     scopes.includes("mcp:read") &&
-    scopes.every((scope) => ["mcp:read", "mcp:write", "offline_access"].includes(scope)) &&
+    scopes.every((scope) =>
+      ["mcp:read", "mcp:write", "offline_access", ...mcpIdentityScopes].includes(scope),
+    ) &&
     Boolean(
       parameters.resource &&
       resourceIndicatorsMatch(parameters.resource, mcpResourceForIssuer(application.issuer)),

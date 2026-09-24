@@ -12,7 +12,12 @@ import { verifyOAuthJwt } from "../lib/signing.js";
 import { TraceRecorder } from "../lib/trace.js";
 import { authenticateClient, findApplicationByClientId, oauthError } from "./common.js";
 import type { IdentityUserRow, OAuthApplicationRow } from "./types.js";
-import { defaultEnvironment, mcpResourceForIssuer, resourceIndicatorsMatch } from "./resources.js";
+import {
+  defaultEnvironment,
+  mcpIdentityScopes,
+  mcpResourceForIssuer,
+  resourceIndicatorsMatch,
+} from "./resources.js";
 import {
   findAgentById,
   findAgentForClient,
@@ -113,10 +118,11 @@ async function authorizationCodeGrant(
         id: string;
         email: string;
         name: string;
+        email_verified_at: Date | null;
         workspace_id: string;
         role: string;
       }>(
-        `SELECT u.id, u.email, u.name, m.workspace_id, m.role
+        `SELECT u.id, u.email, u.name, u.email_verified_at, m.workspace_id, m.role
          FROM admin_users u JOIN workspace_memberships m ON m.admin_user_id = u.id
          WHERE u.id = $1 AND m.workspace_id = $2 AND u.disabled_at IS NULL`,
         [authorizationCode.admin_user_id, application.workspace_id],
@@ -143,6 +149,14 @@ async function authorizationCodeGrant(
         audience: authorizationCode.resource,
         resource: authorizationCode.resource,
         adminUserId: admin.id,
+        adminIdentity: {
+          id: admin.id,
+          email: admin.email,
+          name: admin.name,
+          emailVerified: Boolean(admin.email_verified_at),
+          authTime: authorizationCode.auth_time,
+        },
+        ...(authorizationCode.nonce ? { nonce: authorizationCode.nonce } : {}),
         includeRefreshToken: authorizationCode.scope.includes("offline_access"),
         accessTokenClaims: {
           authometry_principal: "admin",
@@ -697,6 +711,15 @@ export const dynamicRegistrationSchema = z.object({
   client_uri: z.string().url().optional(),
 });
 
+export function dynamicMcpScopes(grantTypes: string[]): string[] {
+  return [
+    "mcp:read",
+    "mcp:write",
+    ...mcpIdentityScopes,
+    ...(grantTypes.includes("refresh_token") ? ["offline_access"] : []),
+  ];
+}
+
 tokenRouter.post(
   "/register",
   asyncRoute(async (request, response) => {
@@ -720,11 +743,7 @@ tokenRouter.post(
     const baseSlug = createApplicationSlug(input.client_name).slice(0, 50) || "mcp-client";
     const slug = `${baseSlug}-${crypto.randomUUID().slice(0, 8)}`;
     const clientId = randomId("amt_mcp_client", 18);
-    const allowedScopes = [
-      "mcp:read",
-      "mcp:write",
-      ...(input.grant_types.includes("refresh_token") ? ["offline_access"] : []),
-    ];
+    const allowedScopes = dynamicMcpScopes(input.grant_types);
     await transaction(async (client) => {
       const application = await client.query<{ id: string }>(
         `INSERT INTO oauth_applications

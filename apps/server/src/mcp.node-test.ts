@@ -6,13 +6,16 @@ import express from "express";
 import type { QueryResultRow } from "pg";
 import request from "supertest";
 import { createApp } from "./index.js";
+import { adminIdTokenClaims } from "./lib/oauth.js";
 import { createAuthometryMcpServer, handleMcpRequest, type McpPrincipal } from "./mcp.js";
+import { isMcpAuthorization } from "./oauth/authorization.js";
 import {
   mcpResourceForIssuer,
   mcpResourceMetadataUrl,
   resourceIndicatorsMatch,
 } from "./oauth/resources.js";
-import { dynamicRegistrationSchema } from "./oauth/tokens.js";
+import { dynamicMcpScopes, dynamicRegistrationSchema } from "./oauth/tokens.js";
+import type { AuthorizationParameters, OAuthApplicationRow } from "./oauth/types.js";
 
 const environment = {
   id: "environment-1",
@@ -97,6 +100,14 @@ await test("MCP dynamic registration accepts public PKCE clients and rejects uns
   assert.equal(registered.client_name, "MCP client");
   assert.deepEqual(registered.grant_types, ["authorization_code", "refresh_token"]);
   assert.equal(registered.token_endpoint_auth_method, "none");
+  assert.deepEqual(dynamicMcpScopes(registered.grant_types), [
+    "mcp:read",
+    "mcp:write",
+    "openid",
+    "email",
+    "profile",
+    "offline_access",
+  ]);
 
   assert.equal(
     dynamicRegistrationSchema.safeParse({
@@ -110,6 +121,43 @@ await test("MCP dynamic registration accepts public PKCE clients and rejects uns
     }).success,
     false,
   );
+});
+
+await test("MCP admin authorization accepts OIDC identity scopes only for its bound resource", () => {
+  const application = { issuer: "https://auth.example.com" } as OAuthApplicationRow;
+  const parameters = {
+    scope: "mcp:read mcp:write openid email profile offline_access",
+    resource: "https://auth.example.com/mcp",
+  } as AuthorizationParameters;
+  assert.equal(isMcpAuthorization(parameters, application), true);
+  assert.equal(
+    isMcpAuthorization({ ...parameters, resource: "https://other.example.com/mcp" }, application),
+    false,
+  );
+  assert.equal(
+    isMcpAuthorization({ ...parameters, scope: `${parameters.scope} users:write` }, application),
+    false,
+  );
+});
+
+await test("MCP admin ID token carries requested identity claims and OAuth nonce", () => {
+  const admin = {
+    id: "admin-1",
+    email: "owner@example.com",
+    name: "Owner",
+    emailVerified: true,
+    authTime: new Date("2026-09-24T00:00:00Z"),
+  };
+  assert.deepEqual(adminIdTokenClaims(admin, ["openid", "email", "profile"], "request-nonce"), {
+    token_use: "id",
+    authometry_principal: "admin",
+    email: "owner@example.com",
+    email_verified: true,
+    name: "Owner",
+    auth_time: 1790208000,
+    nonce: "request-nonce",
+  });
+  assert.equal(adminIdTokenClaims(admin, ["openid"]).email, undefined);
 });
 
 await test("MCP exposes workspace and management tools and keeps queries tenant scoped", async () => {

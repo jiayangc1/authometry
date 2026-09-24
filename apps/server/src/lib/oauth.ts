@@ -18,6 +18,26 @@ export interface TokenApplication {
   rotate_refresh_tokens: boolean;
 }
 
+interface AdminIdentity {
+  id: string;
+  email: string;
+  name: string;
+  emailVerified: boolean;
+  authTime: Date;
+}
+
+export function adminIdTokenClaims(identity: AdminIdentity, scopes: string[], nonce?: string) {
+  return {
+    token_use: "id",
+    authometry_principal: "admin",
+    email: scopes.includes("email") ? identity.email : undefined,
+    email_verified: scopes.includes("email") ? identity.emailVerified : undefined,
+    name: scopes.includes("profile") ? identity.name : undefined,
+    auth_time: Math.floor(identity.authTime.getTime() / 1000),
+    ...(nonce ? { nonce } : {}),
+  };
+}
+
 export async function issueTokenSet({
   application,
   issuer,
@@ -31,6 +51,7 @@ export async function issueTokenSet({
   tokenType,
   subject: subjectOverride,
   adminUserId,
+  adminIdentity,
   resource,
 }: {
   application: TokenApplication;
@@ -45,6 +66,7 @@ export async function issueTokenSet({
   tokenType?: "Bearer" | "DPoP";
   subject?: string;
   adminUserId?: string;
+  adminIdentity?: AdminIdentity;
   resource?: string;
 }): Promise<Record<string, unknown>> {
   const subject = subjectOverride ?? user?.id ?? application.client_id;
@@ -91,6 +113,17 @@ export async function issueTokenSet({
         auth_time: Math.floor(user.authTime.getTime() / 1000),
         ...(nonce ? { nonce } : {}),
       },
+      application.access_token_lifetime_seconds,
+    );
+  }
+
+  if (adminIdentity && scopes.includes("openid")) {
+    result.id_token = await signOAuthJwt(
+      application.environment_id,
+      issuer,
+      application.client_id,
+      adminIdentity.id,
+      adminIdTokenClaims(adminIdentity, scopes, nonce),
       application.access_token_lifetime_seconds,
     );
   }
