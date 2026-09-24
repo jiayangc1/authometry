@@ -47,7 +47,7 @@ export default function ApplicationOverviewPage() {
     ["JWKS", `${issuer}/.well-known/jwks.json`],
   ];
   const buttonMarkup = `<a class="authometry-button" href="/auth/login">
-  <img src="${issuer}/brand/authometry-icon-192.png" alt="" width="24" height="24" />
+  <img src="${issuer}/brand/authometry-mark.svg" alt="" width="24" height="24" />
   Continue with Authometry
 </a>
 
@@ -55,10 +55,10 @@ export default function ApplicationOverviewPage() {
   .authometry-button {
     display: inline-flex; height: 44px; align-items: center; gap: 10px;
     padding: 0 16px; border: 1px solid #d8d8df; border-radius: 10px;
-    background: #fff; color: #18181b; box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
+    background: transparent; color: #18181b;
     font: 600 14px/1 system-ui, sans-serif; text-decoration: none;
   }
-  .authometry-button:hover { background: #fafaff; border-color: #bbb9cb; }
+  .authometry-button:hover { background: rgb(99 91 255 / 6%); border-color: #aaa5c5; }
   .authometry-button:focus-visible { outline: 2px solid #7c73ff; outline-offset: 2px; }
   .authometry-button img { width: 24px; height: 24px; }
 </style>`;

@@ -82,12 +82,7 @@ Implement a visible **Continue with Authometry** button in the application's exi
 
 ```html
 <a class="authometry-button" href="/auth/login">
-  <img
-    src="https://authometry.ch3n.cc/brand/authometry-icon-192.png"
-    alt=""
-    width="24"
-    height="24"
-  />
+  <img src="https://authometry.ch3n.cc/brand/authometry-mark.svg" alt="" width="24" height="24" />
   Continue with Authometry
 </a>
 
@@ -100,17 +95,16 @@ Implement a visible **Continue with Authometry** button in the application's exi
     padding: 0 16px;
     border: 1px solid #d8d8df;
     border-radius: 10px;
-    background: #fff;
+    background: transparent;
     color: #18181b;
-    box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
     font:
       600 14px/1 system-ui,
       sans-serif;
     text-decoration: none;
   }
   .authometry-button:hover {
-    background: #fafaff;
-    border-color: #bbb9cb;
+    background: rgb(99 91 255 / 6%);
+    border-color: #aaa5c5;
   }
   .authometry-button:focus-visible {
     outline: 2px solid #7c73ff;
@@ -127,7 +121,7 @@ Replace `/auth/login` with the local login handler created in step 4. For self-h
 
 Choose the appearance that fits the surrounding sign-in UI, and implement its hover state as well as its default state:
 
-- **Light:** use the baseline white button above.
+- **Light:** use the transparent baseline button above.
 - **Dark:** use `border: #34343a`, `background: #18181b`, and `color: #fff`; on hover use `border-color: #575260` and `background: #232326`.
 - **Brand:** use `border: #635bff`, `background: #635bff`, and `color: #fff`; on hover use `border-color: #554ce8` and `background: #554ce8`.
 
