@@ -12,7 +12,7 @@ https://authometry.ch3n.cc/mcp
 
 The client first receives a `401` challenge containing the protected-resource metadata URL and the requested `mcp:read mcp:write` scopes. It then discovers Authometry's authorization and token endpoints from OAuth or OpenID Provider metadata.
 
-Authometry supports anonymous Dynamic Client Registration for public MCP clients. Registrations require exact HTTPS or loopback HTTP redirect URIs, Authorization Code, S256 PKCE, and no client secret. Dynamically registered clients receive the MCP permissions plus the advertised `openid`, `email`, and `profile` identity scopes that Codex may request. A pre-registered public application can also connect when it has the same redirect URI, grants, and scopes.
+Authometry supports anonymous Dynamic Client Registration for public MCP clients. Registrations require exact HTTPS or loopback HTTP redirect URIs, Authorization Code, S256 PKCE, and no client secret. Dynamically registered clients receive the MCP permissions plus the advertised `openid`, `email`, `profile`, `phone`, and `address` identity scopes that Codex may request. A pre-registered public application can also connect when it has the same redirect URI, grants, and scopes.
 
 The client opens Authometry in the user's browser. After an Authometry administrator signs in, the consent page shows:
 
@@ -21,7 +21,7 @@ The client opens Authometry in the user's browser. After an Authometry administr
 - `mcp:read` for applications, scopes, environments, and redacted traces.
 - `mcp:write` for dashboard management actions such as creating services, editing applications, applying configuration, rotating keys, or revoking access.
 - `offline_access` when the client requests a refresh token.
-- `openid`, `email`, and `profile` when the client requests administrator identity claims.
+- `openid`, `email`, `profile`, `phone`, and `address` when the client requests administrator identity claims. Phone and address claims are omitted because administrator profiles do not store those values.
 
 Approving returns a short-lived authorization code to the exact registered redirect URI. The client exchanges it with the original PKCE verifier and the same `resource` value:
 

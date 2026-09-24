@@ -106,6 +106,8 @@ await test("MCP dynamic registration accepts public PKCE clients and rejects uns
     "openid",
     "email",
     "profile",
+    "phone",
+    "address",
     "offline_access",
   ]);
 
@@ -126,7 +128,7 @@ await test("MCP dynamic registration accepts public PKCE clients and rejects uns
 await test("MCP admin authorization accepts OIDC identity scopes only for its bound resource", () => {
   const application = { issuer: "https://auth.example.com" } as OAuthApplicationRow;
   const parameters = {
-    scope: "mcp:read mcp:write openid email profile offline_access",
+    scope: "mcp:read mcp:write openid email profile phone address offline_access",
     resource: "https://auth.example.com/mcp",
   } as AuthorizationParameters;
   assert.equal(isMcpAuthorization(parameters, application), true);

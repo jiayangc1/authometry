@@ -37,7 +37,7 @@ export function mcpResourceForIssuer(issuer: string): string {
   return resource.toString().replace(/\/$/, "");
 }
 
-export const mcpIdentityScopes = ["openid", "email", "profile"] as const;
+export const mcpIdentityScopes = ["openid", "email", "profile", "phone", "address"] as const;
 
 export function mcpResourceMetadataUrl(resource: string): string {
   const parsed = new URL(resource);
