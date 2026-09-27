@@ -3,15 +3,39 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Menu, MessageSquareText, Moon, Search, Sun, X } from "lucide-react";
+import {
+  BookOpen,
+  Check,
+  ChevronsUpDown,
+  LogOut,
+  Menu,
+  MessageSquareText,
+  Monitor,
+  Moon,
+  Plus,
+  Search,
+  Settings,
+  Sun,
+  X,
+} from "lucide-react";
+import { LayoutGroup, motion, useReducedMotion } from "motion/react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AuthometryLogo, Button, cn } from "@authometry/ui";
+import { toast } from "sonner";
+import { AuthometryMark, Button, Kbd, StatusDot, cn } from "@authometry/ui";
 import { navigation, utilityNavigation } from "@/config/navigation";
 import { apiFetch, renewDashboardSession } from "@/lib/api";
+import { useHydrated } from "@/lib/use-hydrated";
 import { SkipLink } from "@/components/layout/skip-link";
+import {
+  menuContentClass,
+  menuItemClass,
+  menuLabelClass,
+  menuSeparatorClass,
+} from "@/components/ui/menu";
+import { SegmentedControl } from "@/components/ui/tabs";
 import { CommandMenu } from "./command-menu";
 
 interface MeResponse {
@@ -33,14 +57,44 @@ interface EnvironmentResponse {
 
 const sessionRenewalInterval = 8 * 60 * 1000;
 const sessionRenewalCheckInterval = 60 * 1000;
+const navSpring = { type: "spring", stiffness: 600, damping: 45, mass: 0.7 } as const;
+
+function initials(name?: string) {
+  return (
+    name
+      ?.split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "A"
+  );
+}
+
+function WorkspaceAvatar({ name, className }: { name?: string | undefined; className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "flex size-5 shrink-0 items-center justify-center rounded-[5px] bg-gradient-to-br from-[var(--geist-gray-1000)] to-[var(--geist-gray-800)] text-[10px] font-semibold text-[var(--background)]",
+        className,
+      )}
+    >
+      {(name ?? "W").charAt(0).toUpperCase()}
+    </span>
+  );
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { resolvedTheme, setTheme } = useTheme();
+  const hydrated = useHydrated();
+  const reducedMotion = useReducedMotion();
+  const { theme, setTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [isMac, setIsMac] = useState(true);
   const [selectedEnvironmentSlug, setSelectedEnvironmentSlug] = useState<string>();
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -53,8 +107,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const selectedEnvironment =
     environments?.data.find(({ slug }) => slug === selectedEnvironmentSlug) ??
     environments?.data.find(({ is_default }) => is_default);
+  const activeWorkspace = me?.workspaces.find(({ id }) => id === me.activeWorkspaceId);
 
   useEffect(() => {
+    setIsMac(/mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent));
     const persistedEnvironment = document.cookie
       .split("; ")
       .find((entry) => entry.startsWith("authometry_environment="))
@@ -108,76 +164,131 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   async function logout() {
     await apiFetch("/api/v1/auth/logout", { method: "POST" }).catch(() => undefined);
+    queryClient.clear();
     router.push("/login");
     router.refresh();
   }
 
   function selectEnvironment(slug: string) {
+    if (slug === selectedEnvironment?.slug) return;
     document.cookie = `authometry_environment=${encodeURIComponent(slug)}; Path=/; Max-Age=31536000; SameSite=Lax`;
     setSelectedEnvironmentSlug(slug);
     void queryClient.invalidateQueries();
+    const name = environments?.data.find((environment) => environment.slug === slug)?.name;
+    toast.success(`Switched to ${name ?? slug}.`);
   }
 
   async function selectWorkspace(workspaceId: string) {
-    await apiFetch("/api/v1/auth/switch-workspace", {
-      method: "POST",
-      body: JSON.stringify({ workspaceId }),
-    });
-    document.cookie = "authometry_environment=production; Path=/; Max-Age=31536000; SameSite=Lax";
-    queryClient.clear();
-    window.location.assign("/overview");
+    if (workspaceId === me?.activeWorkspaceId) return;
+    try {
+      await apiFetch("/api/v1/auth/switch-workspace", {
+        method: "POST",
+        body: JSON.stringify({ workspaceId }),
+      });
+      document.cookie = "authometry_environment=production; Path=/; Max-Age=31536000; SameSite=Lax";
+      queryClient.clear();
+      window.location.assign("/overview");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not switch workspaces.");
+    }
   }
 
-  const sidebar = (
-    <div className="flex h-full flex-col bg-[var(--surface)]">
+  const workspaceMenu = (
+    <DropdownMenu.Content align="start" className={cn(menuContentClass, "w-64")} sideOffset={6}>
+      <p className={menuLabelClass}>Workspaces</p>
+      {me?.workspaces.map((workspace) => (
+        <DropdownMenu.Item
+          className={menuItemClass}
+          key={workspace.id}
+          onSelect={() => void selectWorkspace(workspace.id)}
+        >
+          <WorkspaceAvatar name={workspace.name} />
+          <span className="min-w-0 flex-1 truncate">{workspace.name}</span>
+          <span className="text-[11px] text-[var(--text-tertiary)] capitalize">
+            {workspace.role}
+          </span>
+          {workspace.id === me.activeWorkspaceId && (
+            <Check aria-label="Current workspace" className="!text-[var(--text-primary)]" />
+          )}
+        </DropdownMenu.Item>
+      ))}
+      <DropdownMenu.Separator className={menuSeparatorClass} />
+      <DropdownMenu.Item asChild className={menuItemClass}>
+        <Link href="/select-workspace">
+          <Plus aria-hidden="true" /> Create or manage workspaces
+        </Link>
+      </DropdownMenu.Item>
+    </DropdownMenu.Content>
+  );
+
+  const renderSidebar = (groupId: string) => (
+    <div className="flex h-full flex-col">
       <nav
-        className="flex-1 scrollbar-thin overflow-y-auto px-2 py-4"
         aria-label="Dashboard navigation"
+        className="flex-1 scrollbar-thin overflow-y-auto px-3 pt-3 pb-4"
       >
-        {navigation.map((group) => (
-          <div className="mb-5" key={group.label}>
-            <p className="mb-1.5 px-2 text-[11px] font-medium text-[var(--text-tertiary)]">
-              {group.label}
-            </p>
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const selected = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                const Icon = item.icon;
-                return (
-                  <Link
-                    className={cn(
-                      "relative flex h-[34px] items-center gap-[9px] rounded-[6px] px-2.5 text-[13px] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none",
-                      selected
-                        ? "bg-[var(--accent-soft)] font-medium text-[var(--text-primary)] before:absolute before:top-2 before:bottom-2 before:left-0 before:w-0.5 before:rounded-full before:bg-[var(--accent)]"
-                        : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
-                    )}
-                    href={item.href}
-                    key={item.href}
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <Icon
-                      aria-hidden="true"
-                      className={cn("size-4", selected && "text-[var(--accent)]")}
-                      strokeWidth={1.75}
-                    />
-                    {item.label}
-                  </Link>
-                );
-              })}
+        <LayoutGroup id={groupId}>
+          {navigation.map((group) => (
+            <div className="mb-4" key={group.label}>
+              <p className="mb-1 px-2 text-xs text-[var(--text-tertiary)]">{group.label}</p>
+              <ul className="space-y-px">
+                {group.items.map((item) => {
+                  const base = item.href.startsWith("/settings") ? "/settings" : item.href;
+                  const selected = pathname === base || pathname.startsWith(`${base}/`);
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        aria-current={selected ? "page" : undefined}
+                        className={cn(
+                          "group relative flex h-8 items-center gap-2.5 rounded-[var(--radius-control)] px-2 text-[13px] transition-colors duration-[var(--motion-fast)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none",
+                          selected
+                            ? "font-medium text-[var(--text-primary)]"
+                            : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]",
+                        )}
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        {selected && (
+                          <motion.span
+                            className="absolute inset-0 rounded-[inherit] bg-[var(--surface-active)]"
+                            layoutId="sidebar-active"
+                            transition={reducedMotion ? { duration: 0 } : navSpring}
+                          />
+                        )}
+                        <Icon
+                          aria-hidden="true"
+                          className={cn(
+                            "relative size-4 transition-transform duration-[var(--motion-normal)] ease-[var(--ease-spring)] group-hover:scale-110 group-active:scale-95",
+                            selected ? "text-[var(--text-primary)]" : "text-[var(--text-tertiary)]",
+                          )}
+                          strokeWidth={1.75}
+                        />
+                        <span className="relative">{item.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
-          </div>
-        ))}
+          ))}
+        </LayoutGroup>
       </nav>
-      <div className="border-t border-[var(--border-subtle)] p-2">
+      <div className="border-t border-[var(--border)] p-3">
         {utilityNavigation.map((item) => {
           const Icon = item.icon;
+          const className =
+            "group flex h-8 items-center gap-2.5 rounded-[var(--radius-control)] px-2 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none";
           const content = (
             <>
-              <Icon aria-hidden="true" className="size-4" strokeWidth={1.75} /> {item.label}
+              <Icon
+                aria-hidden="true"
+                className="size-4 text-[var(--text-tertiary)] transition-colors group-hover:text-[var(--text-primary)]"
+                strokeWidth={1.75}
+              />
+              {item.label}
             </>
           );
-          const className =
-            "flex h-8 items-center gap-2.5 rounded-[6px] px-2.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]";
           return item.external ? (
             <a
               className={className}
@@ -187,14 +298,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               target="_blank"
             >
               {content}
+              <span className="sr-only">(opens in a new tab)</span>
             </a>
           ) : (
-            <Link className={className} href={item.href} key={item.href}>
+            <Link
+              className={className}
+              href={item.href}
+              key={item.href}
+              onClick={() => setMobileOpen(false)}
+            >
               {content}
             </Link>
           );
         })}
-        <p className="px-2.5 pt-2 text-[10px] text-[var(--text-tertiary)]">Authometry v0.1.1</p>
+        <p className="technical-value px-2 pt-2 text-[11px] text-[var(--text-tertiary)]">
+          Authometry v0.1.1
+        </p>
       </div>
     </div>
   );
@@ -202,9 +321,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-dvh overflow-hidden bg-[var(--background)]">
       <SkipLink />
-      <header className="fixed inset-x-0 top-0 z-40 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center border-b border-[var(--border)] bg-[var(--background)] px-[max(.75rem,env(safe-area-inset-left))] pt-[env(safe-area-inset-top)] pr-[max(.75rem,env(safe-area-inset-right))] sm:px-4">
-        <div className="flex w-full min-w-0 items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
+      <header className="fixed inset-x-0 top-0 z-[var(--z-header)] flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center border-b border-[var(--border)] bg-[var(--background)]/85 px-[max(.75rem,env(safe-area-inset-left))] pt-[env(safe-area-inset-top)] pr-[max(.75rem,env(safe-area-inset-right))] backdrop-blur-md backdrop-saturate-150 sm:px-4">
+        <div className="flex w-full min-w-0 items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1">
             <Button
               aria-label="Open navigation"
               className="lg:hidden"
@@ -215,163 +334,192 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Menu aria-hidden="true" className="size-4" />
             </Button>
             <Link
-              className="mr-2 shrink-0 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
+              aria-label="Authometry overview"
+              className="pressable mr-1 flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
               href="/overview"
             >
-              <AuthometryLogo />
+              <AuthometryMark className="size-[22px]" />
             </Link>
-            <span className="hidden text-[var(--border-strong)] sm:inline">/</span>
+            <span
+              aria-hidden="true"
+              className="hidden text-lg font-light text-[var(--border-strong)] sm:inline"
+            >
+              /
+            </span>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <Button
-                  aria-label="Workspace"
-                  className="hidden max-w-44 truncate px-2 sm:inline-flex"
+                  aria-label={`Workspace: ${activeWorkspace?.name ?? "loading"}`}
+                  className="hidden max-w-52 gap-2 px-2 sm:inline-flex"
                   variant="ghost"
                 >
-                  <span className="truncate">
-                    {me?.workspaces.find(({ id }) => id === me.activeWorkspaceId)?.name ??
-                      "Workspace"}
+                  <WorkspaceAvatar name={activeWorkspace?.name} />
+                  <span className="truncate text-[var(--text-primary)]">
+                    {activeWorkspace?.name ?? "Workspace"}
                   </span>
-                  <ChevronDown aria-hidden="true" className="size-3" />
+                  <ChevronsUpDown
+                    aria-hidden="true"
+                    className="size-3.5 text-[var(--text-tertiary)]"
+                  />
                 </Button>
               </DropdownMenu.Trigger>
-              <DropdownMenu.Portal>
-                <DropdownMenu.Content
-                  align="start"
-                  className="z-50 min-w-52 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.10)]"
-                >
-                  {me?.workspaces.map((workspace) => (
-                    <DropdownMenu.Item
-                      className="cursor-default rounded-md px-2.5 py-2 text-[13px] outline-none hover:bg-[var(--surface-hover)] focus:bg-[var(--surface-hover)]"
-                      key={workspace.id}
-                      onSelect={() => void selectWorkspace(workspace.id)}
-                    >
-                      <span className="flex-1">{workspace.name}</span>
-                      <span className="ml-5 text-[11px] text-[var(--text-tertiary)] capitalize">
-                        {workspace.role}
-                      </span>
-                    </DropdownMenu.Item>
-                  ))}
-                  <DropdownMenu.Separator className="my-1 h-px bg-[var(--border)]" />
-                  <DropdownMenu.Item asChild>
-                    <Link
-                      className="block cursor-default rounded-md px-2.5 py-2 text-[13px] outline-none hover:bg-[var(--surface-hover)] focus:bg-[var(--surface-hover)]"
-                      href="/select-workspace"
-                    >
-                      Manage workspaces
-                    </Link>
-                  </DropdownMenu.Item>
-                </DropdownMenu.Content>
-              </DropdownMenu.Portal>
+              <DropdownMenu.Portal>{workspaceMenu}</DropdownMenu.Portal>
             </DropdownMenu.Root>
-            <span className="hidden text-[var(--border-strong)] sm:inline">/</span>
+            <span
+              aria-hidden="true"
+              className="hidden text-lg font-light text-[var(--border-strong)] sm:inline"
+            >
+              /
+            </span>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
-                <Button aria-label="Environment" className="px-2" variant="ghost">
-                  <span
-                    className={cn(
-                      "size-1.5 rounded-full",
-                      selectedEnvironment?.kind === "production"
-                        ? "bg-[var(--success)]"
-                        : "bg-[var(--warning)]",
-                    )}
+                <Button
+                  aria-label={`Environment: ${selectedEnvironment?.name ?? "loading"}`}
+                  className="min-w-0 gap-2 px-2"
+                  variant="ghost"
+                >
+                  <StatusDot
+                    tone={selectedEnvironment?.kind === "production" ? "success" : "warning"}
                   />
-                  {selectedEnvironment?.name ?? "Environment"}
-                  <ChevronDown aria-hidden="true" className="size-3" />
+                  <span className="truncate text-[var(--text-primary)]">
+                    {selectedEnvironment?.name ?? "Environment"}
+                  </span>
+                  <ChevronsUpDown
+                    aria-hidden="true"
+                    className="size-3.5 text-[var(--text-tertiary)]"
+                  />
                 </Button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content
                   align="start"
-                  className="z-50 min-w-48 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.10)]"
+                  className={cn(menuContentClass, "w-60")}
+                  sideOffset={6}
                 >
-                  {environments?.data.map((environment) => (
-                    <DropdownMenu.Item
-                      className="cursor-default rounded-md px-2.5 py-2 text-[13px] outline-none hover:bg-[var(--surface-hover)] focus:bg-[var(--surface-hover)]"
-                      key={environment.id}
-                      onSelect={() => selectEnvironment(environment.slug)}
-                    >
-                      <span className="flex-1">{environment.name}</span>
-                      <span className="ml-5 text-[11px] text-[var(--text-tertiary)]">
-                        {environment.kind}
-                      </span>
-                    </DropdownMenu.Item>
-                  ))}
+                  <p className={menuLabelClass}>Environments</p>
+                  <DropdownMenu.RadioGroup
+                    onValueChange={selectEnvironment}
+                    value={selectedEnvironment?.slug ?? ""}
+                  >
+                    {environments?.data.map((environment) => (
+                      <DropdownMenu.RadioItem
+                        className={menuItemClass}
+                        key={environment.id}
+                        value={environment.slug}
+                      >
+                        <StatusDot
+                          tone={environment.kind === "production" ? "success" : "warning"}
+                        />
+                        <span className="min-w-0 flex-1 truncate">{environment.name}</span>
+                        <span className="text-[11px] text-[var(--text-tertiary)] capitalize">
+                          {environment.kind}
+                        </span>
+                        <DropdownMenu.ItemIndicator>
+                          <Check aria-hidden="true" className="!text-[var(--text-primary)]" />
+                        </DropdownMenu.ItemIndicator>
+                      </DropdownMenu.RadioItem>
+                    ))}
+                  </DropdownMenu.RadioGroup>
+                  <DropdownMenu.Separator className={menuSeparatorClass} />
+                  <DropdownMenu.Item asChild className={menuItemClass}>
+                    <Link href="/deployments">
+                      <Settings aria-hidden="true" /> Manage deployments
+                    </Link>
+                  </DropdownMenu.Item>
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
             </DropdownMenu.Root>
           </div>
-          <div className="flex items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              aria-label="Search"
+              className="pressable hidden h-8 w-56 items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-raised)] pr-1.5 pl-2.5 text-[13px] text-[var(--text-tertiary)] hover:border-[var(--border-strong)] hover:text-[var(--text-secondary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none md:flex"
+              onClick={() => setCommandOpen(true)}
+              type="button"
+            >
+              <Search aria-hidden="true" className="size-3.5" />
+              <span className="flex-1 text-left">Search…</span>
+              <Kbd>{hydrated && !isMac ? "Ctrl K" : "⌘K"}</Kbd>
+            </button>
             <Button
               aria-label="Search"
-              className="hidden gap-2 px-2.5 text-[var(--text-secondary)] md:inline-flex"
+              className="md:hidden"
               onClick={() => setCommandOpen(true)}
+              size="icon"
               variant="ghost"
             >
               <Search aria-hidden="true" className="size-4" />
-              <span className="text-xs">Search</span>
-              <kbd className="ml-2 rounded border border-[var(--border)] px-1.5 font-sans text-[10px] text-[var(--text-tertiary)]">
-                {"⌘\u00a0K"}
-              </kbd>
             </Button>
-            <Button asChild size="icon" variant="ghost">
+            <Button asChild className="hidden sm:inline-flex" size="icon" variant="ghost">
               <a
                 aria-label="Send feedback"
                 href="mailto:auth@cams.ch3n.cc?subject=Authometry%20feedback"
+                title="Send feedback"
               >
                 <MessageSquareText aria-hidden="true" className="size-4" />
               </a>
             </Button>
-            <Button
-              aria-label="Toggle theme"
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-              size="icon"
-              variant="ghost"
-            >
-              {resolvedTheme === "dark" ? (
-                <Sun aria-hidden="true" className="size-4" />
-              ) : (
-                <Moon aria-hidden="true" className="size-4" />
-              )}
-            </Button>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
-                <Button
+                <button
                   aria-label="Open user menu"
-                  className="ml-1 rounded-full bg-[var(--surface-subtle)] text-xs"
-                  size="icon"
+                  className="pressable ml-1 flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--geist-blue-700)] to-[var(--geist-purple-700)] text-[11px] font-semibold text-white ring-offset-2 ring-offset-[var(--background)] hover:ring-2 hover:ring-[var(--border)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
+                  type="button"
                 >
-                  {me?.user.name
-                    ?.split(" ")
-                    .map((part) => part[0])
-                    .slice(0, 2)
-                    .join("") ?? "A"}
-                </Button>
+                  {initials(me?.user.name)}
+                </button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content
                   align="end"
-                  className="z-50 w-56 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.10)]"
+                  className={cn(menuContentClass, "w-64")}
+                  sideOffset={6}
                 >
-                  <div className="border-b border-[var(--border-subtle)] px-2.5 py-2">
-                    <p className="text-[13px] font-medium">{me?.user.name ?? "Authometry user"}</p>
-                    <p className="truncate text-xs text-[var(--text-secondary)]">
+                  <div className="px-2.5 pt-2 pb-2.5">
+                    <p className="truncate text-[13px] font-medium">
+                      {me?.user.name ?? "Authometry user"}
+                    </p>
+                    <p className="truncate text-[13px] text-[var(--text-secondary)]">
                       {me?.user.email}
                     </p>
                   </div>
-                  <DropdownMenu.Item asChild>
-                    <Link
-                      className="block cursor-default rounded-md px-2.5 py-2 text-[13px] outline-none focus:bg-[var(--surface-hover)]"
-                      href="/settings/account"
-                    >
-                      Account settings
+                  <DropdownMenu.Separator className={menuSeparatorClass} />
+                  <DropdownMenu.Item asChild className={menuItemClass}>
+                    <Link href="/settings/account">
+                      <Settings aria-hidden="true" /> Account settings
                     </Link>
                   </DropdownMenu.Item>
-                  <DropdownMenu.Item
-                    className="cursor-default rounded-md px-2.5 py-2 text-[13px] outline-none focus:bg-[var(--surface-hover)]"
-                    onSelect={() => void logout()}
-                  >
-                    Sign out
+                  <DropdownMenu.Item asChild className={menuItemClass}>
+                    <Link href="/docs">
+                      <BookOpen aria-hidden="true" /> Documentation
+                    </Link>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Separator className={menuSeparatorClass} />
+                  <div className="flex items-center justify-between gap-2 px-2.5 py-1.5">
+                    <span className="text-[13px]">Theme</span>
+                    {hydrated && (
+                      <SegmentedControl
+                        label="Theme"
+                        onChange={setTheme}
+                        options={[
+                          {
+                            value: "system",
+                            label: <Monitor aria-label="System" className="size-3.5" />,
+                          },
+                          {
+                            value: "light",
+                            label: <Sun aria-label="Light" className="size-3.5" />,
+                          },
+                          { value: "dark", label: <Moon aria-label="Dark" className="size-3.5" /> },
+                        ]}
+                        size="compact"
+                        value={theme ?? "system"}
+                      />
+                    )}
+                  </div>
+                  <DropdownMenu.Separator className={menuSeparatorClass} />
+                  <DropdownMenu.Item className={menuItemClass} onSelect={() => void logout()}>
+                    <LogOut aria-hidden="true" /> Sign out
                   </DropdownMenu.Item>
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
@@ -379,31 +527,45 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <aside className="fixed top-[calc(3.5rem+env(safe-area-inset-top))] bottom-0 left-0 hidden w-[232px] border-r border-[var(--border)] lg:block">
-        {sidebar}
+      <aside className="fixed top-[calc(3.5rem+env(safe-area-inset-top))] bottom-0 left-0 hidden w-60 border-r border-[var(--border)] bg-[var(--background)] lg:block">
+        {renderSidebar("sidebar-desktop")}
       </aside>
       <Dialog.Root onOpenChange={setMobileOpen} open={mobileOpen}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/30" />
+          <Dialog.Overlay className="motion-overlay fixed inset-0 z-[var(--z-overlay)] bg-[var(--overlay)] lg:hidden" />
           <Dialog.Content
             aria-describedby={undefined}
-            className="fixed inset-y-0 left-0 z-50 w-[calc(280px+env(safe-area-inset-left))] overscroll-contain border-r border-[var(--border)] bg-[var(--surface)] pl-[env(safe-area-inset-left)] shadow-xl"
+            className="motion-sheet fixed inset-y-0 left-0 z-[var(--z-overlay)] flex w-[calc(288px+env(safe-area-inset-left))] max-w-[calc(100vw-48px)] flex-col overscroll-contain border-r border-[var(--border)] bg-[var(--background)] pl-[env(safe-area-inset-left)] shadow-[var(--shadow-modal)] focus:outline-none lg:hidden"
           >
             <Dialog.Title className="sr-only">Navigation</Dialog.Title>
-            <div className="flex h-14 items-center justify-between border-b border-[var(--border)] px-4">
-              <AuthometryLogo />
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] px-3">
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <Button className="min-w-0 gap-2 px-2" variant="ghost">
+                    <WorkspaceAvatar name={activeWorkspace?.name} />
+                    <span className="truncate text-[var(--text-primary)]">
+                      {activeWorkspace?.name ?? "Workspace"}
+                    </span>
+                    <ChevronsUpDown
+                      aria-hidden="true"
+                      className="size-3.5 text-[var(--text-tertiary)]"
+                    />
+                  </Button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>{workspaceMenu}</DropdownMenu.Portal>
+              </DropdownMenu.Root>
               <Dialog.Close asChild>
                 <Button aria-label="Close navigation" size="icon" variant="ghost">
                   <X aria-hidden="true" className="size-4" />
                 </Button>
               </Dialog.Close>
             </div>
-            <div className="h-[calc(100%-56px)]">{sidebar}</div>
+            <div className="min-h-0 flex-1">{renderSidebar("sidebar-mobile")}</div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
       <main
-        className="h-dvh overflow-y-auto pt-[calc(3.5rem+env(safe-area-inset-top))] lg:ml-[232px]"
+        className="h-dvh scroll-pt-20 overflow-y-auto pt-[calc(3.5rem+env(safe-area-inset-top))] lg:ml-60"
         id="main-content"
         tabIndex={-1}
       >

@@ -443,14 +443,14 @@ textarea {
 @keyframes dialog-in {
   from {
     opacity: 0;
-    transform: translate(-50%, calc(-50% + 8px)) scale(0.97);
+    transform: translateY(8px) scale(0.97);
   }
 }
 
 @keyframes dialog-out {
   to {
     opacity: 0;
-    transform: translate(-50%, calc(-50% + 4px)) scale(0.98);
+    transform: translateY(4px) scale(0.98);
   }
 }
 
