@@ -53,7 +53,3 @@ export function FilterBar({
     </div>
   );
 }
-
-/** @deprecated Use the `Select` primitive from `@/components/ui/form`. */
-export const selectClass =
-  "h-8 cursor-pointer rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-raised)] px-2.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] focus-visible:shadow-[0_0_0_3px_var(--geist-gray-alpha-200)] focus-visible:outline-none";

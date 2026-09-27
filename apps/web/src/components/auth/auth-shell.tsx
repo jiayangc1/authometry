@@ -139,5 +139,3 @@ export function AuthHeading({
     </div>
   );
 }
-
-export { inputClass } from "@/components/ui/form";
