@@ -4,14 +4,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button, Checkbox, EmptyState, StatusBadge } from "@authometry/ui";
-import { inputClass } from "@/components/auth/auth-shell";
+import { Button, Checkbox, Note, StatusBadge } from "@authometry/ui";
 import { RelativeTime } from "@/components/data-display/formatted-time";
-import { CopyableValue } from "@/components/data-display/copyable-value";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
+import { Snippet } from "@/components/data-display/copyable-value";
+import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { SettingsSection } from "@/components/settings/settings-section";
+import { Modal } from "@/components/ui/dialog";
+import { ChoiceRow, Field, Input } from "@/components/ui/form";
 import { apiFetch } from "@/lib/api";
+import { humanize } from "@/lib/status";
 
 interface ProvisioningConnection {
   id: string;
@@ -40,12 +42,9 @@ export default function ProvisioningPage() {
       }),
     onSuccess: async (result) => {
       setSecret(result.secret);
-      setAdding(false);
       await client.invalidateQueries({ queryKey: ["provisioning-connections"] });
       toast.success(
-        result.queued
-          ? `Provisioning connected; ${result.queued} existing users queued`
-          : "Provisioning connected",
+        result.queued ? `Connected. ${result.queued} existing users queued.` : "Connected.",
       );
     },
     onError: (error) => toast.error(error.message),
@@ -55,7 +54,7 @@ export default function ProvisioningPage() {
       apiFetch<{ queued: number }>(`/api/v1/settings/provisioning/${id}/sync`, {
         method: "POST",
       }),
-    onSuccess: ({ queued }) => toast.success(`${queued} users queued for provisioning`),
+    onSuccess: ({ queued }) => toast.success(`${queued} users queued for provisioning.`),
     onError: (error) => toast.error(error.message),
   });
   const disconnect = useMutation({
@@ -63,152 +62,107 @@ export default function ProvisioningPage() {
       apiFetch(`/api/v1/settings/provisioning/${id}`, { method: "DELETE" }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ["provisioning-connections"] });
-      toast.success("Provisioning connection removed");
+      toast.success("Connection removed.");
     },
     onError: (error) => toast.error(error.message),
   });
 
+  function close() {
+    setAdding(false);
+    setSecret(undefined);
+  }
   return (
-    <SettingsSection
-      description="Create and remove accounts in connected services when Authometry users change. Passwords are never included."
-      title="Account provisioning"
-    >
-      <div className="flex justify-end">
-        <Button onClick={() => setAdding((value) => !value)}>
-          <Plus aria-hidden="true" className="size-3.5" /> Add Connection
-        </Button>
-      </div>
-      {adding && (
-        <form
-          autoComplete="off"
-          className="grid gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const data = new FormData(event.currentTarget);
-            const name = data.get("name");
-            const url = data.get("url");
-            if (typeof name === "string" && typeof url === "string") {
-              create.mutate({
-                name,
-                url,
-                syncExistingUsers: data.get("syncExistingUsers") === "on",
-              });
-            }
-          }}
-        >
-          <label>
-            <span className="mb-1.5 block text-xs font-medium">Service name</span>
-            <input
-              autoComplete="off"
-              className={inputClass}
-              name="name"
-              placeholder="CamSaver"
-              required
-            />
-          </label>
-          <label>
-            <span className="mb-1.5 block text-xs font-medium">Provisioning endpoint</span>
-            <input
-              autoComplete="off"
-              className={inputClass}
-              name="url"
-              placeholder="https://service.example/api/webhooks/authometry"
-              required
-              type="url"
-            />
-          </label>
-          <label className="flex items-start gap-2 text-xs text-[var(--text-secondary)]">
-            <Checkbox defaultChecked name="syncExistingUsers" wrapperClassName="mt-0.5" />
-            <span>Queue existing Authometry users after connecting.</span>
-          </label>
-          <Button
-            className="justify-self-end"
-            disabled={create.isPending}
-            type="submit"
-            variant="primary"
-          >
-            {create.isPending ? "Connecting…" : "Connect Service"}
+    <>
+      <SettingsSection
+        description="Create and remove accounts in connected services as Authometry users change. Passwords are never sent."
+        footer={
+          <Button onClick={() => setAdding(true)} size="compact" variant="primary">
+            <Plus aria-hidden="true" className="size-3.5" /> Add connection
           </Button>
-        </form>
-      )}
-      {secret && (
-        <div className="border border-[var(--warning-border)] bg-[var(--warning-soft)] p-3">
-          <p className="text-xs font-semibold">Copy the signing secret now</p>
-          <div className="mt-2">
-            <CopyableValue value={secret} />
-          </div>
-          <p className="mt-2 text-xs text-[var(--text-secondary)]">
-            Configure this secret in the connected service. It will not be displayed again.
-          </p>
-        </div>
-      )}
-      {query.isLoading ? (
-        <PageSkeleton rows={4} />
-      ) : query.isError ? (
-        <ErrorState
-          description="Authometry could not load provisioning connections. Check your connection, then retry."
-          headingLevel="h3"
-          onRetry={() => void query.refetch()}
-          title="Unable to Load Provisioning"
-        />
-      ) : query.data?.data.length ? (
-        <div className="border-y border-[var(--border)]">
-          {query.data.data.map((connection) => (
-            <div
-              className="virtualized-row grid min-h-20 gap-3 border-b border-[var(--border-subtle)] px-2 py-3 last:border-0 sm:grid-cols-[1fr_auto] sm:items-center"
-              key={connection.id}
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-[13px] font-medium">{connection.name}</p>
-                  <StatusBadge
-                    label={connection.failed_deliveries ? "delivery errors" : connection.status}
-                    tone={connection.failed_deliveries ? "danger" : "success"}
+        }
+        footerHint="Portal apps need a provisioning connection before people can launch them."
+        title="Account provisioning"
+      >
+        {query.isLoading ? (
+          <ListSkeleton rows={2} />
+        ) : query.isError ? (
+          <ErrorState
+            description="Authometry could not load provisioning connections. Check your connection, then retry."
+            headingLevel="h3"
+            onRetry={() => void query.refetch()}
+            title="Unable to load provisioning"
+          />
+        ) : query.data?.data.length ? (
+          <ul className="divide-y divide-[var(--border)] rounded-[var(--radius-control)] border border-[var(--border)]">
+            {query.data.data.map((connection) => (
+              <li
+                className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center"
+                key={connection.id}
+              >
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <Link2
+                    aria-hidden="true"
+                    className="mt-0.5 size-4 shrink-0 text-[var(--text-secondary)]"
                   />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-[13px] font-medium">{connection.name}</p>
+                      <StatusBadge
+                        label={
+                          connection.failed_deliveries
+                            ? `${connection.failed_deliveries} failed ${connection.failed_deliveries === 1 ? "delivery" : "deliveries"}`
+                            : humanize(connection.status)
+                        }
+                        tone={connection.failed_deliveries ? "danger" : "success"}
+                      />
+                    </div>
+                    <p className="technical-value truncate text-[var(--text-tertiary)]">
+                      {connection.url}
+                    </p>
+                    <p className="text-xs text-[var(--text-secondary)]">
+                      Secret <span className="technical-value">{connection.secret_prefix}…</span> ·
+                      Last delivered{" "}
+                      {connection.last_delivered_at ? (
+                        <RelativeTime value={connection.last_delivered_at} />
+                      ) : (
+                        "never"
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <p className="technical-value mt-1 truncate text-[var(--text-tertiary)]">
-                  {connection.url}
-                </p>
-                <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-                  Secret {connection.secret_prefix}… · Last delivered{" "}
-                  {connection.last_delivered_at ? (
-                    <RelativeTime value={connection.last_delivered_at} />
-                  ) : (
-                    "never"
-                  )}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  disabled={sync.isPending}
-                  onClick={() => sync.mutate(connection.id)}
-                  size="compact"
-                >
-                  <RefreshCw aria-hidden="true" className="size-3.5" /> Sync Users
-                </Button>
-                <Button
-                  disabled={disconnect.isPending}
-                  onClick={() => setSelectedConnection(connection)}
-                  size="compact"
-                  variant="ghost"
-                >
-                  Disconnect
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          description="Connect a service endpoint to provision Authometry users automatically."
-          headingLevel="h3"
-          icon={Link2}
-          title="No Provisioning Connections"
-        />
-      )}
+                <div className="flex shrink-0 gap-1 pl-7 sm:pl-0">
+                  <Button
+                    className="[&:hover_svg]:rotate-180"
+                    loading={sync.isPending && sync.variables === connection.id}
+                    onClick={() => sync.mutate(connection.id)}
+                    size="compact"
+                  >
+                    {!(sync.isPending && sync.variables === connection.id) && (
+                      <RefreshCw aria-hidden="true" className="size-3.5" />
+                    )}
+                    Sync users
+                  </Button>
+                  <Button
+                    className="hover:text-[var(--danger)]"
+                    onClick={() => setSelectedConnection(connection)}
+                    size="compact"
+                    variant="ghost"
+                  >
+                    Disconnect
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="rounded-[var(--radius-control)] border border-dashed border-[var(--border-strong)] px-4 py-6 text-center text-[13px] text-[var(--text-secondary)]">
+            No services connected yet.
+          </p>
+        )}
+      </SettingsSection>
       <ConfirmDialog
-        actionLabel="Disconnect Service"
-        description="Authometry will stop sending user lifecycle events to this service. Existing downstream accounts are not changed."
+        actionLabel="Disconnect"
+        description="Authometry stops sending user lifecycle events to this service. Existing downstream accounts are not changed."
         onConfirm={() =>
           selectedConnection ? disconnect.mutateAsync(selectedConnection.id) : undefined
         }
@@ -221,6 +175,82 @@ export default function ProvisioningPage() {
           selectedConnection ? `Disconnect ${selectedConnection.name}?` : "Disconnect service?"
         }
       />
-    </SettingsSection>
+      <Modal
+        description={
+          secret
+            ? "Configure this signing secret in the connected service. It won’t be shown again."
+            : "Authometry sends signed user lifecycle events to this endpoint."
+        }
+        footer={
+          secret ? (
+            <Button onClick={close} variant="primary">
+              Done
+            </Button>
+          ) : (
+            <>
+              <Button disabled={create.isPending} onClick={close}>
+                Cancel
+              </Button>
+              <Button
+                form="provisioning-form"
+                loading={create.isPending}
+                type="submit"
+                variant="primary"
+              >
+                Connect service
+              </Button>
+            </>
+          )
+        }
+        onOpenChange={(next) => (next ? setAdding(true) : close())}
+        open={adding}
+        preventClose={create.isPending}
+        title={secret ? "Signing secret" : "Add provisioning connection"}
+      >
+        {secret ? (
+          <div className="space-y-3">
+            <Note tone="warning">Copy this secret now.</Note>
+            <Snippet label="signing secret" value={secret} />
+          </div>
+        ) : (
+          <form
+            autoComplete="off"
+            className="space-y-4"
+            id="provisioning-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const data = new FormData(event.currentTarget);
+              const name = data.get("name");
+              const url = data.get("url");
+              if (typeof name === "string" && typeof url === "string") {
+                create.mutate({
+                  name: name.trim(),
+                  url: url.trim(),
+                  syncExistingUsers: data.get("syncExistingUsers") === "on",
+                });
+              }
+            }}
+          >
+            <Field label="Service name">
+              <Input autoFocus name="name" placeholder="CamSaver" required />
+            </Field>
+            <Field label="Provisioning endpoint">
+              <Input
+                mono
+                name="url"
+                placeholder="https://service.example/api/webhooks/authometry"
+                required
+                type="url"
+              />
+            </Field>
+            <ChoiceRow
+              control={<Checkbox defaultChecked name="syncExistingUsers" />}
+              description="Queue every current user for this service right away."
+              title="Sync existing users"
+            />
+          </form>
+        )}
+      </Modal>
+    </>
   );
 }
