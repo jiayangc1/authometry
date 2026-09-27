@@ -1,138 +1,104 @@
 import Link from "next/link";
-import { Check, ShieldCheck } from "lucide-react";
+import { Check } from "lucide-react";
 import { AuthometryLogo, AuthometryMark } from "@authometry/ui";
 
 const authorizationTrace = [
-  {
-    label: "Request received",
-    detail: "GET /oauth/authorize",
-    elapsed: "00 ms",
-  },
-  {
-    label: "Client verified",
-    detail: "Client credentials active",
-    elapsed: "08 ms",
-  },
-  {
-    label: "Redirect URI matched",
-    detail: "Exact registered callback",
-    elapsed: "11 ms",
-  },
-  {
-    label: "PKCE challenge validated",
-    detail: "S256 proof verified",
-    elapsed: "16 ms",
-  },
+  { label: "Request received", detail: "GET /oauth/authorize", elapsed: "0.0" },
+  { label: "Client verified", detail: "client credentials active", elapsed: "8.1" },
+  { label: "Redirect URI matched", detail: "exact registered callback", elapsed: "11.4" },
+  { label: "PKCE challenge validated", detail: "S256 proof verified", elapsed: "16.2" },
+  { label: "Policy evaluated", detail: "production-admins · allow", elapsed: "17.9" },
 ];
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="grid min-h-dvh bg-[var(--background)] pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] lg:grid-cols-[1fr_0.92fr]">
-      <section className="flex min-h-0 flex-col px-6 py-6 sm:px-10 lg:px-14">
+    <main className="grid min-h-dvh bg-[var(--background)] pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <section className="flex min-h-0 flex-col px-6 py-6 sm:px-10">
         <Link
+          className="w-fit rounded-[var(--radius-control)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
           href="/"
-          className="w-fit rounded-md focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
         >
           <AuthometryLogo />
         </Link>
-        <div className="mx-auto flex w-full max-w-[380px] flex-1 items-center py-12">
+        <div className="mx-auto flex w-full max-w-[360px] flex-1 animate-[enter_var(--motion-slow)_var(--ease-out)] items-center py-12">
           {children}
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-tertiary)]">
-          <span>Authometry · OAuth you can see.</span>
-          <Link className="hover:text-[var(--text-primary)]" href="/privacy">
-            Privacy
-          </Link>
-          <Link className="hover:text-[var(--text-primary)]" href="/terms">
-            Terms
-          </Link>
-          <Link className="hover:text-[var(--text-primary)]" href="/data-deletion">
-            Data deletion
-          </Link>
-        </div>
+        <nav
+          aria-label="Legal"
+          className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-tertiary)]"
+        >
+          <span>© Authometry</span>
+          {[
+            ["Privacy", "/privacy"],
+            ["Terms", "/terms"],
+            ["Data deletion", "/data-deletion"],
+          ].map(([label, href]) => (
+            <Link
+              className="transition-colors hover:text-[var(--text-primary)]"
+              href={href!}
+              key={href}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
       </section>
-      <aside className="relative hidden overflow-hidden border-l border-[var(--border)] bg-[var(--surface)] p-10 lg:flex lg:items-center">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_68%_42%,var(--accent-soft),transparent_38%)] opacity-50"
-        />
-        <div className="relative mx-auto w-full max-w-xl">
-          <div className="mb-5 flex items-center gap-2.5">
-            <span className="technical-value text-[var(--text-tertiary)]">AUTHORIZATION TRACE</span>
-            <span className="flex items-center gap-1.5 rounded-full border border-[var(--success-border)] bg-[var(--success-soft)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-[var(--success)] uppercase">
-              <span className="relative flex size-1.5">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--success)] opacity-40" />
-                <span className="relative inline-flex size-1.5 rounded-full bg-[var(--success)]" />
-              </span>
-              Live
-            </span>
-          </div>
-          <h2 className="max-w-lg text-[32px] leading-[1.18] font-semibold tracking-[-0.045em] text-balance">
+      <aside
+        aria-hidden="true"
+        className="relative hidden overflow-hidden border-l border-[var(--border)] bg-[var(--surface)] lg:flex lg:items-center lg:justify-center lg:p-12"
+      >
+        <div className="pointer-events-none absolute inset-0 [background-image:radial-gradient(var(--geist-gray-alpha-200)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)] [background-size:16px_16px]" />
+        <div className="relative w-full max-w-md">
+          <p className="technical-value mb-3 text-[var(--text-tertiary)]">authorization trace</p>
+          <h2 className="text-[28px] leading-9 font-semibold tracking-[-0.04em] text-balance">
             Every decision leaves evidence.
           </h2>
-          <p className="mt-4 max-w-lg text-sm leading-6 text-[var(--text-secondary)]">
-            Follow every check from the authorization request to the final policy decision, with the
+          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+            Follow each check from the authorization request to the final policy decision, with the
             exact inputs that produced it.
           </p>
-
-          <div className="mt-9 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--background)] shadow-[0_18px_55px_rgba(0,0,0,0.12)]">
-            <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--accent)]">
-                  <ShieldCheck aria-hidden="true" className="size-[18px]" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[13px] font-semibold">Authorization request</p>
-                  <p className="technical-value truncate text-[10px] text-[var(--text-tertiary)]">
-                    req_9f2a7c1d · authorization_code
-                  </p>
-                </div>
+          <div className="mt-8 overflow-hidden rounded-[var(--radius-panel)] bg-[var(--surface-raised)] shadow-[var(--shadow-modal)]">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-[13px] font-medium">Authorization request</p>
+                <p className="technical-value truncate text-[11px] text-[var(--text-tertiary)]">
+                  req_9f2a7c1d · authorization_code
+                </p>
               </div>
-              <span className="rounded-md bg-[var(--success-soft)] px-2 py-1 text-[10px] font-semibold text-[var(--success)]">
-                ALLOWED
+              <span className="inline-flex h-5 items-center gap-1.5 rounded-full bg-[var(--success-soft)] px-2 text-[11px] font-medium text-[var(--success)]">
+                <span className="size-1.5 rounded-full bg-[var(--success-solid)]" /> Authorized
               </span>
             </div>
-
-            <ol aria-label="Example authorization trace" className="px-5 py-2">
+            <ol className="stagger px-4 py-2">
               {authorizationTrace.map((step, index) => (
-                <li className="relative grid grid-cols-[24px_1fr_auto] gap-3 py-3" key={step.label}>
+                <li className="relative grid grid-cols-[20px_1fr_auto] gap-3 py-2" key={step.label}>
                   {index < authorizationTrace.length - 1 && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute top-8 bottom-[-12px] left-[11px] w-px bg-[var(--success-border)]"
-                    />
+                    <span className="absolute top-7 bottom-[-8px] left-[9.5px] w-px bg-[var(--border)]" />
                   )}
-                  <span className="relative z-10 mt-0.5 flex size-6 items-center justify-center rounded-full border border-[var(--success-border)] bg-[var(--success-soft)] text-[var(--success)]">
-                    <Check aria-hidden="true" className="size-3.5" strokeWidth={2.5} />
+                  <span className="relative z-10 mt-0.5 flex size-5 items-center justify-center rounded-full bg-[var(--success-soft)] text-[var(--success)]">
+                    <Check className="size-3" strokeWidth={2.5} />
                   </span>
                   <div className="min-w-0">
-                    <div className="flex items-baseline gap-2">
-                      <span className="technical-value text-[10px] text-[var(--text-tertiary)]">
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
-                      <span className="text-[13px] font-medium">{step.label}</span>
-                    </div>
-                    <p className="technical-value mt-0.5 truncate text-[10px] text-[var(--text-tertiary)]">
+                    <p className="text-[13px] font-medium">{step.label}</p>
+                    <p className="technical-value truncate text-[11px] text-[var(--text-tertiary)]">
                       {step.detail}
                     </p>
                   </div>
-                  <span className="technical-value pt-0.5 text-[10px] text-[var(--text-tertiary)]">
-                    +{step.elapsed}
+                  <span className="technical-value pt-0.5 text-[11px] text-[var(--text-tertiary)]">
+                    +{step.elapsed}ms
                   </span>
                 </li>
               ))}
             </ol>
-
-            <div className="flex items-center justify-between border-t border-[var(--border)] bg-[var(--surface-subtle)] px-5 py-3">
-              <span className="text-xs font-medium">Policy result</span>
-              <span className="technical-value text-[10px] text-[var(--success)]">
-                PASS · 16 MS
+            <div className="flex items-center justify-between border-t border-[var(--border)] bg-[var(--surface-subtle)] px-4 py-2.5">
+              <span className="text-xs text-[var(--text-secondary)]">
+                Sensitive values redacted
+              </span>
+              <span className="technical-value text-[11px] text-[var(--success)]">
+                allow · 17.9ms
               </span>
             </div>
           </div>
-          <p className="technical-value mt-3 text-[10px] text-[var(--text-tertiary)]">
-            Sensitive values are redacted before storage.
-          </p>
         </div>
       </aside>
     </main>
@@ -141,27 +107,35 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
 export function AuthorizationShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="flex min-h-dvh flex-col bg-[var(--surface)] pt-[max(1.5rem,env(safe-area-inset-top))] pr-[max(1.25rem,env(safe-area-inset-right))] pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1.25rem,env(safe-area-inset-left))] sm:justify-center sm:py-10">
-      <section className="mx-auto flex w-full max-w-[450px] flex-1 flex-col justify-center sm:flex-none sm:rounded-[24px] sm:border sm:border-[var(--border-strong)] sm:bg-[var(--background)] sm:px-10 sm:py-10 sm:shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+    <main className="flex min-h-dvh flex-col bg-[var(--surface)] pt-[max(1.5rem,env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] sm:items-center sm:justify-center sm:py-10">
+      <section className="mx-auto flex w-full max-w-[420px] flex-1 animate-[enter_var(--motion-slow)_var(--ease-out)] flex-col justify-center sm:flex-none sm:rounded-[var(--radius-panel)] sm:bg-[var(--surface-raised)] sm:p-8 sm:shadow-[var(--shadow-raised)]">
         <Link
-          href="/"
           aria-label="Authometry home"
-          className="mx-auto mb-7 flex size-10 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
+          className="mx-auto mb-6 flex size-10 items-center justify-center rounded-full bg-[var(--surface-raised)] shadow-[var(--shadow-border),var(--shadow-small)] transition-transform duration-[var(--motion-normal)] ease-[var(--ease-spring)] hover:scale-105 focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
+          href="/"
         >
           <AuthometryMark className="size-6" />
         </Link>
         {children}
       </section>
-      <p className="mt-7 text-center text-xs text-[var(--text-tertiary)]">Secured by Authometry</p>
+      <p className="mt-6 text-center text-xs text-[var(--text-tertiary)]">Secured by Authometry</p>
     </main>
   );
 }
 
-export function AuthHeading({ title, description }: { title: string; description: string }) {
+export function AuthHeading({
+  title,
+  description,
+}: {
+  title: string;
+  description: React.ReactNode;
+}) {
   return (
-    <div className="mb-7">
-      <h1 className="text-2xl font-semibold tracking-[-0.035em] text-balance">{title}</h1>
-      <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{description}</p>
+    <div className="mb-6">
+      <h1 className="text-2xl leading-8 font-semibold tracking-[-0.03em] text-balance">{title}</h1>
+      <p className="mt-1.5 text-sm leading-6 text-pretty text-[var(--text-secondary)]">
+        {description}
+      </p>
     </div>
   );
 }

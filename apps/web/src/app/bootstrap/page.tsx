@@ -2,14 +2,17 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Button } from "@authometry/ui";
-import { AuthHeading, AuthShell, inputClass } from "@/components/auth/auth-shell";
+import { Button, Note } from "@authometry/ui";
+import { AuthHeading, AuthShell } from "@/components/auth/auth-shell";
+import { Field, Input } from "@/components/ui/form";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useHydrated } from "@/lib/use-hydrated";
 
 export default function BootstrapPage() {
   const router = useRouter();
   const hydrated = useHydrated();
   const search = useSearchParams();
+  const urlToken = search.get("token") ?? "";
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
 
@@ -24,7 +27,7 @@ export default function BootstrapPage() {
         credentials: "include",
         headers: {
           "content-type": "application/json",
-          "x-bootstrap-token": search.get("token") ?? "",
+          "x-bootstrap-token": urlToken || String(data.get("token") ?? "").trim(),
         },
         body: JSON.stringify({
           name: data.get("name"),
@@ -39,7 +42,6 @@ export default function BootstrapPage() {
       router.push("/overview");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Setup failed.");
-    } finally {
       setLoading(false);
     }
   }
@@ -48,61 +50,44 @@ export default function BootstrapPage() {
     <AuthShell>
       <div className="w-full">
         <AuthHeading
-          title="Set Up Authometry"
-          description="Create the first owner and workspace for this installation."
+          title="Set up Authometry"
+          description="Create the first owner account and workspace for this installation."
         />
         <form className="space-y-4" method="post" onSubmit={submit}>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium">Your name</span>
-            <input autoComplete="name" className={inputClass} name="name" required />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium">Email address</span>
-            <input
-              autoComplete="email"
-              className={inputClass}
-              name="email"
-              required
-              spellCheck={false}
-              type="email"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium">Workspace name</span>
-            <input
-              autoComplete="off"
-              className={inputClass}
-              defaultValue="Acme"
-              name="workspaceName"
-              required
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium">Password</span>
-            <input
-              autoComplete="new-password"
-              className={inputClass}
-              minLength={12}
-              name="password"
-              required
-              type="password"
-            />
-            <span className="mt-1 block text-xs text-[var(--text-tertiary)]">
-              Use at least 12 characters.
-            </span>
-          </label>
+          {!urlToken && (
+            <Field
+              description="Printed in the server logs or set as BOOTSTRAP_TOKEN."
+              label="Setup token"
+            >
+              <Input autoComplete="off" mono name="token" required spellCheck={false} />
+            </Field>
+          )}
+          <Field label="Your name">
+            <Input autoComplete="name" autoFocus name="name" required />
+          </Field>
+          <Field label="Email">
+            <Input autoComplete="email" name="email" required spellCheck={false} type="email" />
+          </Field>
+          <Field label="Workspace name">
+            <Input autoComplete="organization" name="workspaceName" placeholder="Acme" required />
+          </Field>
+          <Field description="At least 12 characters." label="Password">
+            <PasswordInput autoComplete="new-password" minLength={12} name="password" required />
+          </Field>
           {error && (
-            <p className="text-[13px] text-[var(--danger)]" role="alert">
+            <Note role="alert" tone="danger">
               {error}
-            </p>
+            </Note>
           )}
           <Button
             className="w-full"
-            disabled={!hydrated || loading}
+            disabled={!hydrated}
+            loading={loading}
+            size="large"
             type="submit"
             variant="primary"
           >
-            {loading ? "Creating Workspace…" : "Create Workspace"}
+            {loading ? "Creating workspace…" : "Create workspace"}
           </Button>
         </form>
       </div>
