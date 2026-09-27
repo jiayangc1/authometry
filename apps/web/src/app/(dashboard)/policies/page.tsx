@@ -1,10 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Braces, Plus, ShieldCheck } from "lucide-react";
+import { AppWindow, ArrowRight, GitBranch, Plus, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { Button, EmptyState, StatusBadge } from "@authometry/ui";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
+import { ErrorState, Skeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader } from "@/components/layout/page";
 import { apiFetch } from "@/lib/api";
 
@@ -27,75 +27,117 @@ export default function PoliciesPage() {
     <PageContainer>
       <PageHeader
         actions={
-          <Button asChild>
+          <Button asChild variant="primary">
             <Link href="/policies/new">
-              <Plus aria-hidden="true" className="size-3.5" /> New Policy
+              <Plus aria-hidden="true" className="size-3.5" /> Create policy
             </Link>
           </Button>
         }
-        description="Control authorization using explicit, inspectable rules."
+        description="Explicit, inspectable rules evaluated before Authometry issues an authorization code."
         title="Policies"
       />
       {query.isLoading ? (
-        <PageSkeleton />
+        <div className="grid gap-3 lg:grid-cols-2">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div
+              className="h-44 rounded-[var(--radius-card)] border border-[var(--border)] p-4"
+              key={index}
+            >
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="mt-2 h-3 w-24" />
+              <Skeleton className="mt-6 h-3 w-full" />
+              <Skeleton className="mt-2 h-3 w-2/3" />
+            </div>
+          ))}
+        </div>
       ) : query.isError ? (
         <ErrorState
           description="Authometry could not load authorization policies. Check your connection, then retry."
           headingLevel="h2"
           onRetry={() => void query.refetch()}
-          title="Unable to Load Policies"
+          title="Unable to load policies"
         />
       ) : query.data?.data.length ? (
-        <div className="grid gap-3 lg:grid-cols-2">
-          {query.data.data.map((policy) => (
-            <Link
-              className="virtualized-row rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4 transition-colors hover:border-[var(--border-strong)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:outline-none"
-              href={`/policies/${policy.id}`}
-              key={policy.id}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-semibold">{policy.display_name}</h2>
-                  <p className="technical-value mt-0.5 text-[var(--text-tertiary)]">
-                    {policy.name}
-                  </p>
+        <div className="stagger grid gap-3 lg:grid-cols-2">
+          {query.data.data.map((policy) => {
+            const conditions = policy.conditions.all ?? [];
+            return (
+              <Link
+                className="lift group flex flex-col rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-raised)] p-4 focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
+                href={`/policies/${policy.id}`}
+                key={policy.id}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-sm font-semibold">{policy.display_name}</h2>
+                    <p className="technical-value truncate text-[var(--text-tertiary)]">
+                      {policy.name}
+                    </p>
+                  </div>
+                  <StatusBadge
+                    label={policy.enabled ? "Enforced" : "Disabled"}
+                    tone={policy.enabled ? "success" : "neutral"}
+                  />
                 </div>
-                <StatusBadge
-                  label={policy.enabled ? "Enabled" : "Disabled"}
-                  tone={policy.enabled ? "success" : "neutral"}
-                />
-              </div>
-              <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">
-                {policy.description}
-              </p>
-              <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
-                {policy.conditions.all?.length ? (
-                  policy.conditions.all.slice(0, 2).map((condition, index) => (
+                {policy.description && (
+                  <p className="mt-2 line-clamp-2 text-[13px] text-[var(--text-secondary)]">
+                    {policy.description}
+                  </p>
+                )}
+                <div className="mt-3 flex-1 space-y-1 rounded-[var(--radius-control)] bg-[var(--surface-subtle)] p-2.5">
+                  {conditions.slice(0, 3).map((condition, index) => (
                     <p
-                      className="technical-value mt-1 text-[var(--text-secondary)]"
+                      className="technical-value truncate text-[var(--text-secondary)]"
                       key={`${condition.field}-${index}`}
                     >
-                      {index ? "AND " : "WHEN "}
+                      <span className="text-[var(--text-tertiary)]">
+                        {index ? "AND " : "WHEN "}
+                      </span>
                       {condition.field} {condition.operator.replaceAll("_", " ")}{" "}
-                      {String(condition.value)}
+                      <span className="text-[var(--text-primary)]">
+                        {Array.isArray(condition.value)
+                          ? condition.value.join(", ")
+                          : String(condition.value)}
+                      </span>
                     </p>
-                  ))
-                ) : (
-                  <p className="text-xs text-[var(--text-tertiary)]">No conditions</p>
-                )}
-              </div>
-              <div className="mt-4 flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
-                <Braces aria-hidden="true" className="size-3" />
-                {policy.ownership === "manifest" ? "Managed by Git" : "Dashboard managed"}
-              </div>
-            </Link>
-          ))}
+                  ))}
+                  {conditions.length > 3 && (
+                    <p className="technical-value text-[var(--text-tertiary)]">
+                      +{conditions.length - 3} more
+                    </p>
+                  )}
+                </div>
+                <div className="mt-3 flex items-center gap-3 text-xs text-[var(--text-tertiary)]">
+                  <span className="flex items-center gap-1.5">
+                    <AppWindow aria-hidden="true" className="size-3.5" />
+                    {policy.application_ids.length
+                      ? `${policy.application_ids.length} ${policy.application_ids.length === 1 ? "app" : "apps"}`
+                      : "All apps"}
+                  </span>
+                  {policy.ownership === "manifest" && (
+                    <span className="flex items-center gap-1.5">
+                      <GitBranch aria-hidden="true" className="size-3.5" /> Git
+                    </span>
+                  )}
+                  <ArrowRight
+                    aria-hidden="true"
+                    className="ml-auto size-3.5 -translate-x-1 opacity-0 transition-[opacity,transform] duration-[var(--motion-normal)] ease-[var(--ease-spring)] group-hover:translate-x-0 group-hover:opacity-100"
+                  />
+                </div>
+              </Link>
+            );
+          })}
         </div>
       ) : (
         <EmptyState
-          description="Create a policy to make authorization rules explicit and inspectable."
+          description="Create a policy to require group membership, restrict environments, or limit who can reach an application."
           icon={ShieldCheck}
-          title="No Authorization Policies"
+          primaryAction={
+            <Button asChild variant="primary">
+              <Link href="/policies/new">Create policy</Link>
+            </Button>
+          }
+          title="No policies yet"
         />
       )}
     </PageContainer>

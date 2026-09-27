@@ -107,12 +107,12 @@ export function Field({
   optional,
 }: {
   children: ReactNode;
-  className?: string;
+  className?: string | undefined;
   description?: ReactNode;
   error?: ReactNode;
   label: ReactNode;
   labelAction?: ReactNode;
-  optional?: boolean;
+  optional?: boolean | undefined;
 }) {
   const generatedId = useId();
   const child = isValidElement(children) ? (children as ControlElement) : undefined;
