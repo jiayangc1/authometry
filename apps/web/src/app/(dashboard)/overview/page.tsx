@@ -1,15 +1,26 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, ExternalLink, Play, ShieldCheck, TriangleAlert, XCircle } from "lucide-react";
+import {
+  AppWindow,
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  FlaskConical,
+  History,
+  ListTree,
+  UserPlus,
+} from "lucide-react";
 import Link from "next/link";
-import { Button } from "@authometry/ui";
+import { Button, StatusBadge, cn } from "@authometry/ui";
 import { RequestChart } from "@/components/dashboard/request-chart";
 import { RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
+import { Card } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api";
 import { compactNumber, duration, hourLabel, percentage } from "@/lib/format";
+import { humanize, traceLabel, traceTone } from "@/lib/status";
 
 interface OverviewResponse {
   metrics: {
@@ -32,10 +43,97 @@ interface OverviewResponse {
   recentEvents: Array<{ id: string; summary: string; actor_name?: string; created_at: string }>;
 }
 
+function GettingStarted({
+  hasApplications,
+  hasTraffic,
+}: {
+  hasApplications: boolean;
+  hasTraffic: boolean;
+}) {
+  const steps = [
+    {
+      done: hasApplications,
+      title: "Create an application",
+      description: "Register the website, app, or service that will sign users in.",
+      href: "/applications/new",
+      icon: AppWindow,
+      action: "Create application",
+    },
+    {
+      done: false,
+      title: "Add a user",
+      description: "Invite a teammate or create a test identity to sign in with.",
+      href: "/users/new",
+      icon: UserPlus,
+      action: "Add user",
+    },
+    {
+      done: hasTraffic,
+      title: "Run your first authorization",
+      description: "Use the playground to send a request and inspect the trace.",
+      href: "/developer/playground",
+      icon: FlaskConical,
+      action: "Open playground",
+    },
+  ];
+  return (
+    <Card className="mb-8 overflow-hidden">
+      <div className="border-b border-[var(--border)] px-5 py-4">
+        <h2 className="text-base font-semibold">Get started with Authometry</h2>
+        <p className="mt-0.5 text-[13px] text-[var(--text-secondary)]">
+          Three steps to your first traced sign-in.
+        </p>
+      </div>
+      <ol className="stagger grid divide-y divide-[var(--border)] md:grid-cols-3 md:divide-x md:divide-y-0">
+        {steps.map((step, index) => (
+          <li className="flex flex-col p-5" key={step.title}>
+            <span
+              className={cn(
+                "mb-3 flex size-7 items-center justify-center rounded-full border text-xs font-medium",
+                step.done
+                  ? "animate-pop border-transparent bg-[var(--success-solid)] text-white"
+                  : "border-[var(--border-strong)] text-[var(--text-secondary)]",
+              )}
+            >
+              {step.done ? <Check aria-label="Done" className="size-3.5" /> : index + 1}
+            </span>
+            <h3
+              className={cn(
+                "text-sm font-medium",
+                step.done && "text-[var(--text-secondary)] line-through",
+              )}
+            >
+              {step.title}
+            </h3>
+            <p className="mt-1 flex-1 text-[13px] text-[var(--text-secondary)]">
+              {step.description}
+            </p>
+            {!step.done && (
+              <Button
+                asChild
+                className="mt-4 self-start [&:hover_svg]:translate-x-0.5"
+                size="compact"
+              >
+                <Link href={step.href}>
+                  {step.action} <ArrowRight aria-hidden="true" className="size-3" />
+                </Link>
+              </Button>
+            )}
+          </li>
+        ))}
+      </ol>
+    </Card>
+  );
+}
+
 export default function OverviewPage() {
   const overview = useQuery({
     queryKey: ["overview"],
     queryFn: () => apiFetch<OverviewResponse>("/api/v1/overview"),
+  });
+  const applications = useQuery({
+    queryKey: ["applications", "", "", ""],
+    queryFn: () => apiFetch<{ data: unknown[] }>("/api/v1/applications?q=&type=&status="),
   });
   if (overview.isLoading)
     return (
@@ -49,22 +147,42 @@ export default function OverviewPage() {
         <ErrorState
           description="Authometry could not reach the API. Check the connection and try again."
           onRetry={() => void overview.refetch()}
-          title="Unable to Load Authentication Activity"
+          retrying={overview.isRefetching}
+          title="Unable to load authentication activity"
         />
       </PageContainer>
     );
   const data = overview.data;
+  const hasApplications = (applications.data?.data.length ?? 0) > 0;
+  const hasTraffic = data.metrics.authorizationRequests > 0 || data.recentTraces.length > 0;
   const metrics = [
-    ["Authorization requests", compactNumber(data.metrics.authorizationRequests), "Last 24 hours"],
-    ["Success rate", percentage(data.metrics.successRate, 1), "Last 24 hours"],
-    ["Active sessions", compactNumber(data.metrics.activeSessions), "Currently valid"],
-    [
-      "Failed requests",
-      compactNumber(data.metrics.failedRequests),
-      data.metrics.authorizationRequests
+    {
+      label: "Authorization requests",
+      value: compactNumber(data.metrics.authorizationRequests),
+      support: "Last 24 hours",
+      href: "/traces",
+    },
+    {
+      label: "Success rate",
+      value: data.metrics.authorizationRequests ? percentage(data.metrics.successRate, 1) : "—",
+      support: "Last 24 hours",
+      href: "/traces?status=success",
+    },
+    {
+      label: "Active sessions",
+      value: compactNumber(data.metrics.activeSessions),
+      support: "Currently valid",
+      href: "/sessions",
+    },
+    {
+      label: "Failed requests",
+      value: compactNumber(data.metrics.failedRequests),
+      support: data.metrics.authorizationRequests
         ? `${percentage((data.metrics.failedRequests / data.metrics.authorizationRequests) * 100, 2)} of requests`
-        : "No failed requests",
-    ],
+        : "No requests yet",
+      href: "/traces?status=error",
+      tone: data.metrics.failedRequests > 0 ? "danger" : undefined,
+    },
   ];
   return (
     <PageContainer>
@@ -72,141 +190,195 @@ export default function OverviewPage() {
         actions={
           <>
             <Button asChild>
-              <Link href="/docs">
-                View Documentation <ExternalLink aria-hidden="true" className="size-3.5" />
-              </Link>
+              <Link href="/docs">Documentation</Link>
             </Button>
             <Button asChild variant="primary">
               <Link href="/developer/playground">
-                <Play aria-hidden="true" className="size-3.5" /> Open Playground
+                <FlaskConical aria-hidden="true" className="size-3.5" /> Open playground
               </Link>
             </Button>
           </>
         }
-        description="Monitor authorization activity across your Authometry instance."
+        description="Monitor authorization activity across this environment."
         title="Overview"
       />
-      <section className="mb-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map(([label, value, support]) => (
-          <div
-            className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4"
-            key={label}
+      {(!hasApplications || !hasTraffic) && !applications.isLoading && (
+        <GettingStarted hasApplications={hasApplications} hasTraffic={hasTraffic} />
+      )}
+      <section
+        aria-label="Key metrics"
+        className="stagger mb-8 grid gap-px overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--border)] sm:grid-cols-2 xl:grid-cols-4"
+      >
+        {metrics.map((metric) => (
+          <Link
+            className="group relative bg-[var(--surface-raised)] p-5 transition-colors duration-[var(--motion-fast)] hover:bg-[var(--surface-subtle)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none focus-visible:ring-inset"
+            href={metric.href}
+            key={metric.label}
           >
-            <p className="text-xs font-medium text-[var(--text-secondary)]">{label}</p>
-            <p className="mt-3 text-[26px] leading-8 font-semibold tracking-[-0.035em] tabular-nums">
-              {value}
+            <p className="flex items-center justify-between text-[13px] text-[var(--text-secondary)]">
+              {metric.label}
+              <ArrowUpRight
+                aria-hidden="true"
+                className="size-3.5 -translate-x-0.5 translate-y-0.5 text-[var(--text-tertiary)] opacity-0 transition-[opacity,transform] duration-[var(--motion-normal)] ease-[var(--ease-spring)] group-hover:translate-x-0 group-hover:translate-y-0 group-hover:opacity-100"
+              />
             </p>
-            <p className="mt-1 text-xs text-[var(--text-tertiary)]">{support}</p>
-          </div>
+            <p
+              className={cn(
+                "mt-2 text-[28px] leading-9 font-semibold tracking-[-0.04em] tabular-nums",
+                metric.tone === "danger" && "text-[var(--danger)]",
+              )}
+            >
+              {metric.value}
+            </p>
+            <p className="mt-0.5 text-xs text-[var(--text-tertiary)]">{metric.support}</p>
+          </Link>
         ))}
       </section>
-      <section className="mb-9 border-t border-[var(--border)] pt-7">
+      <section className="mb-8">
         <SectionHeader
           actions={
-            <div className="flex items-center gap-3 text-[11px] text-[var(--text-secondary)]">
-              <span>
-                <i className="mr-1.5 inline-block size-1.5 rounded-full bg-[var(--chart-1)]" />
-                Successful
-              </span>
-              <span>
-                <i className="mr-1.5 inline-block size-1.5 rounded-full bg-[var(--warning)]" />
-                Denied
-              </span>
-              <span>
-                <i className="mr-1.5 inline-block size-1.5 rounded-full bg-[var(--danger)]" />
-                Failed
-              </span>
+            <div className="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
+              {[
+                ["Successful", "bg-[var(--chart-1)]"],
+                ["Denied", "bg-[var(--warning-solid)]"],
+                ["Failed", "bg-[var(--danger-solid)]"],
+              ].map(([label, color]) => (
+                <span className="flex items-center gap-1.5" key={label}>
+                  <i
+                    aria-hidden="true"
+                    className={cn("inline-block size-2 rounded-[2px]", color)}
+                  />
+                  {label}
+                </span>
+              ))}
             </div>
           }
-          description="Successful, denied, and failed requests during the last 24 hours."
-          title="Authorization Requests"
+          description="Successful, denied, and failed requests over the last 24 hours."
+          title="Authorization requests"
         />
-        <RequestChart
-          data={
-            data.chart ??
-            Array.from({ length: 12 }, (_, index) => ({
-              time: hourLabel(index * 2),
-              successful: 0,
-              denied: 0,
-              failed: 0,
-            }))
-          }
-        />
+        <Card className="px-2 pt-4 pb-2">
+          <RequestChart
+            data={
+              data.chart ??
+              Array.from({ length: 12 }, (_, index) => ({
+                time: hourLabel(index * 2),
+                successful: 0,
+                denied: 0,
+                failed: 0,
+              }))
+            }
+          />
+        </Card>
       </section>
-      <div className="grid gap-10 border-t border-[var(--border)] pt-7 xl:grid-cols-[1.35fr_0.65fr]">
+      <div className="grid gap-8 xl:grid-cols-[1.4fr_1fr]">
         <section>
           <SectionHeader
             actions={
-              <Button asChild size="compact" variant="ghost">
+              <Button
+                asChild
+                className="[&:hover_svg]:translate-x-0.5"
+                size="compact"
+                variant="ghost"
+              >
                 <Link href="/traces">
-                  View All <ArrowRight aria-hidden="true" className="size-3" />
+                  View all <ArrowRight aria-hidden="true" className="size-3" />
                 </Link>
               </Button>
             }
-            title="Recent Authorization Activity"
+            title="Recent activity"
           />
-          <div className="border-y border-[var(--border)]">
+          <Card className="overflow-hidden">
             {data.recentTraces.length ? (
-              data.recentTraces.map((trace) => {
-                const Icon =
-                  trace.status === "success"
-                    ? ShieldCheck
-                    : trace.status === "denied"
-                      ? TriangleAlert
-                      : XCircle;
-                return (
-                  <Link
-                    className="grid min-h-14 grid-cols-[20px_1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 py-2.5 transition-colors last:border-0 hover:bg-[var(--surface-hover)]"
-                    href={`/traces/${trace.id}`}
-                    key={trace.id}
-                  >
-                    <Icon
-                      aria-hidden="true"
-                      className={`size-4 ${trace.status === "success" ? "text-[var(--success)]" : trace.status === "denied" ? "text-[var(--warning)]" : "text-[var(--danger)]"}`}
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-medium">
-                        {trace.event_type.replaceAll("_", " ")}
-                      </p>
-                      <p className="truncate text-xs text-[var(--text-secondary)]">
-                        {trace.application_name} · {trace.user_snapshot?.email ?? "anonymous"} ·{" "}
-                        {duration(trace.duration_ms)}
-                      </p>
-                    </div>
-                    <span className="text-xs text-[var(--text-tertiary)]">
-                      <RelativeTime value={trace.started_at} />
-                    </span>
-                  </Link>
-                );
-              })
+              <ul className="stagger divide-y divide-[var(--border)]">
+                {data.recentTraces.map((trace) => (
+                  <li key={trace.id}>
+                    <Link
+                      className="row-link grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none focus-visible:ring-inset"
+                      href={`/traces/${trace.id}`}
+                    >
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 text-[13px] font-medium">
+                          <span className="truncate">{humanize(trace.event_type)}</span>
+                          <StatusBadge
+                            label={traceLabel(trace.status)}
+                            tone={traceTone(trace.status)}
+                          />
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-[var(--text-secondary)]">
+                          {trace.application_name} · {trace.user_snapshot?.email ?? "anonymous"}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="technical-value">{duration(trace.duration_ms)}</p>
+                        <p className="text-xs text-[var(--text-tertiary)]">
+                          <RelativeTime value={trace.started_at} />
+                        </p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             ) : (
-              <p className="px-3 py-10 text-center text-[13px] text-[var(--text-secondary)]">
-                Authorization activity will appear here.
-              </p>
+              <div className="flex flex-col items-center px-4 py-12 text-center">
+                <ListTree aria-hidden="true" className="mb-3 size-5 text-[var(--text-tertiary)]" />
+                <p className="text-[13px] font-medium">No authorization activity yet</p>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  Requests appear here as soon as an application starts signing users in.
+                </p>
+              </div>
             )}
-          </div>
+          </Card>
         </section>
         <section>
-          <SectionHeader title="Configuration Changes" />
-          <div className="border-y border-[var(--border)]">
+          <SectionHeader
+            actions={
+              <Button
+                asChild
+                className="[&:hover_svg]:translate-x-0.5"
+                size="compact"
+                variant="ghost"
+              >
+                <Link href="/events">
+                  View all <ArrowRight aria-hidden="true" className="size-3" />
+                </Link>
+              </Button>
+            }
+            title="Configuration changes"
+          />
+          <Card className="overflow-hidden">
             {data.recentEvents.length ? (
-              data.recentEvents.map((event) => (
-                <div
-                  className="border-b border-[var(--border-subtle)] px-2 py-3 last:border-0"
-                  key={event.id}
-                >
-                  <p className="text-[13px] font-medium">{event.summary}</p>
-                  <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-                    {event.actor_name ?? "System"} · <RelativeTime value={event.created_at} />
-                  </p>
-                </div>
-              ))
+              <ol className="stagger px-4 py-2">
+                {data.recentEvents.map((event, index) => (
+                  <li className="relative flex gap-3 py-2.5" key={event.id}>
+                    {index < data.recentEvents.length - 1 && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute top-6 bottom-[-6px] left-[3px] w-px bg-[var(--border)]"
+                      />
+                    )}
+                    <span
+                      aria-hidden="true"
+                      className="mt-1.5 size-[7px] shrink-0 rounded-full border border-[var(--border-strong)] bg-[var(--surface-raised)]"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-[13px]">{event.summary}</p>
+                      <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+                        {event.actor_name ?? "System"} · <RelativeTime value={event.created_at} />
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
             ) : (
-              <p className="px-3 py-10 text-center text-[13px] text-[var(--text-secondary)]">
-                Configuration changes will appear here.
-              </p>
+              <div className="flex flex-col items-center px-4 py-12 text-center">
+                <History aria-hidden="true" className="mb-3 size-5 text-[var(--text-tertiary)]" />
+                <p className="text-[13px] font-medium">No changes yet</p>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  Edits to applications, policies, and settings are recorded here.
+                </p>
+              </div>
             )}
-          </div>
+          </Card>
         </section>
       </div>
     </PageContainer>

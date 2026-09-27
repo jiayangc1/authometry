@@ -1,25 +1,25 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  ChevronRight,
-  Copy,
-  Download,
-  ExternalLink,
-  ShieldAlert,
-} from "lucide-react";
+import { ArrowRight, Download, Lightbulb, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { AuthorizationTrace } from "@authometry/domain";
 import { Button, StatusBadge } from "@authometry/ui";
-import { CopyableValue } from "@/components/data-display/copyable-value";
+import { CopyButton, CopyableValue } from "@/components/data-display/copyable-value";
 import { FullDateTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
-import { PageContainer } from "@/components/layout/page";
+import {
+  Breadcrumbs,
+  DescriptionList,
+  PageContainer,
+  PageHeader,
+  SectionHeader,
+} from "@/components/layout/page";
 import { TraceTimeline } from "@/components/traces/trace-timeline";
 import { apiFetch } from "@/lib/api";
 import { duration } from "@/lib/format";
+import { humanize, traceLabel, traceTone } from "@/lib/status";
 import { toast } from "sonner";
 
 interface TraceResponse {
@@ -51,31 +51,32 @@ export default function TraceDetailPage() {
     queryKey: ["trace", traceId],
     queryFn: () => apiFetch<TraceResponse>(`/api/v1/traces/${traceId}`),
   });
+  const environments = useQuery({
+    queryKey: ["environments"],
+    queryFn: () => apiFetch<{ data: Array<{ id: string; name: string }> }>("/api/v1/environments"),
+  });
   if (trace.isLoading)
     return (
       <PageContainer size="trace">
-        <PageSkeleton rows={8} />
+        <PageSkeleton metrics={false} rows={8} />
       </PageContainer>
     );
   if (trace.isError || !trace.data)
     return (
       <PageContainer size="trace">
+        <Breadcrumbs items={[{ label: "Traces", href: "/traces" }, { label: traceId }]} />
         <ErrorState
-          title="Trace Not Found"
-          description="This trace may have expired, been deleted, or belong to another environment."
+          title="Trace not found"
+          description="This trace may have expired, been deleted, or belong to another environment. Switch environments or return to the trace list."
           onRetry={() => void trace.refetch()}
+          retrying={trace.isRefetching}
         />
       </PageContainer>
     );
   const data = trace.data;
-  const tone =
-    data.status === "success"
-      ? "success"
-      : data.status === "denied" || data.status === "warning"
-        ? "warning"
-        : data.status === "pending"
-          ? "neutral"
-          : "danger";
+  const environmentName =
+    environments.data?.data.find((environment) => environment.id === data.environment_id)?.name ??
+    "—";
   function download() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -83,81 +84,77 @@ export default function TraceDetailPage() {
     anchor.href = url;
     anchor.download = `${data.request_id}.json`;
     anchor.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success("Trace exported.");
   }
+  const facts: Array<[string, React.ReactNode]> = [
+    [
+      "Application",
+      data.application_id ? (
+        <Link className="font-medium hover:underline" href={`/applications/${data.application_id}`}>
+          {data.application_name}
+        </Link>
+      ) : (
+        data.application_name
+      ),
+    ],
+    ["Client ID", <CopyableValue key="client" value={data.client_id} />],
+    ["User", data.user_snapshot?.email ?? "Anonymous"],
+    [
+      "Grant",
+      <span className="technical-value" key="grant">
+        {data.grant_type}
+      </span>,
+    ],
+    [
+      "Endpoint",
+      <span className="technical-value" key="endpoint">
+        {data.method} {data.endpoint}
+      </span>,
+    ],
+    ["Environment", environmentName],
+    ["Started", <FullDateTime key="started" value={data.started_at} />],
+    [
+      "Duration",
+      <span className="technical-value" key="duration">
+        {duration(data.duration_ms)}
+      </span>,
+    ],
+  ];
   return (
     <PageContainer size="trace">
-      <div className="mb-4 flex items-center gap-1 text-xs text-[var(--text-secondary)]">
-        <Link className="hover:text-[var(--text-primary)]" href="/traces">
-          Authorization traces
-        </Link>
-        <ChevronRight aria-hidden="true" className="size-3" />
-        <span className="technical-value">{data.request_id}</span>
-      </div>
-      <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="technical-value text-xl font-semibold text-balance break-words">
-              {data.request_id}
-            </h1>
-            <StatusBadge
-              label={
-                data.status === "success"
-                  ? "Authorized"
-                  : data.status[0]!.toUpperCase() + data.status.slice(1)
-              }
-              tone={tone}
-            />
+      <Breadcrumbs items={[{ label: "Traces", href: "/traces" }, { label: data.request_id }]} />
+      <PageHeader
+        actions={
+          <>
+            <Button onClick={download}>
+              <Download aria-hidden="true" className="size-3.5" /> Export JSON
+            </Button>
+          </>
+        }
+        badges={
+          <>
+            <StatusBadge label={traceLabel(data.status)} tone={traceTone(data.status)} />
             {data.explanation?.securityEvent && (
               <StatusBadge label="Security event" tone="danger" />
             )}
-          </div>
-          <p className="mt-2 text-xs text-[var(--text-secondary)]">
-            <FullDateTime value={data.started_at} /> · completed in {duration(data.duration_ms)}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            onClick={() => {
-              void navigator.clipboard
-                .writeText(data.request_id)
-                .then(() => toast.success("Request ID copied."))
-                .catch(() => toast.error("Could not copy the request ID."));
-            }}
-          >
-            <Copy aria-hidden="true" className="size-3.5" /> Copy Request ID
-          </Button>
-          <Button onClick={download}>
-            <Download aria-hidden="true" className="size-3.5" /> Export JSON
-          </Button>
-        </div>
-      </header>
-      <section className="mb-7 grid gap-px overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--border)] sm:grid-cols-2 lg:grid-cols-6">
-        {[
-          ["Application", data.application_name],
-          ["Client", data.client_id],
-          ["User", data.user_snapshot?.email ?? "anonymous"],
-          ["Grant", data.grant_type],
-          ["Endpoint", `${data.method} ${data.endpoint}`],
-          ["Environment", "Production"],
-        ].map(([label, value]) => (
-          <div className="min-w-0 bg-[var(--surface-raised)] p-3" key={label}>
-            <p className="text-[11px] text-[var(--text-secondary)]">{label}</p>
-            <p
-              className={
-                label === "Client" || label === "Endpoint"
-                  ? "technical-value mt-1 truncate"
-                  : "mt-1 truncate text-xs font-medium"
-              }
-            >
-              {value}
-            </p>
-          </div>
-        ))}
-      </section>
+          </>
+        }
+        description={
+          <span className="flex min-w-0 items-center gap-1">
+            <span className="technical-value truncate">{data.request_id}</span>
+            <CopyButton label="Copy request ID" value={data.request_id} />
+          </span>
+        }
+        title={humanize(data.event_type)}
+      />
+      <DescriptionList className="mb-6 sm:[&>div]:grid-cols-[160px_minmax(0,1fr)]" items={facts} />
       {data.explanation && (
-        <section className="mb-7 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-soft)]">
-          <div className="flex gap-3 border-b border-[var(--danger-border)] p-4">
+        <section
+          aria-label="What went wrong"
+          className="mb-6 overflow-hidden rounded-[var(--radius-card)] border border-[var(--danger-border)]"
+        >
+          <div className="flex gap-3 bg-[var(--danger-soft)] p-4">
             <ShieldAlert
               aria-hidden="true"
               className="mt-0.5 size-5 shrink-0 text-[var(--danger)]"
@@ -166,44 +163,44 @@ export default function TraceDetailPage() {
               <h2 className="text-sm font-semibold text-[var(--danger)]">
                 {data.explanation.title}
               </h2>
-              <p className="mt-1 text-[13px] leading-5 text-[var(--text-secondary)]">
+              <p className="mt-1 text-[13px] leading-5 text-[var(--text-primary)]">
                 {data.explanation.message}
               </p>
             </div>
           </div>
-          <div className="grid gap-5 p-4 lg:grid-cols-2">
-            {data.explanation.observed?.length ? (
-              <ExplanationFields fields={data.explanation.observed} title="Observed" />
-            ) : null}
-            {data.explanation.expected?.length ? (
-              <ExplanationFields fields={data.explanation.expected} title="Expected" />
-            ) : null}
-          </div>
-          <div className="flex flex-col items-start gap-3 border-t border-[var(--danger-border)] p-4 sm:flex-row sm:items-center">
-            <AlertTriangle aria-hidden="true" className="size-4 shrink-0 text-[var(--warning)]" />
+          {data.explanation.observed?.length || data.explanation.expected?.length ? (
+            <div className="grid gap-5 border-t border-[var(--danger-border)] bg-[var(--surface-raised)] p-4 lg:grid-cols-2">
+              {data.explanation.observed?.length ? (
+                <ExplanationFields fields={data.explanation.observed} title="Observed" />
+              ) : null}
+              {data.explanation.expected?.length ? (
+                <ExplanationFields fields={data.explanation.expected} title="Expected" />
+              ) : null}
+            </div>
+          ) : null}
+          <div className="flex flex-col items-start gap-3 border-t border-[var(--danger-border)] bg-[var(--surface-raised)] p-4 sm:flex-row sm:items-center">
+            <Lightbulb aria-hidden="true" className="size-4 shrink-0 text-[var(--warning)]" />
             <div className="flex-1">
-              <p className="text-xs font-semibold">Suggested resolution</p>
-              <p className="mt-0.5 text-xs leading-5 text-[var(--text-secondary)]">
+              <p className="text-[13px] font-medium">How to fix it</p>
+              <p className="mt-0.5 text-[13px] leading-5 text-[var(--text-secondary)]">
                 {data.explanation.resolution}
               </p>
             </div>
             {data.explanation.action && (
-              <Button asChild>
+              <Button asChild variant="primary">
                 <Link href={data.explanation.action.href}>
                   {data.explanation.action.label}{" "}
-                  <ExternalLink aria-hidden="true" className="size-3.5" />
+                  <ArrowRight aria-hidden="true" className="size-3.5" />
                 </Link>
               </Button>
             )}
           </div>
         </section>
       )}
-      <div className="mb-4">
-        <h2 className="text-base font-semibold text-balance">Execution Trace</h2>
-        <p className="mt-0.5 text-[13px] text-[var(--text-secondary)]">
-          Select a step to inspect its inputs, decision, and output.
-        </p>
-      </div>
+      <SectionHeader
+        description="Select a step to inspect its inputs, decision, and output. Use the arrow keys to move between steps."
+        title="Execution trace"
+      />
       <TraceTimeline steps={data.steps} />
     </PageContainer>
   );
@@ -218,11 +215,11 @@ function ExplanationFields({
 }) {
   return (
     <div>
-      <h3 className="mb-2 text-xs font-semibold">{title}</h3>
+      <h3 className="mb-2 text-xs font-medium text-[var(--text-secondary)]">{title}</h3>
       <dl className="space-y-2">
         {fields?.map((field) => (
           <div key={`${field.label}-${String(field.value)}`}>
-            <dt className="text-[11px] text-[var(--text-secondary)]">{field.label}</dt>
+            <dt className="text-xs text-[var(--text-secondary)]">{field.label}</dt>
             <dd className="mt-0.5">
               <CopyableValue
                 value={Array.isArray(field.value) ? field.value.join(", ") : String(field.value)}

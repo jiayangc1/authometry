@@ -1,28 +1,24 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  CircleX,
-  Clock3,
-  ListTree,
-  type LucideIcon,
-} from "lucide-react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { ListTree, SearchX } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { StatusBadge } from "@authometry/ui";
+import { Button, EmptyState, Spinner, StatusBadge } from "@authometry/ui";
 import { RelativeTime } from "@/components/data-display/formatted-time";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
-import { SearchInput, selectClass } from "@/components/data-display/search-input";
+import { ErrorState, ListSkeleton } from "@/components/data-display/states";
+import { FilterBar, SearchInput } from "@/components/data-display/search-input";
 import { PageContainer, PageHeader } from "@/components/layout/page";
+import { SegmentedControl } from "@/components/ui/tabs";
+import { Table, TableFooter, TableHeader, TableRow } from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
 import { duration } from "@/lib/format";
+import { humanize, traceLabel, traceTone, type TraceStatus } from "@/lib/status";
+import { useDebouncedSearchParam } from "@/lib/use-query-params";
 
 interface TraceRow {
   id: string;
   request_id: string;
-  status: "success" | "denied" | "error" | "warning" | "pending";
+  status: TraceStatus;
   event_type: string;
   application_name: string;
   client_id: string;
@@ -33,163 +29,164 @@ interface TraceRow {
   started_at: string;
 }
 
+const statusOptions = [
+  { value: "", label: "All" },
+  { value: "success", label: "Authorized" },
+  { value: "denied", label: "Denied" },
+  { value: "error", label: "Error" },
+  { value: "warning", label: "Warning" },
+  { value: "pending", label: "Pending" },
+] as const;
+type StatusFilter = (typeof statusOptions)[number]["value"];
+
+const columns = "120px minmax(180px,1.4fr) minmax(140px,1fr) minmax(160px,1fr) 150px 80px 110px";
+
 export default function TracesPage() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const parameters = useSearchParams();
-  const status = parameters.get("status") ?? "";
-  const q = parameters.get("q") ?? "";
+  const search = useDebouncedSearchParam("q");
+  const status = (search.parameters.get("status") ?? "") as StatusFilter;
+  const limit = search.parameters.get("limit") === "100" ? 100 : 50;
   const traces = useQuery({
-    queryKey: ["traces", status, q],
+    queryKey: ["traces", status, search.query, limit],
     queryFn: () =>
       apiFetch<{ data: TraceRow[] }>(
-        `/api/v1/traces?status=${encodeURIComponent(status)}&q=${encodeURIComponent(q)}`,
+        `/api/v1/traces?status=${encodeURIComponent(status)}&q=${encodeURIComponent(search.query)}&limit=${limit}`,
       ),
+    placeholderData: keepPreviousData,
   });
-  function update(key: string, value: string) {
-    const next = new URLSearchParams(parameters);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    const queryString = next.toString();
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname);
-  }
-  if (traces.isLoading)
-    return (
-      <PageContainer>
-        <PageSkeleton rows={8} />
-      </PageContainer>
-    );
-  if (traces.isError)
-    return (
-      <PageContainer>
-        <ErrorState
-          description="Authometry could not reach the API. Check the connection and try again."
-          onRetry={() => void traces.refetch()}
-          title="Unable to Load Authorization Traces"
-        />
-      </PageContainer>
-    );
   const rows = traces.data?.data ?? [];
-  const counts = {
-    requests: rows.length,
-    successful: rows.filter((row) => row.status === "success").length,
-    denied: rows.filter((row) => row.status === "denied").length,
-    errors: rows.filter((row) => row.status === "error").length,
-  };
-  const summary: Array<[string, number, LucideIcon, string]> = [
-    ["Requests", counts.requests, ListTree, "neutral"],
-    ["Successful", counts.successful, CheckCircle2, "success"],
-    ["Denied", counts.denied, AlertTriangle, "warning"],
-    ["Errors", counts.errors, CircleX, "danger"],
-  ];
+  const filtered = Boolean(status || search.query);
+
   return (
     <PageContainer>
       <PageHeader
-        description="Inspect each validation and policy decision in OAuth and OpenID Connect requests."
-        title="Authorization Traces"
+        description="Inspect every validation step and policy decision behind OAuth and OpenID Connect requests."
+        title="Authorization traces"
       />
-      <section className="mb-5 grid grid-cols-2 divide-x divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] sm:grid-cols-4 sm:divide-y-0">
-        {summary.map(([label, value, Icon, tone]) => (
-          <div className="flex items-center gap-3 p-3.5" key={label}>
-            <Icon
-              aria-hidden="true"
-              className={`size-4 text-[var(--${tone === "neutral" ? "text-secondary" : tone})]`}
-            />
-            <div>
-              <p className="text-[11px] text-[var(--text-secondary)]">{label}</p>
-              <p className="mt-0.5 text-lg font-semibold tabular-nums">{value}</p>
-            </div>
-          </div>
-        ))}
-      </section>
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+      <FilterBar>
         <SearchInput
           className="sm:w-80"
-          defaultValue={q}
-          key={q}
-          onChange={(event) => update("q", event.target.value)}
-          placeholder="Request ID, user, client, IP address…"
+          onChange={(event) => search.setValue(event.target.value)}
+          onClear={search.clear}
+          placeholder="Search request ID, user, or client…"
+          value={search.value}
         />
-        <select
-          aria-label="Trace status"
-          className={selectClass}
-          name="status"
-          onChange={(event) => update("status", event.target.value)}
+        <SegmentedControl
+          className="sm:ml-auto"
+          label="Filter by status"
+          onChange={(value) => search.update({ status: value || undefined, limit: undefined })}
+          options={statusOptions}
+          size="compact"
           value={status}
+        />
+      </FilterBar>
+      {traces.isLoading ? (
+        <ListSkeleton rows={8} />
+      ) : traces.isError ? (
+        <ErrorState
+          description="Authometry could not reach the API. Check the connection and try again."
+          headingLevel="h2"
+          onRetry={() => void traces.refetch()}
+          retrying={traces.isRefetching}
+          title="Unable to load authorization traces"
+        />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          description={
+            filtered
+              ? "No requests match these filters. Try a different search or status."
+              : "Traces appear as soon as an application starts an authorization request. Run one from the playground to see it here."
+          }
+          icon={filtered ? SearchX : ListTree}
+          primaryAction={
+            filtered ? (
+              <Button
+                onClick={() => {
+                  search.clear();
+                  search.update({ status: undefined, q: undefined });
+                }}
+              >
+                Clear filters
+              </Button>
+            ) : (
+              <Button asChild variant="primary">
+                <Link href="/developer/playground">Open playground</Link>
+              </Button>
+            )
+          }
+          title={filtered ? "No matching traces" : "No authorization traces yet"}
+        />
+      ) : (
+        <Table
+          className={
+            traces.isPlaceholderData ? "opacity-60 transition-opacity" : "transition-opacity"
+          }
+          columns={columns}
+          label="Authorization traces"
         >
-          <option value="">All statuses</option>
-          <option value="success">Success</option>
-          <option value="denied">Denied</option>
-          <option value="error">Error</option>
-          <option value="warning">Warning</option>
-          <option value="pending">Pending</option>
-        </select>
-      </div>
-      <div className="border-y border-[var(--border)]">
-        <div className="hidden grid-cols-[100px_minmax(160px,1.4fr)_minmax(130px,1fr)_minmax(150px,1fr)_140px_80px_120px] gap-3 border-b border-[var(--border)] px-2 py-2 text-[11px] font-medium text-[var(--text-tertiary)] lg:grid">
-          <span>Status</span>
-          <span>Event</span>
-          <span>Application</span>
-          <span>User</span>
-          <span>Grant</span>
-          <span>Duration</span>
-          <span>Time</span>
-        </div>
-        {rows.length ? (
-          rows.map((trace) => (
-            <Link
-              className="virtualized-row grid min-h-16 grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 py-2.5 last:border-0 hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:outline-none focus-visible:ring-inset lg:grid-cols-[100px_minmax(160px,1.4fr)_minmax(130px,1fr)_minmax(150px,1fr)_140px_80px_120px]"
-              href={`/traces/${trace.id}`}
-              key={trace.id}
-            >
-              <StatusBadge
-                label={trace.status[0]!.toUpperCase() + trace.status.slice(1)}
-                tone={
-                  trace.status === "success"
-                    ? "success"
-                    : trace.status === "denied" || trace.status === "warning"
-                      ? "warning"
-                      : trace.status === "pending"
-                        ? "neutral"
-                        : "danger"
-                }
-              />
-              <div className="min-w-0">
-                <p className="truncate text-[13px] font-medium">
-                  {trace.event_type.replaceAll("_", " ")}
-                </p>
-                <p className="technical-value truncate text-[var(--text-tertiary)] lg:hidden">
-                  {trace.request_id}
-                </p>
-              </div>
-              <span className="text-xs text-[var(--text-tertiary)] lg:hidden">
-                <RelativeTime value={trace.started_at} />
-              </span>
-              <span className="hidden truncate text-xs text-[var(--text-secondary)] lg:block">
-                {trace.application_name}
-              </span>
-              <span className="hidden truncate text-xs text-[var(--text-secondary)] lg:block">
-                {trace.user_snapshot?.email ?? "anonymous"}
-              </span>
-              <span className="hidden truncate text-xs text-[var(--text-secondary)] lg:block">
-                {trace.grant_type}
-              </span>
-              <span className="technical-value hidden lg:block">{duration(trace.duration_ms)}</span>
-              <span className="hidden text-xs text-[var(--text-tertiary)] lg:block">
-                <RelativeTime value={trace.started_at} />
-              </span>
-            </Link>
-          ))
-        ) : (
-          <div className="flex min-h-60 flex-col items-center justify-center text-center">
-            <Clock3 aria-hidden="true" className="mb-3 size-5 text-[var(--text-tertiary)]" />
-            <h2 className="text-sm font-medium text-balance">No Authorization Traces Found</h2>
-            <p className="mt-1 text-xs text-[var(--text-secondary)]">
-              No requests match the selected filters.
-            </p>
+          <TableHeader>
+            <span>Status</span>
+            <span>Event</span>
+            <span>Application</span>
+            <span>User</span>
+            <span>Grant</span>
+            <span className="text-right">Duration</span>
+            <span className="text-right">Time</span>
+          </TableHeader>
+          <div className="stagger">
+            {rows.map((trace) => (
+              <TableRow
+                href={`/traces/${trace.id}`}
+                key={trace.id}
+                mobileColumns="minmax(0,1fr) auto"
+              >
+                <span className="order-2 lg:order-none">
+                  <StatusBadge label={traceLabel(trace.status)} tone={traceTone(trace.status)} />
+                </span>
+                <div className="order-1 min-w-0 lg:order-none">
+                  <p className="truncate text-[13px] font-medium">{humanize(trace.event_type)}</p>
+                  <p className="technical-value truncate text-[var(--text-tertiary)]">
+                    {trace.request_id}
+                  </p>
+                  <p className="truncate text-xs text-[var(--text-secondary)] lg:hidden">
+                    {trace.application_name} · {trace.user_snapshot?.email ?? "anonymous"} ·{" "}
+                    <RelativeTime value={trace.started_at} />
+                  </p>
+                </div>
+                <span className="hidden truncate text-[13px] text-[var(--text-secondary)] lg:block">
+                  {trace.application_name}
+                </span>
+                <span className="hidden truncate text-[13px] text-[var(--text-secondary)] lg:block">
+                  {trace.user_snapshot?.email ?? "anonymous"}
+                </span>
+                <span className="technical-value hidden truncate text-[var(--text-secondary)] lg:block">
+                  {trace.grant_type}
+                </span>
+                <span className="technical-value hidden text-right lg:block">
+                  {duration(trace.duration_ms)}
+                </span>
+                <span className="hidden text-right text-[13px] text-[var(--text-secondary)] lg:block">
+                  <RelativeTime value={trace.started_at} />
+                </span>
+              </TableRow>
+            ))}
           </div>
-        )}
-      </div>
+          <TableFooter>
+            <span className="flex items-center gap-2">
+              {traces.isFetching && <Spinner className="size-3" />}
+              Showing {rows.length} most recent {rows.length === 1 ? "trace" : "traces"}
+            </span>
+            {limit === 50 && rows.length === 50 && (
+              <Button
+                onClick={() => search.update({ limit: "100" })}
+                size="compact"
+                variant="ghost"
+              >
+                Show more
+              </Button>
+            )}
+          </TableFooter>
+        </Table>
+      )}
     </PageContainer>
   );
 }
