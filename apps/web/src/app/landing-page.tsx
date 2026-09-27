@@ -101,7 +101,7 @@ const footerGroups = [
     links: [
       ["Documentation", "/docs"],
       ["Quickstart", "/docs/getting-started"],
-      ["OAuth & OIDC", "/docs/oauth-and-oidc"],
+      ["OAuth & OIDC", "/docs/oauth/pkce"],
       ["MCP server", "/docs/mcp"],
     ],
   },
@@ -180,7 +180,9 @@ export function LandingPage() {
               <a href="#agents" onClick={() => setMobileOpen(false)}>
                 Agents
               </a>
-              <Link href="/docs">Documentation</Link>
+              <Link href="/docs" onClick={() => setMobileOpen(false)}>
+                Documentation
+              </Link>
               <a href="https://github.com/jiayangc1/authometry">GitHub</a>
               <Link href="/login">
                 Open dashboard <ArrowRight />
@@ -368,7 +370,7 @@ export function LandingPage() {
                 <Check aria-hidden="true" /> Redacted audit evidence for every decision
               </li>
             </ul>
-            <Link className={styles.textLink} href="/docs/oauth-and-oidc">
+            <Link className={styles.textLink} href="/docs/oauth/pkce">
               Explore OAuth &amp; OIDC <ArrowRight />
             </Link>
           </motion.div>
