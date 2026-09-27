@@ -1,23 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Check,
   CheckCircle2,
-  ChevronRight,
-  Clipboard,
-  ExternalLink,
   KeyRound,
   RefreshCw,
   RotateCcw,
   ShieldCheck,
-  TerminalSquare,
   TriangleAlert,
 } from "lucide-react";
-import { Button, Checkbox } from "@authometry/ui";
-import { inputClass } from "@/components/auth/auth-shell";
+import Link from "next/link";
+import { Button, Checkbox, Note, cn } from "@authometry/ui";
+import { CodeBlock, CopyButton, Snippet } from "@/components/data-display/copyable-value";
 import { PageContainer, PageHeader } from "@/components/layout/page";
+import { Card, CardHeader } from "@/components/ui/card";
+import { Field, Input, Select } from "@/components/ui/form";
+import { apiFetch } from "@/lib/api";
+import { useActiveEnvironment } from "@/lib/use-environment";
 
 const defaultScopes = ["openid", "profile", "email", "offline_access"];
 const flowStorageKey = "authometry-playground-flow";
@@ -40,13 +42,23 @@ async function createPkcePair() {
   return { verifier, challenge };
 }
 
-function FieldLabel({ children, hint }: { children: React.ReactNode; hint?: string }) {
-  return (
-    <span className="mb-1.5 flex items-center justify-between gap-3 text-xs font-medium">
-      {children}
-      {hint && <span className="font-normal text-[var(--text-tertiary)]">{hint}</span>}
-    </span>
-  );
+function decodeJwt(token: string): Record<string, unknown> | undefined {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return undefined;
+    const json = atob(payload.replaceAll("-", "+").replaceAll("_", "/"));
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+}
+
+interface ApplicationOption {
+  id: string;
+  name: string;
+  client_id: string;
+  type: string;
+  redirect_uris: string[];
 }
 
 export default function PlaygroundPage() {
@@ -57,10 +69,20 @@ export default function PlaygroundPage() {
   const [challenge, setChallenge] = useState("");
   const [state, setState] = useState("");
   const [nonce, setNonce] = useState("");
-  const [copied, setCopied] = useState(false);
   const [callback, setCallback] = useState<Array<[string, string]>>([]);
-  const [origin, setOrigin] = useState("https://authometry.ch3n.cc");
+  const [playgroundUri, setPlaygroundUri] = useState("");
   const [initialized, setInitialized] = useState(false);
+  const [exchange, setExchange] = useState<{
+    status: "idle" | "pending" | "done" | "error";
+    body?: string;
+    idToken?: Record<string, unknown>;
+  }>({ status: "idle" });
+  const { active } = useActiveEnvironment();
+  const applications = useQuery({
+    queryKey: ["applications", "", "", ""],
+    queryFn: () => apiFetch<{ data: ApplicationOption[] }>("/api/v1/applications?q=&type=&status="),
+  });
+  const issuer = active?.issuer ?? "";
 
   const regenerateSecurityValues = async () => {
     const pair = await createPkcePair();
@@ -72,7 +94,7 @@ export default function PlaygroundPage() {
 
   useEffect(() => {
     const current = new URL(window.location.href);
-    setOrigin(current.origin);
+    setPlaygroundUri(new URL(current.pathname, current.origin).toString());
     const configuredClientId = current.searchParams.get("client_id")?.trim();
     const configuredRedirectUri = current.searchParams.get("redirect_uri")?.trim();
     const configuredScopes = current.searchParams.get("scope")?.split(/\s+/).filter(Boolean);
@@ -124,8 +146,9 @@ export default function PlaygroundPage() {
     }
     if (!scopes.length) return "Select at least one scope.";
     if (!challenge || !state || !nonce) return "Generating security values…";
+    if (!issuer) return "Loading the environment issuer…";
     return "";
-  }, [challenge, clientId, nonce, redirectUri, scopes.length, state]);
+  }, [challenge, clientId, issuer, nonce, redirectUri, scopes.length, state]);
 
   const parameters = useMemo(
     () => [
@@ -142,10 +165,11 @@ export default function PlaygroundPage() {
   );
 
   const url = useMemo(() => {
-    const value = new URL("/oauth/authorize", origin);
+    if (!issuer) return "";
+    const value = new URL(`${issuer}/oauth/authorize`);
     value.search = new URLSearchParams(parameters).toString();
     return value.toString();
-  }, [origin, parameters]);
+  }, [issuer, parameters]);
 
   const reset = () => {
     setClientId("amt_client_dashboard");
@@ -156,10 +180,48 @@ export default function PlaygroundPage() {
     void regenerateSecurityValues();
   };
 
-  const copyUrl = async () => {
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
+  const selectApplication = (id: string) => {
+    const application = applications.data?.data.find((candidate) => candidate.id === id);
+    if (!application) return;
+    setClientId(application.client_id);
+    if (application.redirect_uris.length) {
+      setRedirectUri(
+        application.redirect_uris.includes(playgroundUri)
+          ? playgroundUri
+          : (application.redirect_uris[0] ?? playgroundUri),
+      );
+    }
+  };
+
+  const exchangeCode = async () => {
+    const code = callback.find(([key]) => key === "code")?.[1];
+    if (!code || !issuer) return;
+    setExchange({ status: "pending" });
+    try {
+      const response = await fetch(`${issuer}/oauth/token`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: redirectUri,
+          client_id: clientId,
+          code_verifier: verifier,
+        }),
+      });
+      const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      const idToken = typeof body.id_token === "string" ? decodeJwt(body.id_token) : undefined;
+      setExchange({
+        status: response.ok ? "done" : "error",
+        body: JSON.stringify(body, null, 2),
+        ...(idToken ? { idToken } : {}),
+      });
+    } catch (error) {
+      setExchange({
+        status: "error",
+        body: error instanceof Error ? error.message : "The token request failed.",
+      });
+    }
   };
 
   const preserveFlowForRedirect = () => {
@@ -170,149 +232,224 @@ export default function PlaygroundPage() {
   const callbackStateMatches = !returnedState || !state || returnedState === state;
   const scopeOptions = [...new Set([...defaultScopes, ...scopes])];
 
+  const selectedApplication = applications.data?.data.find(
+    (application) => application.client_id === clientId,
+  );
+  const redirectRegistered =
+    !selectedApplication || selectedApplication.redirect_uris.includes(redirectUri);
+  const hasCode = callback.some(([key]) => key === "code");
+  const hasError = callback.some(([key]) => key === "error");
+  const step = exchange.status === "done" ? 3 : callback.length ? 2 : 1;
+
   return (
     <PageContainer>
       <PageHeader
         actions={
-          <Button onClick={reset} size="compact" variant="ghost">
+          <Button onClick={reset} variant="ghost">
             <RotateCcw aria-hidden="true" className="size-3.5" /> Reset
           </Button>
         }
-        description="Configure an OAuth request, run it against this instance, and inspect the redirect response."
-        eyebrow={
-          <span className="flex items-center gap-1.5">
-            <TerminalSquare aria-hidden="true" className="size-3.5" /> Developer Tools
-          </span>
-        }
-        title="OAuth Playground"
+        description={`Build an Authorization Code + PKCE request, run it against ${active?.name ?? "this environment"}, and inspect every value that comes back.`}
+        title="OAuth playground"
       />
 
-      <ol className="mb-7 grid overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] sm:grid-cols-3">
-        {[
-          ["1", "Configure", "Set client and permissions", true],
-          ["2", "Authorize", "Open the generated request", false],
-          [
-            "3",
-            "Inspect",
-            callback.length ? "Redirect received" : "Await the redirect",
-            callback.length > 0,
-          ],
-        ].map(([number, label, description, active], index) => (
-          <li
-            className="relative flex min-h-16 items-center gap-3 border-b border-[var(--border)] px-4 last:border-0 sm:border-r sm:border-b-0 sm:last:border-r-0"
-            key={String(label)}
-          >
-            <span
-              className={`flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
-                active
-                  ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                  : "border-[var(--border-strong)] text-[var(--text-tertiary)]"
-              }`}
-            >
-              {active && number === "3" ? (
-                <Check aria-hidden="true" className="size-3.5" />
-              ) : (
-                number
+      <ol
+        aria-label="Progress"
+        className="mb-6 flex items-center gap-2 overflow-x-auto text-[13px]"
+      >
+        {["Configure", "Authorize", "Exchange"].map((label, index) => {
+          const done = index < step;
+          const current = index === step || (step === 3 && index === 2);
+          return (
+            <li className="flex shrink-0 items-center gap-2" key={label}>
+              {index > 0 && (
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "h-px w-8 transition-colors duration-[var(--motion-slow)]",
+                    done ? "bg-[var(--text-primary)]" : "bg-[var(--border-strong)]",
+                  )}
+                />
               )}
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[13px] font-medium">{label}</span>
-              <span className="block truncate text-xs text-[var(--text-tertiary)]">
-                {description}
+              <span
+                className={cn(
+                  "flex size-6 items-center justify-center rounded-full border text-xs font-medium transition-all duration-[var(--motion-normal)] ease-[var(--ease-spring)]",
+                  done
+                    ? "border-transparent bg-[var(--primary)] text-[var(--primary-foreground)]"
+                    : current
+                      ? "border-[var(--text-primary)] text-[var(--text-primary)]"
+                      : "border-[var(--border-strong)] text-[var(--text-tertiary)]",
+                )}
+              >
+                {done ? <Check aria-hidden="true" className="size-3" /> : index + 1}
               </span>
-            </span>
-            {index < 2 && (
-              <ChevronRight
-                aria-hidden="true"
-                className="absolute top-1/2 -right-2.5 z-10 hidden size-5 -translate-y-1/2 rounded-full border border-[var(--border)] bg-[var(--surface-raised)] p-0.5 text-[var(--text-tertiary)] sm:block"
-              />
-            )}
-          </li>
-        ))}
+              <span className={done || current ? "font-medium" : "text-[var(--text-secondary)]"}>
+                {label}
+              </span>
+            </li>
+          );
+        })}
       </ol>
 
       {callback.length > 0 && (
-        <section className="mb-7 overflow-hidden rounded-lg border border-[var(--accent-border)] bg-[var(--accent-soft)]">
-          <div className="flex items-center gap-2 border-b border-[var(--accent-border)] px-4 py-3">
-            {callback.some(([key]) => key === "error") || !callbackStateMatches ? (
-              <TriangleAlert aria-hidden="true" className="size-4 text-[var(--warning)]" />
-            ) : (
-              <CheckCircle2 aria-hidden="true" className="size-4 text-[var(--success)]" />
-            )}
-            <h2 className="text-[13px] font-semibold text-balance">
-              Authorization Redirect Received
-            </h2>
-            {!callbackStateMatches && (
-              <span className="ml-auto text-xs font-medium text-[var(--danger)]">
-                State mismatch
+        <Card className="animate-enter mb-6 overflow-hidden">
+          <CardHeader
+            actions={
+              hasCode && !hasError ? (
+                <Button
+                  disabled={exchange.status === "pending" || exchange.status === "done"}
+                  loading={exchange.status === "pending"}
+                  onClick={() => void exchangeCode()}
+                  size="compact"
+                  variant="primary"
+                >
+                  {exchange.status === "done" ? "Exchanged" : "Exchange code for tokens"}
+                </Button>
+              ) : undefined
+            }
+            description={
+              !callbackStateMatches
+                ? "The returned state does not match the one you sent — this response should be rejected."
+                : hasError
+                  ? "Authometry returned an error. Check the trace for the full explanation."
+                  : "Authometry redirected back with an authorization code."
+            }
+            title={
+              <span className="flex items-center gap-2">
+                {hasError || !callbackStateMatches ? (
+                  <TriangleAlert aria-hidden="true" className="size-4 text-[var(--warning)]" />
+                ) : (
+                  <CheckCircle2 aria-hidden="true" className="size-4 text-[var(--success)]" />
+                )}
+                Redirect received
               </span>
-            )}
-          </div>
-          <dl className="divide-y divide-[var(--accent-border)] px-4">
+            }
+          />
+          <dl className="divide-y divide-[var(--border)]">
             {callback.map(([key, value]) => (
-              <div className="grid gap-1 py-2.5 sm:grid-cols-[150px_1fr]" key={key}>
+              <div
+                className="grid items-center gap-1 px-4 py-2 sm:grid-cols-[160px_minmax(0,1fr)] sm:px-5"
+                key={key}
+              >
                 <dt className="technical-value text-[var(--text-secondary)]">{key}</dt>
-                <dd className="technical-value break-all">{value}</dd>
+                <dd className="flex min-w-0 items-center gap-1">
+                  <span className="technical-value min-w-0 flex-1 break-all">{value}</span>
+                  <CopyButton label={`Copy ${key}`} value={value} />
+                </dd>
               </div>
             ))}
+            {hasError && (
+              <div className="px-4 py-2.5 sm:px-5">
+                <Link
+                  className="text-[13px] font-medium hover:underline"
+                  href="/traces?status=error"
+                >
+                  Open recent failed traces →
+                </Link>
+              </div>
+            )}
           </dl>
-        </section>
+          {exchange.body && (
+            <div className="space-y-3 border-t border-[var(--border)] p-4 sm:p-5">
+              {exchange.status === "error" && (
+                <Note tone="danger">
+                  The token endpoint rejected the exchange. Confidential clients must exchange codes
+                  on the server with their client secret.
+                </Note>
+              )}
+              <CodeBlock code={exchange.body} label="Token response" maxHeight="280px" />
+              {exchange.idToken && (
+                <CodeBlock
+                  code={JSON.stringify(exchange.idToken, null, 2)}
+                  label="ID token claims (decoded, unverified)"
+                  maxHeight="280px"
+                />
+              )}
+            </div>
+          )}
+        </Card>
       )}
 
-      <div className="grid items-start gap-7 xl:grid-cols-[minmax(0,0.9fr)_minmax(460px,1.1fr)]">
-        <section className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-raised)]">
-          <div className="border-b border-[var(--border)] px-5 py-4">
-            <h2 className="text-sm font-semibold text-balance">Request Configuration</h2>
-            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-              Values update the authorization request as you type.
-            </p>
-          </div>
-          <div className="space-y-5 p-5">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(440px,1fr)]">
+        <Card>
+          <CardHeader description="The request on the right updates as you type." title="Request" />
+          <div className="space-y-5 p-4 sm:p-5">
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block">
-                <FieldLabel>Client ID</FieldLabel>
-                <input
+              <Field label="Application">
+                <Select
+                  onChange={(event) => selectApplication(event.target.value)}
+                  value={selectedApplication?.id ?? ""}
+                >
+                  <option disabled value="">
+                    {applications.isLoading ? "Loading…" : "Custom client ID"}
+                  </option>
+                  {(applications.data?.data ?? []).map((application) => (
+                    <option key={application.id} value={application.id}>
+                      {application.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Client ID">
+                <Input
                   autoComplete="off"
-                  className={`${inputClass} technical-value`}
+                  mono
                   name="clientId"
                   onChange={(event) => setClientId(event.target.value)}
                   spellCheck={false}
                   value={clientId}
                 />
-              </label>
-              <label className="block">
-                <FieldLabel>Flow</FieldLabel>
-                <select className={inputClass} disabled name="flow" value="code-pkce">
-                  <option value="code-pkce">Authorization Code + PKCE</option>
-                </select>
-              </label>
+              </Field>
             </div>
 
-            <label className="block">
-              <FieldLabel hint="Must match the client configuration">Redirect URI</FieldLabel>
-              <input
+            <Field
+              description={
+                redirectRegistered ? (
+                  "Must exactly match a callback URL registered on the application."
+                ) : (
+                  <span className="text-[var(--warning)]">
+                    Not registered on {selectedApplication?.name}. Add it under Configuration, or
+                    authorization will fail.
+                  </span>
+                )
+              }
+              label="Redirect URI"
+              labelAction={
+                playgroundUri && redirectUri !== playgroundUri ? (
+                  <button
+                    className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    onClick={() => setRedirectUri(playgroundUri)}
+                    type="button"
+                  >
+                    Use this page
+                  </button>
+                ) : undefined
+              }
+            >
+              <Input
                 autoComplete="off"
-                className={`${inputClass} technical-value`}
+                mono
                 name="redirectUri"
                 onChange={(event) => setRedirectUri(event.target.value)}
                 spellCheck={false}
                 type="url"
                 value={redirectUri}
               />
-            </label>
+            </Field>
 
             <fieldset>
-              <legend className="mb-2 text-xs font-medium">Requested scopes</legend>
+              <legend className="mb-2 text-[13px] font-medium">Scopes</legend>
               <div className="grid gap-2 sm:grid-cols-2">
                 {scopeOptions.map((scope) => {
                   const checked = scopes.includes(scope);
                   return (
                     <label
-                      className={`flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2.5 transition-colors ${
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 rounded-[var(--radius-control)] border px-3 py-2.5 transition-[border-color,background-color,transform] duration-[var(--motion-fast)] active:scale-[0.99]",
                         checked
-                          ? "border-[var(--accent-border)] bg-[var(--accent-soft)]"
-                          : "border-[var(--border)] hover:bg-[var(--surface-hover)]"
-                      }`}
+                          ? "border-[var(--text-primary)] bg-[var(--surface-subtle)]"
+                          : "border-[var(--border)] hover:border-[var(--border-strong)]",
+                      )}
                       key={scope}
                     >
                       <Checkbox
@@ -324,18 +461,17 @@ export default function PlaygroundPage() {
                               : scopes.filter((value) => value !== scope),
                           )
                         }
+                        wrapperClassName="mt-0.5"
                       />
                       <span>
                         <span className="technical-value block font-medium">{scope}</span>
-                        <span className="mt-0.5 block text-[11px] text-[var(--text-tertiary)]">
-                          {
-                            {
-                              openid: "Identify the signed-in user",
-                              profile: "Read basic profile claims",
-                              email: "Read email claims",
-                              offline_access: "Issue a refresh token",
-                            }[scope]
-                          }
+                        <span className="block text-xs text-[var(--text-secondary)]">
+                          {{
+                            openid: "Identify the signed-in user",
+                            profile: "Read basic profile claims",
+                            email: "Read email claims",
+                            offline_access: "Issue a refresh token",
+                          }[scope] ?? "Custom scope"}
                         </span>
                       </span>
                     </label>
@@ -344,18 +480,22 @@ export default function PlaygroundPage() {
               </div>
             </fieldset>
 
-            <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
-              <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-subtle)]">
+              <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
                 <div className="flex gap-2.5">
-                  <KeyRound aria-hidden="true" className="mt-0.5 size-4 text-[var(--accent)]" />
+                  <KeyRound
+                    aria-hidden="true"
+                    className="mt-0.5 size-4 text-[var(--text-secondary)]"
+                  />
                   <div>
-                    <p className="text-xs font-semibold">Request security</p>
-                    <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
-                      Fresh PKCE, state, and nonce values protect each run.
+                    <p className="text-[13px] font-medium">Request security</p>
+                    <p className="text-xs text-[var(--text-secondary)]">
+                      Fresh PKCE, state, and nonce values for every run.
                     </p>
                   </div>
                 </div>
                 <Button
+                  className="[&:hover_svg]:rotate-180"
                   onClick={() => void regenerateSecurityValues()}
                   size="compact"
                   variant="ghost"
@@ -363,85 +503,67 @@ export default function PlaygroundPage() {
                   <RefreshCw aria-hidden="true" className="size-3" /> Regenerate
                 </Button>
               </div>
-              <div className="space-y-3">
-                <label className="block">
-                  <FieldLabel hint="Keep this for token exchange">PKCE verifier</FieldLabel>
-                  <input
-                    className={`${inputClass} technical-value`}
-                    name="pkceVerifier"
-                    readOnly
-                    spellCheck={false}
-                    value={verifier}
-                  />
-                </label>
-                <label className="block">
-                  <FieldLabel>State</FieldLabel>
-                  <input
-                    autoComplete="off"
-                    className={`${inputClass} technical-value`}
-                    name="state"
-                    onChange={(event) => setState(event.target.value)}
-                    spellCheck={false}
-                    value={state}
-                  />
-                </label>
-                <label className="block">
-                  <FieldLabel>Nonce</FieldLabel>
-                  <input
-                    autoComplete="off"
-                    className={`${inputClass} technical-value`}
-                    name="nonce"
-                    onChange={(event) => setNonce(event.target.value)}
-                    spellCheck={false}
-                    value={nonce}
-                  />
-                </label>
+              <div className="space-y-3 p-4">
+                <Field description="Kept in this tab for the token exchange." label="PKCE verifier">
+                  <Snippet label="PKCE verifier" value={verifier || "…"} />
+                </Field>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="State">
+                    <Input
+                      autoComplete="off"
+                      compact
+                      mono
+                      name="state"
+                      onChange={(event) => setState(event.target.value)}
+                      spellCheck={false}
+                      value={state}
+                    />
+                  </Field>
+                  <Field label="Nonce">
+                    <Input
+                      autoComplete="off"
+                      compact
+                      mono
+                      name="nonce"
+                      onChange={(event) => setNonce(event.target.value)}
+                      spellCheck={false}
+                      value={nonce}
+                    />
+                  </Field>
+                </div>
               </div>
             </div>
           </div>
-        </section>
+        </Card>
 
-        <aside className="overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--surface-raised)] xl:sticky xl:top-6">
-          <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
-            <div className="flex items-center gap-2">
-              <span className="size-2 rounded-full bg-[var(--success)] shadow-[0_0_0_3px_var(--surface-subtle)]" />
-              <h2 className="text-xs font-semibold text-balance">Live Authorization Request</h2>
+        <aside className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-raised)] shadow-[var(--shadow-small)] xl:sticky xl:top-6">
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] py-2 pr-2 pl-4">
+            <div className="flex min-w-0 items-center gap-2 font-mono text-xs">
+              <span className="rounded-[4px] bg-[var(--success-soft)] px-1.5 py-0.5 font-semibold text-[var(--success)]">
+                GET
+              </span>
+              <span className="truncate text-[var(--text-secondary)]">
+                {issuer
+                  ? `${issuer.replace(/^https?:\/\//, "")}/oauth/authorize`
+                  : "/oauth/authorize"}
+              </span>
             </div>
-            <Button
-              aria-live="polite"
-              onClick={() => void copyUrl()}
-              size="compact"
-              variant="ghost"
-            >
-              {copied ? (
-                <Check aria-hidden="true" className="size-3 text-[var(--success)]" />
-              ) : (
-                <Clipboard aria-hidden="true" className="size-3" />
-              )}
-              {copied ? "Copied" : "Copy URL"}
-            </Button>
+            <CopyButton label="Copy authorization URL" value={url} />
           </div>
 
-          <div className="flex min-w-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3 font-mono text-xs">
-            <span className="rounded bg-[var(--accent-soft)] px-1.5 py-0.5 font-semibold text-[var(--accent)]">
-              GET
-            </span>
-            <span className="truncate text-[var(--text-secondary)]">/oauth/authorize</span>
-          </div>
-
-          <dl className="divide-y divide-[var(--border-subtle)] px-4">
+          <dl className="divide-y divide-[var(--border)]">
             {parameters.map(([key, value]) => (
-              <div className="grid gap-1 py-2.5 sm:grid-cols-[148px_minmax(0,1fr)]" key={key}>
-                <dt className="technical-value text-[var(--accent)]">{key}</dt>
-                <dd className="technical-value break-all text-[var(--text-secondary)]">
+              <div className="grid gap-1 px-4 py-2 sm:grid-cols-[150px_minmax(0,1fr)]" key={key}>
+                <dt className="technical-value text-[var(--text-secondary)]">{key}</dt>
+                <dd className="technical-value break-all">
                   {value || <span className="text-[var(--danger)]">Not set</span>}
                 </dd>
               </div>
             ))}
           </dl>
 
-          <div className="border-t border-[var(--border)] bg-[var(--surface)] p-4">
-            <div aria-live="polite" className="mb-3 flex items-center gap-2 text-xs">
+          <div className="border-t border-[var(--border)] bg-[var(--surface-subtle)] p-4">
+            <p aria-live="polite" className="mb-3 flex items-center gap-2 text-[13px]">
               {validation ? (
                 <>
                   <TriangleAlert
@@ -453,23 +575,27 @@ export default function PlaygroundPage() {
               ) : (
                 <>
                   <ShieldCheck aria-hidden="true" className="size-3.5 text-[var(--success)]" />
-                  <span className="text-[var(--text-secondary)]">Request is ready to run</span>
+                  <span className="text-[var(--text-secondary)]">Ready to run</span>
                 </>
               )}
-            </div>
+            </p>
             {validation ? (
-              <Button className="w-full" disabled variant="primary">
-                Open Authorization Request <ArrowRight aria-hidden="true" className="size-3.5" />
+              <Button className="w-full" disabled size="large" variant="primary">
+                Start authorization <ArrowRight aria-hidden="true" className="size-3.5" />
               </Button>
             ) : (
-              <Button asChild className="w-full" variant="primary">
+              <Button
+                asChild
+                className="w-full [&:hover_svg]:translate-x-0.5"
+                size="large"
+                variant="primary"
+              >
                 <a href={url} onClick={preserveFlowForRedirect}>
-                  Open Authorization Request{" "}
-                  <ExternalLink aria-hidden="true" className="size-3.5" />
+                  Start authorization <ArrowRight aria-hidden="true" className="size-3.5" />
                 </a>
               </Button>
             )}
-            <p className="mt-2 text-center text-[11px] text-[var(--text-tertiary)]">
+            <p className="mt-2 text-center text-xs text-[var(--text-tertiary)]">
               Continues in this tab so the redirect can be inspected here.
             </p>
           </div>

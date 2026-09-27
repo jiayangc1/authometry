@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Bot, KeyRound, Power, ShieldCheck } from "lucide-react";
+import { Bot, FlaskConical, KeyRound, Power, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -95,7 +95,7 @@ export default function AgentsPage() {
         actions={
           <Button asChild>
             <Link href="/developer/playground">
-              <BookOpen aria-hidden="true" className="size-3.5" /> API reference
+              <FlaskConical aria-hidden="true" className="size-3.5" /> Open playground
             </Link>
           </Button>
         }
@@ -201,7 +201,7 @@ export default function AgentsPage() {
           icon={Bot}
           primaryAction={
             <Button asChild>
-              <Link href="/developer/playground">Open API reference</Link>
+              <Link href="/developer/playground">Open playground</Link>
             </Button>
           }
           title="No registered agents"

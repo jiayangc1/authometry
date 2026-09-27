@@ -9,7 +9,7 @@ import {
   Github,
   KeyRound,
   ListTree,
-  ScrollText,
+  FlaskConical,
   Settings,
   ShieldCheck,
   Stamp,
@@ -58,7 +58,7 @@ export const navigation: Array<{ label: string; items: NavigationItem[] }> = [
 
 export const utilityNavigation: NavigationItem[] = [
   { label: "Documentation", href: "/docs", icon: BookOpen },
-  { label: "API reference", href: "/developer/playground", icon: ScrollText },
+  { label: "OAuth playground", href: "/developer/playground", icon: FlaskConical },
   {
     label: "GitHub",
     href: "https://github.com/jiayangc1/authometry",
