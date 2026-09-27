@@ -1,32 +1,132 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
-import { Check, Copy } from "lucide-react";
-import { AuthometryProviderButton, Button } from "@authometry/ui";
+import type { ReactNode } from "react";
+import { AuthometryProviderButton } from "@authometry/ui";
 import { useApplication } from "@/components/applications/application-context";
-import { CopyableValue } from "@/components/data-display/copyable-value";
+import { CodeBlock, CopyableValue } from "@/components/data-display/copyable-value";
 import { RelativeTime } from "@/components/data-display/formatted-time";
-import { DividerSection, SectionHeader } from "@/components/layout/page";
+import { DescriptionList, SectionHeader } from "@/components/layout/page";
+import { SegmentedControl } from "@/components/ui/tabs";
+import { useActiveEnvironment } from "@/lib/use-environment";
+import { humanize } from "@/lib/status";
+import { useQueryParams } from "@/lib/use-query-params";
+
+const frameworks = ["Next.js", "React", "Express", "Go", "Other"] as const;
+type Framework = (typeof frameworks)[number];
+
+function snippet(framework: Framework, issuer: string, clientId: string, redirectUri: string) {
+  switch (framework) {
+    case "Next.js":
+      return {
+        label: "auth.ts · Auth.js",
+        code: `import NextAuth from "next-auth";
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  providers: [
+    {
+      id: "authometry",
+      name: "Authometry",
+      type: "oidc",
+      issuer: process.env.AUTHOMETRY_ISSUER, // ${issuer}
+      clientId: process.env.AUTHOMETRY_CLIENT_ID, // ${clientId}
+      clientSecret: process.env.AUTHOMETRY_CLIENT_SECRET,
+    },
+  ],
+});`,
+      };
+    case "React":
+      return {
+        label: "auth.ts · oidc-client-ts",
+        code: `import { UserManager } from "oidc-client-ts";
+
+export const auth = new UserManager({
+  authority: "${issuer}",
+  client_id: "${clientId}",
+  redirect_uri: "${redirectUri}",
+  response_type: "code", // Authorization Code + PKCE
+  scope: "openid profile email",
+});
+
+// Start sign-in:   await auth.signinRedirect();
+// On the callback: await auth.signinRedirectCallback();`,
+      };
+    case "Express":
+      return {
+        label: "auth.js · openid-client",
+        code: `import * as client from "openid-client";
+
+const config = await client.discovery(
+  new URL("${issuer}"),
+  "${clientId}",
+  process.env.AUTHOMETRY_CLIENT_SECRET,
+);
+
+app.get("/auth/login", async (req, res) => {
+  const verifier = client.randomPKCECodeVerifier();
+  req.session.verifier = verifier;
+  const url = client.buildAuthorizationUrl(config, {
+    redirect_uri: "${redirectUri}",
+    scope: "openid profile email",
+    code_challenge: await client.calculatePKCECodeChallenge(verifier),
+    code_challenge_method: "S256",
+  });
+  res.redirect(url.href);
+});`,
+      };
+    case "Go":
+      return {
+        label: "auth.go · go-oidc",
+        code: `provider, err := oidc.NewProvider(ctx, "${issuer}")
+if err != nil {
+    log.Fatal(err)
+}
+
+config := oauth2.Config{
+    ClientID:     "${clientId}",
+    ClientSecret: os.Getenv("AUTHOMETRY_CLIENT_SECRET"),
+    Endpoint:     provider.Endpoint(),
+    RedirectURL:  "${redirectUri}",
+    Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
+}`,
+      };
+    default:
+      return {
+        label: ".env",
+        code: `AUTHOMETRY_ISSUER=${issuer}
+AUTHOMETRY_DISCOVERY_URL=${issuer}/.well-known/openid-configuration
+AUTHOMETRY_CLIENT_ID=${clientId}
+AUTHOMETRY_CLIENT_SECRET=<create one under Credentials>
+AUTHOMETRY_REDIRECT_URI=${redirectUri}`,
+      };
+  }
+}
 
 export default function ApplicationOverviewPage() {
   const { application } = useApplication();
-  const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const framework = searchParams.get("framework") ?? "Next.js";
-  const appearanceParam = searchParams.get("appearance");
+  const [parameters, update] = useQueryParams();
+  const { active } = useActiveEnvironment();
+  const frameworkParam = parameters.get("framework");
+  const framework: Framework = frameworks.includes(frameworkParam as Framework)
+    ? (frameworkParam as Framework)
+    : "Next.js";
+  const appearanceParam = parameters.get("appearance");
   const buttonAppearance: "light" | "dark" | "brand" =
     appearanceParam === "dark" || appearanceParam === "brand" ? appearanceParam : "light";
-  const [buttonCopied, setButtonCopied] = useState(false);
-  const [codeCopied, setCodeCopied] = useState(false);
-  const [issuer, setIssuer] = useState("https://authometry.ch3n.cc");
-  useEffect(() => setIssuer(window.location.origin), []);
   if (!application) return null;
+  const issuer = active?.issuer ?? "";
+  const redirectUri = application.redirect_uris[0] ?? "https://your-app.example/auth/callback";
   const metadata: Array<[string, ReactNode]> = [
-    ["Application ID", application.slug],
-    ["Client ID", application.client_id],
-    ["Application type", application.type],
+    ["Application ID", <CopyableValue key="slug" value={application.slug} />],
+    ["Client ID", <CopyableValue key="client" value={application.client_id} />],
+    ["Type", humanize(application.type)],
+    [
+      "Callback URLs",
+      application.redirect_uris.length ? (
+        <span className="technical-value">{application.redirect_uris.join(", ")}</span>
+      ) : (
+        <span className="text-[var(--text-tertiary)]">None configured</span>
+      ),
+    ],
     ["Created", <RelativeTime key="created" value={application.created_at} />],
     [
       "Last used",
@@ -37,17 +137,19 @@ export default function ApplicationOverviewPage() {
       ),
     ],
   ];
-  const code = `import { Authometry } from "@authometry/next";\n\nexport const auth = new Authometry({\n  issuer: process.env.AUTHOMETRY_ISSUER!,\n  clientId: process.env.AUTHOMETRY_CLIENT_ID!,\n  clientSecret: process.env.AUTHOMETRY_CLIENT_SECRET!,\n});`;
-  const endpoints: Array<[string, string]> = [
-    ["Issuer", issuer],
-    ["Discovery", `${issuer}/.well-known/openid-configuration`],
-    ["Authorization", `${issuer}/oauth/authorize`],
-    ["Token", `${issuer}/oauth/token`],
-    ["UserInfo", `${issuer}/oauth/userinfo`],
-    ["JWKS", `${issuer}/.well-known/jwks.json`],
-  ];
+  const endpoints: Array<[string, ReactNode]> = issuer
+    ? [
+        ["Issuer", issuer],
+        ["Discovery", `${issuer}/.well-known/openid-configuration`],
+        ["Authorization", `${issuer}/oauth/authorize`],
+        ["Token", `${issuer}/oauth/token`],
+        ["UserInfo", `${issuer}/oauth/userinfo`],
+        ["JWKS", `${issuer}/.well-known/jwks.json`],
+      ].map(([label, value]) => [label!, <CopyableValue key={label} value={value!} />])
+    : [];
+  const { code, label } = snippet(framework, issuer, application.client_id, redirectUri);
   const buttonMarkup = `<a class="authometry-button" href="/auth/login">
-  <img src="${issuer}/brand/authometry-mark.svg" alt="" width="24" height="24" />
+  <img src="${issuer || "https://your-authometry"}/brand/authometry-mark.svg" alt="" width="24" height="24" />
   Continue with Authometry
 </a>
 
@@ -59,156 +161,73 @@ export default function ApplicationOverviewPage() {
     font: 600 14px/1 system-ui, sans-serif; text-decoration: none;
   }
   .authometry-button:hover { background: rgb(99 91 255 / 6%); border-color: #aaa5c5; }
-  .authometry-button:focus-visible { outline: 2px solid #7c73ff; outline-offset: 2px; }
-  .authometry-button img { width: 24px; height: 24px; }
+  .authometry-button:focus-visible { outline: 2px solid #0070f3; outline-offset: 2px; }
 </style>`;
 
-  const copyButtonMarkup = async () => {
-    await navigator.clipboard.writeText(buttonMarkup);
-    setButtonCopied(true);
-    window.setTimeout(() => setButtonCopied(false), 1800);
-  };
-  const copyCode = async () => {
-    await navigator.clipboard.writeText(code);
-    setCodeCopied(true);
-    window.setTimeout(() => setCodeCopied(false), 1800);
-  };
-  function updateParam(name: string, value: string, defaultValue: string) {
-    const next = new URLSearchParams(searchParams);
-    if (value === defaultValue) next.delete(name);
-    else next.set(name, value);
-    const queryString = next.toString();
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname);
-  }
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
+      <section>
+        <SectionHeader title="Details" />
+        <DescriptionList items={metadata} />
+      </section>
       <section>
         <SectionHeader
-          description="Stable identifiers and protocol metadata for this client."
-          title="Application Details"
-        />
-        <dl className="divide-y divide-[var(--border-subtle)] border-y border-[var(--border)]">
-          {metadata.map(([label, value]) => (
-            <div className="grid gap-1 py-3 sm:grid-cols-[180px_1fr]" key={label}>
-              <dt className="text-xs text-[var(--text-secondary)]">{label}</dt>
-              <dd className="text-[13px]">
-                {label.includes("ID") && typeof value === "string" ? (
-                  <CopyableValue value={value} />
-                ) : (
-                  value
-                )}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-      <DividerSection>
-        <SectionHeader
-          description="Use these values to connect your application."
-          title="Connect Your Application"
-        />
-        <div
-          aria-label="Framework"
-          className="flex gap-1 overflow-x-auto border-b border-[var(--border)]"
-          role="tablist"
-        >
-          {["Next.js", "React", "Express", "Go", "Other"].map((item) => (
-            <button
-              aria-selected={framework === item}
-              className={`border-b-2 px-3 py-2 text-xs hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:outline-none ${framework === item ? "border-[var(--accent)] font-medium" : "border-transparent text-[var(--text-secondary)]"}`}
-              key={item}
-              onClick={() => updateParam("framework", item, "Next.js")}
-              role="tab"
-              type="button"
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-        <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-          <div className="flex h-9 items-center justify-between border-b border-[var(--border)] px-3">
-            <span className="technical-value text-[var(--text-secondary)]">
-              TypeScript · {framework}
-            </span>
-            <Button
-              aria-live="polite"
-              onClick={() => void copyCode()}
+          actions={
+            <SegmentedControl
+              label="Framework"
+              onChange={(value) => update({ framework: value === "Next.js" ? undefined : value })}
+              options={frameworks.map((value) => ({ value, label: value }))}
               size="compact"
-              variant="ghost"
-            >
-              {codeCopied ? "Copied" : "Copy Code"}
-            </Button>
-          </div>
-          <pre className="scrollbar-thin overflow-x-auto p-4 text-[13px] leading-5">
-            <code>{code}</code>
-          </pre>
-        </div>
-      </DividerSection>
-      <DividerSection>
-        <SectionHeader
-          description="Add a recognizable entry point to your application. Its route should start Authorization Code with PKCE on your server."
-          title="Sign-In Button"
+              value={framework}
+            />
+          }
+          description={`Connect your app to the ${active?.name ?? "current"} environment.`}
+          title="Quickstart"
         />
-        <div className="grid overflow-hidden rounded-xl border border-[var(--border)] lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
+        <CodeBlock
+          code={code}
+          key={framework}
+          label={label}
+          className="animate-[fade-in_var(--motion-normal)_var(--ease-out)]"
+        />
+      </section>
+      <section>
+        <SectionHeader
+          title="Endpoints"
+          description="OpenID Connect endpoints for this environment."
+        />
+        <DescriptionList items={endpoints} />
+      </section>
+      <section>
+        <SectionHeader
+          description="A recognizable entry point for your sign-in page. Link it to your app’s login route, which starts Authorization Code with PKCE."
+          title="Sign-in button"
+        />
+        <div className="grid overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
           <div
-            className={`flex min-h-52 flex-col items-center justify-center gap-5 p-6 ${buttonAppearance === "dark" ? "bg-[#0f0f11]" : "bg-[var(--surface-subtle)]"}`}
+            className={`flex min-h-56 flex-col items-center justify-center gap-5 p-6 transition-colors duration-[var(--motion-normal)] ${buttonAppearance === "dark" ? "bg-[#0a0a0a]" : "bg-[var(--surface-subtle)]"}`}
           >
-            <AuthometryProviderButton appearance={buttonAppearance} />
-            <div className="flex rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-1">
-              {(["light", "brand", "dark"] as const).map((appearance) => (
-                <button
-                  className={`rounded-md px-2.5 py-1 text-xs capitalize ${buttonAppearance === appearance ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"}`}
-                  key={appearance}
-                  onClick={() => updateParam("appearance", appearance, "light")}
-                  type="button"
-                >
-                  {appearance}
-                </button>
-              ))}
-            </div>
+            <AuthometryProviderButton appearance={buttonAppearance} tabIndex={-1} />
+            <SegmentedControl
+              label="Button appearance"
+              onChange={(value) => update({ appearance: value === "light" ? undefined : value })}
+              options={[
+                { value: "light", label: "Light" },
+                { value: "brand", label: "Brand" },
+                { value: "dark", label: "Dark" },
+              ]}
+              size="compact"
+              value={buttonAppearance}
+            />
           </div>
-          <div className="min-w-0 border-t border-[var(--border)] bg-[var(--surface-raised)] lg:border-t-0 lg:border-l">
-            <div className="flex h-10 items-center justify-between border-b border-[var(--border)] px-3">
-              <span className="technical-value text-[var(--text-secondary)]">HTML + CSS</span>
-              <Button
-                aria-live="polite"
-                onClick={() => void copyButtonMarkup()}
-                size="compact"
-                variant="ghost"
-              >
-                {buttonCopied ? (
-                  <Check aria-hidden="true" className="size-3 text-[var(--success)]" />
-                ) : (
-                  <Copy aria-hidden="true" className="size-3" />
-                )}
-                {buttonCopied ? "Copied" : "Copy"}
-              </Button>
-            </div>
-            <pre className="max-h-52 scrollbar-thin overflow-auto p-4 text-xs leading-5">
-              <code>{buttonMarkup}</code>
-            </pre>
-          </div>
+          <CodeBlock
+            className="rounded-none border-0 border-t border-[var(--border)] lg:border-t-0 lg:border-l"
+            code={buttonMarkup}
+            label="HTML + CSS"
+            maxHeight="224px"
+          />
         </div>
-        <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">
-          The button links to your app’s login handler—not directly to a static authorization URL.
-          That handler creates fresh <code className="technical-value">state</code>,{" "}
-          <code className="technical-value">nonce</code>, and PKCE values before redirecting to
-          Authometry.
-        </p>
-      </DividerSection>
-      <DividerSection>
-        <SectionHeader title="Endpoints" />
-        <dl className="divide-y divide-[var(--border-subtle)] border-y border-[var(--border)]">
-          {endpoints.map(([label, value]) => (
-            <div className="grid items-center gap-1 py-2.5 sm:grid-cols-[180px_1fr]" key={label}>
-              <dt className="text-xs text-[var(--text-secondary)]">{label}</dt>
-              <dd>
-                <CopyableValue value={value} />
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </DividerSection>
+      </section>
     </div>
   );
 }

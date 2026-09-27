@@ -4,7 +4,6 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
-  ChevronRight,
   Clipboard,
   FlaskConical,
   GitBranch,
@@ -16,10 +15,18 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button, StatusBadge, cn } from "@authometry/ui";
+import { Button, Note, StatusBadge } from "@authometry/ui";
 import { ApplicationProvider, useApplication } from "@/components/applications/application-context";
+import { CopyButton } from "@/components/data-display/copyable-value";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
-import { PageContainer } from "@/components/layout/page";
+import { Breadcrumbs, PageContainer } from "@/components/layout/page";
+import {
+  menuContentClass,
+  menuDangerItemClass,
+  menuItemClass,
+  menuSeparatorClass,
+} from "@/components/ui/menu";
+import { TabNav } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { apiFetch } from "@/lib/api";
 
@@ -54,15 +61,18 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
   if (loading)
     return (
       <PageContainer>
-        <PageSkeleton />
+        <PageSkeleton metrics={false} />
       </PageContainer>
     );
   if (error || !application)
     return (
       <PageContainer>
+        <Breadcrumbs
+          items={[{ label: "Applications", href: "/applications" }, { label: "Not found" }]}
+        />
         <ErrorState
-          title="Application Not Found"
-          description="This application may have been deleted or belong to another environment. Check the application URL, then retry."
+          title="Application not found"
+          description="This application may have been deleted or belong to another environment. Switch environments or return to the application list."
           onRetry={() => void refetch()}
         />
       </PageContainer>
@@ -93,33 +103,41 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
 
   return (
     <PageContainer>
-      <div className="mb-5 flex items-center gap-1 text-xs text-[var(--text-secondary)]">
-        <Link className="hover:text-[var(--text-primary)]" href="/applications">
-          Applications
-        </Link>
-        <ChevronRight aria-hidden="true" className="size-3" />
-        <span className="truncate">{application.name}</span>
-      </div>
-      <header className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl leading-8 font-semibold tracking-[-0.035em] text-balance break-words">
-              {application.name}
-            </h1>
-            <StatusBadge
-              label={application.status === "active" ? "Active" : "Disabled"}
-              tone={application.status === "active" ? "success" : "neutral"}
-            />
-            {application.ownership === "manifest" && (
-              <StatusBadge label="Managed by Git" tone="info" />
+      <Breadcrumbs
+        items={[{ label: "Applications", href: "/applications" }, { label: application.name }]}
+      />
+      <header className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-subtle)] text-sm font-semibold text-[var(--text-secondary)]">
+            {application.logo_uri ? (
+              <img alt="" className="size-full object-cover" src={application.logo_uri} />
+            ) : (
+              application.name.charAt(0).toUpperCase()
             )}
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl leading-8 font-semibold tracking-[-0.03em] break-words">
+                {application.name}
+              </h1>
+              <StatusBadge
+                label={application.status === "active" ? "Active" : "Disabled"}
+                tone={application.status === "active" ? "success" : "neutral"}
+              />
+              {application.ownership === "manifest" && (
+                <StatusBadge label="Managed by Git" tone="info" />
+              )}
+            </div>
+            <p className="flex min-w-0 items-center gap-1 text-[13px] text-[var(--text-secondary)]">
+              <span className="technical-value truncate">{clientId}</span>
+              <CopyButton label="Copy client ID" value={clientId} />
+            </p>
           </div>
-          <p className="technical-value mt-1 text-[var(--text-secondary)]">{application.slug}</p>
         </div>
         <div className="flex gap-2">
-          <Button asChild>
+          <Button asChild variant="primary">
             <Link href={playgroundHref}>
-              <FlaskConical aria-hidden="true" className="size-3.5" /> Test Authorization
+              <FlaskConical aria-hidden="true" className="size-3.5" /> Test sign-in
             </Link>
           </Button>
           <DropdownMenu.Root>
@@ -129,53 +147,30 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
               </Button>
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
-              <DropdownMenu.Content
-                align="end"
-                className="z-50 min-w-48 overscroll-contain rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.10)]"
-                sideOffset={6}
-              >
-                <DropdownMenu.Item asChild>
-                  <Link
-                    className="flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-[13px] outline-none focus:bg-[var(--surface-hover)]"
-                    href={`/applications/${application.id}/configuration`}
-                  >
-                    <Settings
-                      aria-hidden="true"
-                      className="size-3.5 text-[var(--text-secondary)]"
-                    />{" "}
-                    Edit Configuration
+              <DropdownMenu.Content align="end" className={menuContentClass} sideOffset={6}>
+                <DropdownMenu.Item asChild className={menuItemClass}>
+                  <Link href={`/applications/${application.id}/configuration`}>
+                    <Settings aria-hidden="true" /> Edit configuration
                   </Link>
                 </DropdownMenu.Item>
-                <DropdownMenu.Item asChild>
-                  <Link
-                    className="flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-[13px] outline-none focus:bg-[var(--surface-hover)]"
-                    href={`/applications/${application.id}/activity`}
-                  >
-                    <Activity
-                      aria-hidden="true"
-                      className="size-3.5 text-[var(--text-secondary)]"
-                    />{" "}
-                    View Activity
+                <DropdownMenu.Item asChild className={menuItemClass}>
+                  <Link href={`/applications/${application.id}/activity`}>
+                    <Activity aria-hidden="true" /> View activity
                   </Link>
                 </DropdownMenu.Item>
-                <DropdownMenu.Separator className="my-1 h-px bg-[var(--border)]" />
-                <DropdownMenu.Item
-                  className="flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-[13px] outline-none focus:bg-[var(--surface-hover)]"
-                  onSelect={() => void copyClientId()}
-                >
-                  <Clipboard aria-hidden="true" className="size-3.5 text-[var(--text-secondary)]" />{" "}
-                  Copy Client ID
+                <DropdownMenu.Item className={menuItemClass} onSelect={() => void copyClientId()}>
+                  <Clipboard aria-hidden="true" /> Copy client ID
                 </DropdownMenu.Item>
                 {application.ownership !== "manifest" && (
                   <>
-                    <DropdownMenu.Separator className="my-1 h-px bg-[var(--border)]" />
+                    <DropdownMenu.Separator className={menuSeparatorClass} />
                     <DropdownMenu.Item
-                      className="flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-[13px] text-[var(--danger)] outline-none focus:bg-[var(--danger-soft)]"
+                      className={menuDangerItemClass}
                       disabled={deleteApplication.isPending}
                       onSelect={() => setConfirmingDelete(true)}
                     >
-                      <Trash2 aria-hidden="true" className="size-3.5" />
-                      {deleteApplication.isPending ? "Deleting…" : "Delete Application"}
+                      <Trash2 aria-hidden="true" />
+                      {deleteApplication.isPending ? "Deleting…" : "Delete application"}
                     </DropdownMenu.Item>
                   </>
                 )}
@@ -185,46 +180,39 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       {application.ownership === "manifest" && (
-        <div className="mb-5 flex items-center gap-3 border border-[var(--info-border)] bg-[var(--info-soft)] px-3 py-2.5 text-[13px]">
-          <GitBranch aria-hidden="true" className="size-4 text-[var(--info)]" />
-          <span className="flex-1">
-            Configuration is managed by{" "}
-            <code className="technical-value">
-              {application.manifest_path ?? `applications/${application.slug}.yaml`}
-            </code>
-            .
-          </span>
-          <Button asChild size="compact">
-            <Link href={`/applications/${application.id}/configuration`}>View Configuration</Link>
-          </Button>
-        </div>
+        <Note
+          action={
+            <Button asChild size="compact">
+              <Link href={`/applications/${application.id}/configuration`}>View configuration</Link>
+            </Button>
+          }
+          className="mb-5"
+          icon={GitBranch}
+          tone="info"
+        >
+          Configuration is managed in Git by{" "}
+          <code className="technical-value">
+            {application.manifest_path ?? `applications/${application.slug}.yaml`}
+          </code>
+          . Edit the manifest to make changes.
+        </Note>
       )}
-      <nav
-        className="mb-7 flex gap-5 overflow-x-auto border-b border-[var(--border)]"
-        aria-label="Application sections"
-      >
-        {tabs.map(([label, href], index) => {
-          const active = index === 0 ? pathname === href : pathname.startsWith(href);
-          return (
-            <Link
-              className={cn(
-                "relative shrink-0 pb-2.5 text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-                active &&
-                  "font-medium text-[var(--text-primary)] after:absolute after:right-0 after:bottom-[-1px] after:left-0 after:h-0.5 after:bg-[var(--accent)]",
-              )}
-              href={href}
-              aria-current={active ? "page" : undefined}
-              key={href}
-            >
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
-      {children}
+      <TabNav
+        className="mb-6"
+        items={tabs.map(([label, href], index) => ({
+          label,
+          href,
+          active: index === 0 ? pathname === href : pathname.startsWith(href),
+        }))}
+        label="Application sections"
+      />
+      <div className="animate-[fade-in_var(--motion-normal)_var(--ease-out)]" key={pathname}>
+        {children}
+      </div>
       <ConfirmDialog
-        actionLabel="Delete Application"
-        description="Its sessions, grants, tokens, and credentials will stop working. This action cannot be undone."
+        actionLabel="Delete application"
+        confirmationText={application.slug}
+        description="Its sessions, grants, tokens, and credentials will stop working immediately. This cannot be undone."
         onConfirm={() => deleteApplication.mutateAsync(application.id)}
         onOpenChange={setConfirmingDelete}
         open={confirmingDelete}

@@ -1,21 +1,14 @@
 "use client";
 
-import {
-  Check,
-  ChevronDown,
-  ExternalLink,
-  Globe2,
-  ImageIcon,
-  Plus,
-  ShieldCheck,
-  Trash2,
-} from "lucide-react";
+import { ChevronDown, Globe2, Plus, ShieldCheck, X } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { applicationLogoUriSchema, redirectUriSchema } from "@authometry/domain";
-import { Button, Checkbox, StatusBadge } from "@authometry/ui";
+import { Button, Note, StatusBadge, Switch, cn } from "@authometry/ui";
 import { useApplication } from "@/components/applications/application-context";
-import { inputClass } from "@/components/auth/auth-shell";
+import { Card, CardHeader } from "@/components/ui/card";
+import { ChoiceRow, Field, Input } from "@/components/ui/form";
 import { apiFetch } from "@/lib/api";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
@@ -101,10 +94,22 @@ export default function ConfigurationPage() {
         }),
       });
       await refetch();
-      toast.success("Application configuration saved.");
+      toast.success("Configuration saved.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The configuration could not be saved.");
     } finally {
       setSaving(false);
     }
+  }
+  function reset() {
+    setName(app.name);
+    setDescription(app.description ?? "");
+    setLogoUri(app.logo_uri ?? "");
+    setUris(app.redirect_uris);
+    setNextUri("");
+    setPortalEnabled(app.portal_enabled);
+    setLaunchUri(app.launch_uri ?? "");
+    setError(undefined);
   }
   const securitySettings = [
     ["Authorization Code", "Enabled"],
@@ -114,56 +119,29 @@ export default function ConfigurationPage() {
     ["Refresh-token rotation", application.rotate_refresh_tokens ? "Enabled" : "Disabled"],
   ];
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold tracking-[-0.02em]">Configure sign-in</h2>
-        <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
-          Set the app details people see and where Authometry can return them after sign-in.
-        </p>
-      </div>
-
-      {error && (
-        <div
-          aria-live="polite"
-          className="mb-4 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-soft)] px-3.5 py-2.5 text-[13px] text-[var(--danger)]"
-          role="alert"
-        >
-          {error}
-        </div>
-      )}
-
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="pb-4">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-5">
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]">
-            <div className="flex items-center gap-3 border-b border-[var(--border)] px-5 py-4">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]">
-                <ImageIcon aria-hidden="true" className="size-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold">App identity</h3>
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Shown to users during sign-in.
-                </p>
-              </div>
-            </div>
-            <div className="grid gap-4 p-5 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium">App name</span>
-                <input
+          <Card>
+            <CardHeader
+              description="Shown to people during sign-in and in the employee portal."
+              title="Identity"
+            />
+            <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
+              <Field label="Name">
+                <Input
                   autoComplete="off"
-                  className={inputClass}
                   disabled={readOnly}
                   name="applicationName"
                   onChange={(event) => setName(event.target.value)}
                   value={name}
                 />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium">Logo URL</span>
-                <input
+              </Field>
+              <Field label="Logo URL" optional>
+                <Input
                   autoComplete="url"
-                  className={`${inputClass} technical-value`}
                   disabled={readOnly}
+                  mono
                   name="logoUri"
                   onChange={(event) => {
                     setLogoUri(event.target.value);
@@ -174,85 +152,80 @@ export default function ConfigurationPage() {
                   type="url"
                   value={logoUri}
                 />
-              </label>
-              <label className="block sm:col-span-2">
-                <span className="mb-1.5 block text-xs font-medium">Description</span>
-                <input
+              </Field>
+              <Field className="sm:col-span-2" label="Description" optional>
+                <Input
                   autoComplete="off"
-                  className={inputClass}
                   disabled={readOnly}
                   name="applicationDescription"
                   onChange={(event) => setDescription(event.target.value)}
                   placeholder="What does this application do?"
                   value={description}
                 />
-              </label>
+              </Field>
             </div>
-          </section>
+          </Card>
 
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]">
-            <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--info-soft)] text-[var(--info)]">
-                  <Globe2 aria-hidden="true" className="size-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold">Callback URLs</h3>
-                  <p className="text-xs text-[var(--text-secondary)]">
-                    Exact destinations allowed after sign-in.
-                  </p>
-                </div>
-              </div>
-              <span className="shrink-0 rounded-full border border-[var(--border)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]">
-                {uris.length} {uris.length === 1 ? "URL" : "URLs"}
-              </span>
-            </div>
-            <div className="p-5">
-              <div className="overflow-hidden rounded-lg border border-[var(--border)]">
+          <Card>
+            <CardHeader
+              actions={
+                <span className="rounded-full bg-[var(--geist-gray-100)] px-2 py-0.5 text-xs text-[var(--text-secondary)] tabular-nums">
+                  {uris.length} {uris.length === 1 ? "URL" : "URLs"}
+                </span>
+              }
+              description="Exact destinations Authometry may redirect to after sign-in. Wildcards are not supported."
+              title="Callback URLs"
+            />
+            <div className="p-4 sm:p-5">
+              <ul className="overflow-hidden rounded-[var(--radius-control)] border border-[var(--border)]">
                 {uris.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-xs text-[var(--text-secondary)]">
-                    Add a callback URL to test sign-in.
-                  </div>
+                  <li className="px-4 py-6 text-center text-[13px] text-[var(--text-secondary)]">
+                    Add a callback URL so people can sign in.
+                  </li>
                 ) : (
                   uris.map((uri) => (
-                    <div
-                      className="flex min-h-12 items-center gap-3 border-b border-[var(--border-subtle)] px-3 last:border-0"
+                    <li
+                      className="group flex min-h-11 animate-[enter_var(--motion-normal)_var(--ease-out)] items-center gap-3 border-b border-[var(--border)] pr-1 pl-3 last:border-0"
                       key={uri}
                     >
-                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--success-soft)] text-[var(--success)]">
-                        <Check aria-hidden="true" className="size-3" />
-                      </span>
+                      <Globe2
+                        aria-hidden="true"
+                        className="size-3.5 shrink-0 text-[var(--text-tertiary)]"
+                      />
                       <code className="technical-value min-w-0 flex-1">{uri}</code>
-                      <Button
-                        aria-label={`Remove ${uri}`}
-                        disabled={readOnly}
-                        onClick={() => setUris(uris.filter((value) => value !== uri))}
-                        size="icon"
-                        variant="ghost"
-                      >
-                        <Trash2 aria-hidden="true" className="size-3.5" />
-                      </Button>
-                    </div>
+                      {!readOnly && (
+                        <Button
+                          aria-label={`Remove ${uri}`}
+                          className="hover:text-[var(--danger)]"
+                          onClick={() => setUris(uris.filter((value) => value !== uri))}
+                          size="icon-compact"
+                          variant="ghost"
+                        >
+                          <X aria-hidden="true" className="size-3.5" />
+                        </Button>
+                      )}
+                    </li>
                   ))
                 )}
-              </div>
+              </ul>
               {!readOnly && (
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <form
+                  className="mt-3 flex flex-col gap-2 sm:flex-row"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    addUri();
+                  }}
+                >
                   <label className="min-w-0 flex-1">
                     <span className="sr-only">New callback URL</span>
-                    <input
+                    <Input
                       autoComplete="off"
-                      className={`${inputClass} technical-value`}
+                      compact
+                      mono
                       name="redirectUri"
                       onChange={(event) => {
                         setNextUri(event.target.value);
                         setError(undefined);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          addUri();
-                        }
                       }}
                       placeholder="https://app.example.com/auth/callback"
                       spellCheck={false}
@@ -260,124 +233,126 @@ export default function ConfigurationPage() {
                       value={nextUri}
                     />
                   </label>
-                  <Button disabled={!nextUri.trim()} onClick={addUri}>
-                    <Plus aria-hidden="true" className="size-3.5" /> Add callback
+                  <Button disabled={!nextUri.trim()} type="submit">
+                    <Plus aria-hidden="true" className="size-3.5" /> Add
                   </Button>
-                </div>
+                </form>
               )}
-              <p className="mt-2 text-[11px] text-[var(--text-tertiary)]">
-                URLs must match exactly. Wildcards are not supported.
-              </p>
             </div>
-          </section>
+          </Card>
 
-          <details className="group rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]">
-            <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
+          <details className="group rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-raised)]">
+            <summary className="flex cursor-pointer list-none items-center gap-3 rounded-[var(--radius-card)] px-4 py-3.5 transition-colors hover:bg-[var(--surface-subtle)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none sm:px-5 [&::-webkit-details-marker]:hidden">
               <ShieldCheck aria-hidden="true" className="size-4 text-[var(--success)]" />
               <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium">OAuth protections</span>
-                <span className="block text-xs text-[var(--text-secondary)]">
+                <span className="block text-sm font-semibold">OAuth protections</span>
+                <span className="block text-[13px] text-[var(--text-secondary)]">
                   Authorization Code · PKCE {application.require_pkce ? "required" : "optional"} ·
                   Rotation {application.rotate_refresh_tokens ? "enabled" : "disabled"}
                 </span>
               </span>
               <ChevronDown
                 aria-hidden="true"
-                className="size-4 text-[var(--text-tertiary)] transition-transform group-open:rotate-180"
+                className="size-4 text-[var(--text-tertiary)] transition-transform duration-[var(--motion-normal)] ease-[var(--ease-out)] group-open:rotate-180"
               />
             </summary>
-            <dl className="grid gap-px border-t border-[var(--border)] bg-[var(--border-subtle)] sm:grid-cols-2">
+            <dl className="grid animate-[fade-in_var(--motion-normal)_var(--ease-out)] gap-px border-t border-[var(--border)] bg-[var(--border)] sm:grid-cols-2">
               {securitySettings.map(([label, value]) => (
                 <div
-                  className="flex items-center justify-between bg-[var(--surface-raised)] px-4 py-3"
+                  className="flex items-center justify-between bg-[var(--surface-raised)] px-4 py-3 last:rounded-b-[var(--radius-card)] sm:px-5"
                   key={label}
                 >
-                  <dt className="text-xs text-[var(--text-secondary)]">{label}</dt>
-                  <dd className="text-xs font-medium">{value}</dd>
+                  <dt className="text-[13px] text-[var(--text-secondary)]">{label}</dt>
+                  <dd className="text-[13px] font-medium">{value}</dd>
                 </div>
               ))}
             </dl>
           </details>
         </div>
 
-        <aside className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] lg:sticky lg:top-6">
-          <div className="border-b border-[var(--border)] px-5 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold">Employee portal</h3>
+        <Card className="lg:sticky lg:top-6">
+          <CardHeader
+            actions={
               <StatusBadge
                 label={app.provisioning_enabled ? "Connected" : "Needs setup"}
                 tone={app.provisioning_enabled ? "success" : "warning"}
               />
-            </div>
-            <p className="mt-1 text-xs text-[var(--text-secondary)]">
-              Let assigned employees launch this app with SSO.
-            </p>
-          </div>
-          <div className="p-5">
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-3.5">
-              <Checkbox
-                checked={portalEnabled}
-                className="mt-0.5"
-                disabled={readOnly}
-                onChange={(event) => {
-                  setPortalEnabled(event.target.checked);
-                  setError(undefined);
-                }}
-              />
-              <span>
-                <span className="block text-[13px] font-medium">Show in employee portal</span>
-                <span className="mt-0.5 block text-xs leading-5 text-[var(--text-secondary)]">
-                  Visible only to assigned users.
-                </span>
-              </span>
-            </label>
-            <label className="mt-4 block">
-              <span className="mb-1.5 block text-xs font-medium">App sign-in URL</span>
-              <div className="relative">
-                <input
-                  autoComplete="url"
-                  className={`${inputClass} technical-value pr-9`}
+            }
+            description="Let assigned people launch this app with single sign-on."
+            title="Employee portal"
+          />
+          <div className="space-y-4 p-4 sm:p-5">
+            <ChoiceRow
+              control={
+                <Switch
+                  checked={portalEnabled}
                   disabled={readOnly}
-                  name="launchUri"
                   onChange={(event) => {
-                    setLaunchUri(event.target.value);
+                    setPortalEnabled(event.target.checked);
                     setError(undefined);
                   }}
-                  placeholder="https://app.example.com/login"
-                  spellCheck={false}
-                  type="url"
-                  value={launchUri}
                 />
-                <ExternalLink
-                  aria-hidden="true"
-                  className="absolute top-1/2 right-3 size-3.5 -translate-y-1/2 text-[var(--text-tertiary)]"
-                />
-              </div>
-            </label>
-            <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">
-              Use the URL that starts this app&apos;s Authometry sign-in.
-            </p>
+              }
+              description="Visible only to assigned users."
+              title="Show in employee portal"
+            />
+            <Field
+              description="The URL that starts this app’s Authometry sign-in."
+              label="App sign-in URL"
+            >
+              <Input
+                autoComplete="url"
+                disabled={readOnly}
+                mono
+                name="launchUri"
+                onChange={(event) => {
+                  setLaunchUri(event.target.value);
+                  setError(undefined);
+                }}
+                placeholder="https://app.example.com/login"
+                spellCheck={false}
+                type="url"
+                value={launchUri}
+              />
+            </Field>
             {!app.provisioning_enabled && portalEnabled && (
-              <div className="mt-4 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-soft)] p-3 text-xs leading-5 text-[var(--warning)]">
-                Connect provisioning before employees can launch this app.
-              </div>
+              <Note tone="warning">
+                Connect provisioning in <Link href="/settings/provisioning">Settings</Link> before
+                people can launch this app.
+              </Note>
             )}
           </div>
-        </aside>
+        </Card>
       </div>
 
-      <div className="sticky bottom-0 -mx-4 flex items-center justify-end gap-2 border-t border-[var(--border)] bg-[color:var(--background)/.96] px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        <span className="mr-auto text-xs text-[var(--text-tertiary)]">
-          {dirty ? "Unsaved changes" : "No unsaved changes"}
-        </span>
-        <Button
-          disabled={!dirty || saving || readOnly}
-          onClick={() => void save()}
-          variant="primary"
+      {!readOnly && (
+        <div
+          className={cn(
+            "sticky bottom-4 z-10 mt-6 flex items-center gap-3 rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface-raised)] py-2 pr-2 pl-4 shadow-[var(--shadow-menu)] transition-[opacity,transform] duration-[var(--motion-normal)] ease-[var(--ease-out)]",
+            dirty || error
+              ? "translate-y-0 opacity-100"
+              : "pointer-events-none translate-y-2 opacity-0",
+          )}
+          role="region"
+          aria-label="Save changes"
         >
-          {saving ? "Saving…" : "Save changes"}
-        </Button>
-      </div>
+          <span
+            aria-live="polite"
+            className={cn(
+              "mr-auto min-w-0 text-[13px]",
+              error ? "text-[var(--danger)]" : "text-[var(--text-secondary)]",
+            )}
+          >
+            {error ?? "You have unsaved changes."}
+          </span>
+          <Button disabled={saving} onClick={reset} variant="ghost">
+            Reset
+          </Button>
+          <Button disabled={!dirty} loading={saving} onClick={() => void save()} variant="primary">
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AppWindow, Check, MonitorSmartphone, Server, Smartphone, Workflow } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type ComponentType } from "react";
 import { useForm } from "react-hook-form";
@@ -13,16 +14,25 @@ import {
   createApplicationSlug,
   redirectUriSchema,
 } from "@authometry/domain";
-import { Button, Checkbox, cn } from "@authometry/ui";
-import { PageContainer, PageHeader } from "@/components/layout/page";
-import { inputClass } from "@/components/auth/auth-shell";
+import { Button, Checkbox, Note, cn } from "@authometry/ui";
+import { CodeBlock, Snippet } from "@/components/data-display/copyable-value";
+import { Breadcrumbs, PageContainer, PageHeader } from "@/components/layout/page";
+import { Card, CardFooter, CardHeader } from "@/components/ui/card";
+import { ChoiceRow, Field, Input, Textarea } from "@/components/ui/form";
 import { apiFetch } from "@/lib/api";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
 const schema = z.object({
-  name: z.string().min(2).max(100),
-  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-  description: z.string().max(500).optional(),
+  name: z
+    .string()
+    .trim()
+    .min(2, "Use at least 2 characters.")
+    .max(100, "Use 100 characters or fewer."),
+  slug: z
+    .string()
+    .min(1, "Enter an application ID.")
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and single hyphens."),
+  description: z.string().max(500, "Use 500 characters or fewer.").optional(),
   logoUri: z.union([z.literal(""), applicationLogoUriSchema]),
   redirectUri: z.string().optional(),
   launchUri: z.union([z.literal(""), applicationLaunchUriSchema]),
@@ -76,6 +86,7 @@ const types: Array<{
 export default function NewApplicationPage() {
   const router = useRouter();
   const [type, setType] = useState<ApplicationType>("web");
+  const [slugEdited, setSlugEdited] = useState(false);
   const [secret, setSecret] = useState<{ id: string; clientId: string; clientSecret: string }>();
   const [acknowledged, setAcknowledged] = useState(false);
   const form = useForm<Values>({
@@ -89,6 +100,7 @@ export default function NewApplicationPage() {
       launchUri: "",
     },
   });
+  const errors = form.formState.errors;
   useUnsavedChanges(form.formState.isDirty && !secret);
   async function submit(values: Values) {
     if (type !== "machine" && values.redirectUri) {
@@ -100,226 +112,257 @@ export default function NewApplicationPage() {
         return;
       }
     }
-    const result = await apiFetch<{ id: string; clientId: string; clientSecret?: string }>(
-      "/api/v1/applications",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          name: values.name,
-          slug: values.slug,
-          type,
-          description: values.description || undefined,
-          logoUri: values.logoUri || undefined,
-          redirectUris: values.redirectUri ? [values.redirectUri] : [],
-          postLogoutRedirectUris: [],
-          launchUri: values.launchUri || undefined,
-        }),
-      },
-    );
-    toast.success("Application created.");
-    if (result.clientSecret)
-      setSecret({ id: result.id, clientId: result.clientId, clientSecret: result.clientSecret });
-    else router.push(`/applications/${result.id}`);
+    try {
+      const result = await apiFetch<{ id: string; clientId: string; clientSecret?: string }>(
+        "/api/v1/applications",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            name: values.name,
+            slug: values.slug,
+            type,
+            description: values.description || undefined,
+            logoUri: values.logoUri || undefined,
+            redirectUris: type !== "machine" && values.redirectUri ? [values.redirectUri] : [],
+            postLogoutRedirectUris: [],
+            launchUri: (type !== "machine" && values.launchUri) || undefined,
+          }),
+        },
+      );
+      toast.success(`${values.name} created.`);
+      if (result.clientSecret)
+        setSecret({ id: result.id, clientId: result.clientId, clientSecret: result.clientSecret });
+      else router.push(`/applications/${result.id}`);
+    } catch (error) {
+      form.setError("root", {
+        message: error instanceof Error ? error.message : "The application could not be created.",
+      });
+    }
   }
   if (secret)
     return (
       <PageContainer size="narrow">
         <PageHeader
-          description="Store this client secret before continuing."
-          title="Client Secret Created"
+          description="Copy the client secret now — Authometry stores only a hash and cannot show it again."
+          title="Save your client secret"
         />
-        <div className="rounded-lg border border-[var(--warning-border)] bg-[var(--warning-soft)] p-5">
-          <p className="text-[13px] font-medium text-[var(--warning)]">
-            This secret will only be displayed once.
-          </p>
-          <p className="mt-1 text-xs text-[var(--text-secondary)]">
-            Store it securely. Authometry cannot show it again after this screen closes.
-          </p>
-          <dl className="mt-5 space-y-4">
-            <div>
-              <dt className="text-xs text-[var(--text-secondary)]">Client ID</dt>
-              <dd className="technical-value mt-1 rounded border border-[var(--border)] bg-[var(--surface-raised)] p-2.5">
-                {secret.clientId}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-[var(--text-secondary)]">Client secret</dt>
-              <dd className="technical-value mt-1 rounded border border-[var(--border)] bg-[var(--surface-raised)] p-2.5 select-all">
-                {secret.clientSecret}
-              </dd>
-            </div>
-          </dl>
-        </div>
-        <label className="mt-5 flex items-start gap-2.5 text-[13px]">
-          <Checkbox
-            checked={acknowledged}
-            onChange={(event) => setAcknowledged(event.target.checked)}
-            wrapperClassName="mt-0.5"
-          />
-          I have stored this client secret securely.
-        </label>
-        <Button
-          className="mt-5"
-          disabled={!acknowledged}
-          onClick={() => router.push(`/applications/${secret.id}`)}
-          variant="primary"
-        >
-          Done
-        </Button>
+        <Card className="overflow-hidden">
+          <div className="space-y-4 p-5">
+            <Note tone="warning">
+              This secret is shown only once. Store it in your secret manager.
+            </Note>
+            <Field label="Client ID">
+              <Snippet label="client ID" value={secret.clientId} />
+            </Field>
+            <Field label="Client secret">
+              <Snippet label="client secret" value={secret.clientSecret} />
+            </Field>
+            <CodeBlock
+              code={`AUTHOMETRY_CLIENT_ID=${secret.clientId}\nAUTHOMETRY_CLIENT_SECRET=${secret.clientSecret}`}
+              label=".env"
+            />
+          </div>
+          <CardFooter
+            hint={
+              <ChoiceRow
+                control={
+                  <Checkbox
+                    checked={acknowledged}
+                    onChange={(event) => setAcknowledged(event.target.checked)}
+                  />
+                }
+                title="I have stored this client secret securely"
+              />
+            }
+          >
+            <Button
+              disabled={!acknowledged}
+              onClick={() => router.push(`/applications/${secret.id}`)}
+              variant="primary"
+            >
+              Continue to application
+            </Button>
+          </CardFooter>
+        </Card>
       </PageContainer>
     );
   return (
     <PageContainer size="narrow">
+      <Breadcrumbs items={[{ label: "Applications", href: "/applications" }, { label: "New" }]} />
       <PageHeader
-        description="Configure a new OAuth client for your application."
-        title="Create Application"
+        description="Register a website, app, or service so it can sign users in with Authometry."
+        title="Create application"
       />
-      <form autoComplete="off" onSubmit={form.handleSubmit(submit)}>
+      <form
+        autoComplete="off"
+        className="space-y-6"
+        noValidate
+        onSubmit={form.handleSubmit(submit)}
+      >
         <fieldset>
-          <legend className="mb-3 text-sm font-semibold">Application type</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <legend className="mb-3 text-sm font-semibold">What are you building?</legend>
+          <div className="stagger grid gap-2 sm:grid-cols-2" role="radiogroup">
             {types.map((item) => {
               const Icon = item.icon;
               const selected = item.value === type;
               return (
-                <button
-                  aria-pressed={selected}
+                <label
                   className={cn(
-                    "relative min-h-32 rounded-lg border p-4 text-left transition-colors hover:border-[var(--border-strong)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none",
-                    selected && "border-[var(--accent)] bg-[var(--accent-soft)]",
+                    "group relative flex cursor-pointer gap-3 rounded-[var(--radius-card)] border bg-[var(--surface-raised)] p-3.5 transition-[border-color,box-shadow,background-color,transform] duration-[var(--motion-fast)] ease-[var(--ease-out)] active:scale-[0.99] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--focus)]",
+                    selected
+                      ? "border-[var(--text-primary)] shadow-[0_0_0_1px_var(--text-primary)]"
+                      : "border-[var(--border)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-subtle)]",
                   )}
                   key={item.value}
-                  onClick={() => setType(item.value)}
-                  type="button"
                 >
-                  <span className="mb-3 flex items-center justify-between">
-                    <Icon aria-hidden="true" className="size-4 text-[var(--text-secondary)]" />
-                    {selected && (
-                      <Check aria-hidden="true" className="size-4 text-[var(--accent)]" />
+                  <input
+                    checked={selected}
+                    className="sr-only"
+                    name="applicationType"
+                    onChange={() => setType(item.value)}
+                    type="radio"
+                    value={item.value}
+                  />
+                  <span
+                    className={cn(
+                      "flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] border transition-colors",
+                      selected
+                        ? "border-transparent bg-[var(--primary)] text-[var(--primary-foreground)]"
+                        : "border-[var(--border)] text-[var(--text-secondary)]",
                     )}
+                  >
+                    <Icon aria-hidden="true" className="size-4" />
                   </span>
-                  <span className="block text-[13px] font-semibold">{item.name}</span>
-                  <span className="mt-1 block text-xs leading-5 text-[var(--text-secondary)]">
-                    {item.description}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] font-medium">{item.name}</span>
+                    <span className="mt-0.5 block text-xs leading-[18px] text-[var(--text-secondary)]">
+                      {item.description}
+                    </span>
+                    <span className="technical-value mt-1.5 block text-[11px] text-[var(--text-tertiary)]">
+                      {item.examples}
+                    </span>
                   </span>
-                  <span className="mt-2 block text-[10px] text-[var(--text-tertiary)]">
-                    {item.examples}
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "absolute top-3 right-3 flex size-4 items-center justify-center rounded-full border transition-all duration-[var(--motion-normal)] ease-[var(--ease-spring)]",
+                      selected
+                        ? "scale-100 border-transparent bg-[var(--primary)] text-[var(--primary-foreground)]"
+                        : "scale-90 border-[var(--border-strong)]",
+                    )}
+                  >
+                    {selected && <Check className="size-2.5" strokeWidth={3} />}
                   </span>
-                </button>
+                </label>
               );
             })}
           </div>
         </fieldset>
-        <div className="mt-8 space-y-5 border-t border-[var(--border)] pt-7">
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium">Application name</span>
-            <input
-              autoComplete="off"
-              className={inputClass}
-              {...form.register("name", {
-                onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
-                  form.setValue("slug", createApplicationSlug(event.target.value), {
-                    shouldValidate: true,
-                  }),
-              })}
+        <Card>
+          <CardHeader description="Shown to people when they sign in." title="Details" />
+          <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
+            <Field error={errors.name?.message} label="Name">
+              <Input
+                autoComplete="off"
+                placeholder="Acme Dashboard"
+                {...form.register("name", {
+                  onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+                    if (!slugEdited)
+                      form.setValue("slug", createApplicationSlug(event.target.value), {
+                        shouldValidate: form.formState.isSubmitted,
+                      });
+                  },
+                })}
+              />
+            </Field>
+            <Field
+              description="Used in URLs and manifests. Lowercase letters, numbers, and hyphens."
+              error={errors.slug?.message}
+              label="Application ID"
+            >
+              <Input
+                autoComplete="off"
+                mono
+                spellCheck={false}
+                {...form.register("slug", { onChange: () => setSlugEdited(true) })}
+              />
+            </Field>
+            <Field className="sm:col-span-2" label="Description" optional>
+              <Textarea
+                autoComplete="off"
+                className="min-h-20"
+                placeholder="What does this application do?"
+                {...form.register("description")}
+              />
+            </Field>
+            <Field
+              className="sm:col-span-2"
+              error={errors.logoUri?.message}
+              label="Logo URL"
+              optional
+            >
+              <Input
+                autoComplete="url"
+                mono
+                placeholder="https://cdn.example.com/logo.png"
+                spellCheck={false}
+                type="url"
+                {...form.register("logoUri")}
+              />
+            </Field>
+          </div>
+        </Card>
+        {type !== "machine" && (
+          <Card className="animate-enter">
+            <CardHeader
+              description="Where Authometry may send people after they sign in."
+              title="Sign-in"
             />
-            {form.formState.errors.name && (
-              <span aria-live="polite" className="mt-1 block text-xs text-[var(--danger)]">
-                {form.formState.errors.name.message}
-              </span>
-            )}
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium">Application ID</span>
-            <input
-              autoComplete="off"
-              className={`${inputClass} technical-value`}
-              spellCheck={false}
-              {...form.register("slug")}
-            />
-            {form.formState.errors.slug && (
-              <span aria-live="polite" className="mt-1 block text-xs text-[var(--danger)]">
-                Use lowercase letters, numbers, and hyphens.
-              </span>
-            )}
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium">
-              Description <span className="font-normal text-[var(--text-tertiary)]">Optional</span>
-            </span>
-            <textarea
-              autoComplete="off"
-              className={`${inputClass} h-20 py-2`}
-              {...form.register("description")}
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium">
-              Logo URL <span className="font-normal text-[var(--text-tertiary)]">Optional</span>
-            </span>
-            <input
-              autoComplete="url"
-              className={`${inputClass} technical-value`}
-              placeholder="https://cdn.example.com/logo.png"
-              spellCheck={false}
-              type="url"
-              {...form.register("logoUri")}
-            />
-            {form.formState.errors.logoUri && (
-              <span aria-live="polite" className="mt-1 block text-xs text-[var(--danger)]">
-                {form.formState.errors.logoUri.message}
-              </span>
-            )}
-          </label>
-          {type !== "machine" && (
-            <>
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium">Redirect URI</span>
-                <input
+            <div className="space-y-4 p-4 sm:p-5">
+              <Field
+                description="Must match exactly. You can add more callback URLs later."
+                error={errors.redirectUri?.message}
+                label="Callback URL"
+                optional
+              >
+                <Input
                   autoComplete="off"
-                  className={`${inputClass} technical-value`}
-                  placeholder="https://your-app.example/auth/callback…"
+                  mono
+                  placeholder="https://your-app.example/auth/callback"
                   spellCheck={false}
                   type="url"
                   {...form.register("redirectUri")}
                 />
-                {form.formState.errors.redirectUri && (
-                  <span aria-live="polite" className="mt-1 block text-xs text-[var(--danger)]">
-                    {form.formState.errors.redirectUri.message}
-                  </span>
-                )}
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium">
-                  Employee portal sign-in URL{" "}
-                  <span className="font-normal text-[var(--text-tertiary)]">Optional</span>
-                </span>
-                <input
+              </Field>
+              <Field
+                description="Used by the employee portal. Defaults to /login on the callback host."
+                error={errors.launchUri?.message}
+                label="Portal sign-in URL"
+                optional
+              >
+                <Input
                   autoComplete="url"
-                  className={`${inputClass} technical-value`}
-                  placeholder="Defaults to /login on the redirect URI host"
+                  mono
+                  placeholder="https://your-app.example/login"
                   spellCheck={false}
                   type="url"
                   {...form.register("launchUri")}
                 />
-                <span className="mt-1 block text-xs text-[var(--text-tertiary)]">
-                  Use the service&apos;s OIDC login-initiation URL if it has a different path.
-                </span>
-                {form.formState.errors.launchUri && (
-                  <span aria-live="polite" className="mt-1 block text-xs text-[var(--danger)]">
-                    {form.formState.errors.launchUri.message}
-                  </span>
-                )}
-              </label>
-            </>
-          )}
-        </div>
-        <div className="mt-7 flex justify-end gap-2 border-t border-[var(--border)] pt-5">
-          <Button onClick={() => router.back()} type="button">
-            Cancel
+              </Field>
+            </div>
+          </Card>
+        )}
+        {errors.root?.message && (
+          <Note role="alert" tone="danger">
+            {errors.root.message}
+          </Note>
+        )}
+        <div className="flex flex-col-reverse gap-2 border-t border-[var(--border)] pt-5 sm:flex-row sm:justify-end">
+          <Button asChild>
+            <Link href="/applications">Cancel</Link>
           </Button>
-          <Button disabled={form.formState.isSubmitting} type="submit" variant="primary">
-            {form.formState.isSubmitting ? "Creating…" : "Create Application"}
+          <Button loading={form.formState.isSubmitting} type="submit" variant="primary">
+            {form.formState.isSubmitting ? "Creating…" : "Create application"}
           </Button>
         </div>
       </form>

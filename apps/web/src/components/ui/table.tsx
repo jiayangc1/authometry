@@ -47,7 +47,7 @@ export function TableHeader({ children, className }: { children: ReactNode; clas
 }
 
 const rowClass =
-  "virtualized-row row-link relative grid min-h-14 items-center gap-x-4 gap-y-1 border-b border-[var(--border)] px-4 py-2.5 last:border-0 lg:pr-9 lg:[grid-template-columns:var(--table-columns)]";
+  "group virtualized-row row-link relative grid min-h-14 items-center gap-x-4 gap-y-1 border-b border-[var(--border)] px-4 py-2.5 last:border-0 lg:pr-9 lg:[grid-template-columns:var(--table-columns)]";
 
 export function TableRow({
   children,

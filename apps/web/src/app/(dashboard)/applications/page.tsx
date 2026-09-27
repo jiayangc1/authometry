@@ -1,26 +1,27 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   AppWindow,
-  ArrowRight,
   BookOpen,
-  Boxes,
   MonitorSmartphone,
   Plus,
+  SearchX,
   Server,
   Smartphone,
   Workflow,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useDeferredValue, type ComponentType } from "react";
-import { Button, EmptyState, StatusBadge } from "@authometry/ui";
+import type { ComponentType } from "react";
+import { Button, EmptyState, StatusBadge, cn } from "@authometry/ui";
 import { RelativeTime } from "@/components/data-display/formatted-time";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
-import { SearchInput, selectClass } from "@/components/data-display/search-input";
+import { ErrorState, ListSkeleton } from "@/components/data-display/states";
+import { FilterBar, SearchInput } from "@/components/data-display/search-input";
 import { PageContainer, PageHeader } from "@/components/layout/page";
+import { Select } from "@/components/ui/form";
+import { Table, TableFooter, TableHeader, TableRow } from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
+import { useDebouncedSearchParam } from "@/lib/use-query-params";
 
 interface ApplicationRow {
   id: string;
@@ -49,26 +50,25 @@ const typeIcons: Record<ApplicationRow["type"], ComponentType<{ className?: stri
   device: Workflow,
 };
 
+const columns = "minmax(220px,1.4fr) minmax(180px,1fr) 150px 120px";
+
 export default function ApplicationsPage() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const parameters = useSearchParams();
-  const query = useDeferredValue(parameters.get("q") ?? "");
-  const type = parameters.get("type") ?? "";
-  const status = parameters.get("status") ?? "";
+  const search = useDebouncedSearchParam("q");
+  const type = search.parameters.get("type") ?? "";
+  const status = search.parameters.get("status") ?? "";
   const applications = useQuery({
-    queryKey: ["applications", query, type, status],
+    queryKey: ["applications", search.query, type, status],
     queryFn: () =>
       apiFetch<{ data: ApplicationRow[] }>(
-        `/api/v1/applications?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type)}&status=${encodeURIComponent(status)}`,
+        `/api/v1/applications?q=${encodeURIComponent(search.query)}&type=${encodeURIComponent(type)}&status=${encodeURIComponent(status)}`,
       ),
+    placeholderData: keepPreviousData,
   });
-  function update(key: string, value: string) {
-    const next = new URLSearchParams(parameters);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    const queryString = next.toString();
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname);
+  const rows = applications.data?.data ?? [];
+  const filtered = Boolean(search.query || type || status);
+  function clearFilters() {
+    search.clear();
+    search.update({ q: undefined, type: undefined, status: undefined });
   }
   return (
     <PageContainer>
@@ -77,33 +77,34 @@ export default function ApplicationsPage() {
           <>
             <Button asChild>
               <Link href="/docs/applications">
-                <BookOpen aria-hidden="true" className="size-3.5" /> Documentation
+                <BookOpen aria-hidden="true" className="size-3.5" /> Docs
               </Link>
             </Button>
             <Button asChild variant="primary">
               <Link href="/applications/new">
-                <Plus aria-hidden="true" className="size-3.5" /> Add Application
+                <Plus aria-hidden="true" className="size-3.5" /> Create application
               </Link>
             </Button>
           </>
         }
-        description="Applications connect websites, mobile apps, APIs, and services to your Authometry authorization server."
+        description="Websites, mobile apps, APIs, and services that use Authometry to sign people in."
         title="Applications"
       />
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+      <FilterBar>
         <SearchInput
           className="sm:w-72"
-          defaultValue={query}
-          key={query}
-          onChange={(event) => update("q", event.target.value)}
-          placeholder="Search applications…"
+          onChange={(event) => search.setValue(event.target.value)}
+          onClear={search.clear}
+          placeholder="Search by name or ID…"
+          value={search.value}
         />
-        <select
+        <Select
           aria-label="Application type"
-          className={selectClass}
+          compact
           name="type"
-          onChange={(event) => update("type", event.target.value)}
+          onChange={(event) => search.update({ type: event.target.value || undefined })}
           value={type}
+          wrapperClassName="sm:w-52"
         >
           <option value="">All types</option>
           {Object.entries(typeLabels).map(([value, label]) => (
@@ -111,102 +112,128 @@ export default function ApplicationsPage() {
               {label}
             </option>
           ))}
-        </select>
-        <select
+        </Select>
+        <Select
           aria-label="Status"
-          className={selectClass}
+          compact
           name="status"
-          onChange={(event) => update("status", event.target.value)}
+          onChange={(event) => search.update({ status: event.target.value || undefined })}
           value={status}
+          wrapperClassName="sm:w-40"
         >
           <option value="">All statuses</option>
           <option value="active">Active</option>
           <option value="disabled">Disabled</option>
-        </select>
-      </div>
+        </Select>
+        {filtered && (
+          <Button className="sm:ml-auto" onClick={clearFilters} size="compact" variant="ghost">
+            Clear filters
+          </Button>
+        )}
+      </FilterBar>
       {applications.isLoading ? (
-        <PageSkeleton rows={6} />
+        <ListSkeleton rows={6} />
       ) : applications.isError ? (
         <ErrorState
           description="Authometry could not reach the API. Check the connection and try again."
           headingLevel="h2"
           onRetry={() => void applications.refetch()}
-          title="Unable to Load Applications"
+          retrying={applications.isRefetching}
+          title="Unable to load applications"
         />
-      ) : applications.data?.data.length ? (
-        <div className="border-y border-[var(--border)]">
-          {applications.data.data.map((application) => {
-            const Icon = typeIcons[application.type];
-            return (
-              <Link
-                className="virtualized-row group grid min-h-[76px] grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 py-3 transition-colors last:border-0 hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:outline-none focus-visible:ring-inset sm:grid-cols-[36px_minmax(180px,1fr)_minmax(180px,1fr)_150px_130px_20px]"
-                href={`/applications/${application.id}`}
-                key={application.id}
-              >
-                <span className="flex size-9 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-raised)]">
-                  <Icon aria-hidden="true" className="size-4 text-[var(--text-secondary)]" />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-[13px] font-medium">{application.name}</p>
-                  <p className="technical-value truncate text-[var(--text-tertiary)]">
-                    {application.slug}
+      ) : rows.length ? (
+        <Table
+          className={cn("transition-opacity", applications.isPlaceholderData && "opacity-60")}
+          columns={columns}
+          label="Applications"
+        >
+          <TableHeader>
+            <span>Name</span>
+            <span>Type</span>
+            <span>Status</span>
+            <span className="text-right">Last used</span>
+          </TableHeader>
+          <div className="stagger">
+            {rows.map((application) => {
+              const Icon = typeIcons[application.type];
+              return (
+                <TableRow
+                  href={`/applications/${application.id}`}
+                  key={application.id}
+                  mobileColumns="minmax(0,1fr) auto"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-subtle)] transition-transform duration-[var(--motion-normal)] ease-[var(--ease-spring)] group-hover:scale-105">
+                      <Icon aria-hidden="true" className="size-4 text-[var(--text-secondary)]" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-medium">{application.name}</p>
+                      <p className="technical-value truncate text-[var(--text-tertiary)]">
+                        {application.slug}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="hidden min-w-0 lg:block">
+                    <p className="truncate text-[13px] text-[var(--text-secondary)]">
+                      {typeLabels[application.type]}
+                    </p>
+                    <p className="technical-value truncate text-[var(--text-tertiary)]">
+                      {application.redirect_uris[0] ?? "No callback URL"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 lg:justify-start">
+                    <StatusBadge
+                      label={application.status === "active" ? "Active" : "Disabled"}
+                      tone={application.status === "active" ? "success" : "neutral"}
+                    />
+                    {application.ownership === "manifest" && (
+                      <span className="hidden text-[11px] text-[var(--text-tertiary)] lg:inline">
+                        Git
+                      </span>
+                    )}
+                  </div>
+                  <p className="hidden text-right text-[13px] text-[var(--text-secondary)] lg:block">
+                    {application.last_used_at ? (
+                      <RelativeTime value={application.last_used_at} />
+                    ) : (
+                      "Never"
+                    )}
                   </p>
-                </div>
-                <div className="hidden min-w-0 sm:block">
-                  <p className="text-xs text-[var(--text-secondary)]">
-                    {typeLabels[application.type]}
-                  </p>
-                  <p className="technical-value mt-0.5 truncate text-[var(--text-tertiary)]">
-                    {application.redirect_uris[0] ?? "No redirect URI"}
-                  </p>
-                </div>
-                <div className="hidden sm:block">
-                  <StatusBadge
-                    label={application.status === "active" ? "Active" : "Disabled"}
-                    tone={application.status === "active" ? "success" : "neutral"}
-                  />
-                  {application.ownership === "manifest" && (
-                    <p className="mt-1 text-[10px] text-[var(--text-tertiary)]">Managed by Git</p>
-                  )}
-                </div>
-                <p className="hidden text-xs text-[var(--text-tertiary)] sm:block">
-                  {application.last_used_at ? (
-                    <RelativeTime value={application.last_used_at} />
-                  ) : (
-                    "Never used"
-                  )}
-                </p>
-                <ArrowRight
-                  aria-hidden="true"
-                  className="size-3.5 text-[var(--text-tertiary)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-                />
-              </Link>
-            );
-          })}
-        </div>
+                </TableRow>
+              );
+            })}
+          </div>
+          <TableFooter>
+            <span>
+              {rows.length} {rows.length === 1 ? "application" : "applications"}
+            </span>
+          </TableFooter>
+        </Table>
       ) : (
         <EmptyState
           description={
-            query
-              ? `No applications match “${query}.”`
+            filtered
+              ? "No applications match these filters."
               : "Applications represent websites, mobile apps, APIs, and services that use Authometry for authorization."
           }
-          icon={query ? Boxes : AppWindow}
+          icon={filtered ? SearchX : AppWindow}
           primaryAction={
-            <Button asChild variant="primary">
-              <Link href="/applications/new">Add Application</Link>
-            </Button>
-          }
-          secondaryAction={
-            query ? (
-              <Button onClick={() => update("q", "")}>Clear Filters</Button>
+            filtered ? (
+              <Button onClick={clearFilters}>Clear filters</Button>
             ) : (
-              <Button asChild>
-                <Link href="/docs/applications">Read the Application Guide</Link>
+              <Button asChild variant="primary">
+                <Link href="/applications/new">Create application</Link>
               </Button>
             )
           }
-          title={query ? "No Search Results" : "Create Your First Application"}
+          secondaryAction={
+            filtered ? undefined : (
+              <Button asChild>
+                <Link href="/docs/applications">Read the guide</Link>
+              </Button>
+            )
+          }
+          title={filtered ? "No matching applications" : "Create your first application"}
         />
       )}
     </PageContainer>

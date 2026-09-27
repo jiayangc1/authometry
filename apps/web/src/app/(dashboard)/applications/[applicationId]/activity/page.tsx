@@ -3,13 +3,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity } from "lucide-react";
 import Link from "next/link";
-import { EmptyState, StatusBadge } from "@authometry/ui";
+import { Button, EmptyState, StatusBadge } from "@authometry/ui";
 import { useApplication } from "@/components/applications/application-context";
 import { RelativeTime } from "@/components/data-display/formatted-time";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
+import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { SectionHeader } from "@/components/layout/page";
+import { Table, TableHeader, TableRow } from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
 import { duration } from "@/lib/format";
+import { humanize, traceLabel, traceTone } from "@/lib/status";
+
+const columns = "110px minmax(160px,1.2fr) minmax(160px,1fr) 150px 80px 110px";
 
 export default function ApplicationActivityPage() {
   const { application } = useApplication();
@@ -19,6 +23,7 @@ export default function ApplicationActivityPage() {
       apiFetch<{
         data: Array<{
           id: string;
+          request_id: string;
           status: string;
           event_type: string;
           user_snapshot?: { email?: string };
@@ -33,87 +38,79 @@ export default function ApplicationActivityPage() {
   return (
     <section>
       <SectionHeader
-        description="Authorization and token requests for this application."
+        actions={
+          <Button asChild size="compact" variant="ghost">
+            <Link href={`/traces?q=${encodeURIComponent(application.client_id)}`}>
+              Open in traces
+            </Link>
+          </Button>
+        }
+        description="The 50 most recent authorization and token requests for this application."
         title="Activity"
       />
       {traces.isLoading ? (
-        <PageSkeleton rows={5} />
+        <ListSkeleton rows={5} />
       ) : traces.isError ? (
         <ErrorState
           description="Authometry could not load application activity. Check your connection, then retry."
           headingLevel="h3"
           onRetry={() => void traces.refetch()}
-          title="Unable to Load Activity"
+          title="Unable to load activity"
         />
       ) : traces.data?.data.length ? (
-        <div className="overflow-x-auto border-y border-[var(--border)]">
-          <table className="w-full min-w-[760px] border-collapse text-left">
-            <thead>
-              <tr className="border-b border-[var(--border)] text-[11px] font-medium text-[var(--text-tertiary)]">
-                <th className="px-2 py-2" scope="col">
-                  Status
-                </th>
-                <th className="px-2 py-2" scope="col">
-                  Event
-                </th>
-                <th className="px-2 py-2" scope="col">
-                  User
-                </th>
-                <th className="px-2 py-2" scope="col">
-                  Grant
-                </th>
-                <th className="px-2 py-2" scope="col">
-                  Duration
-                </th>
-                <th className="px-2 py-2" scope="col">
-                  Time
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {traces.data.data.map((trace) => (
-                <tr className="border-b border-[var(--border-subtle)] last:border-0" key={trace.id}>
-                  <td className="px-2 py-3">
-                    <StatusBadge
-                      label={trace.status}
-                      tone={
-                        trace.status === "success"
-                          ? "success"
-                          : trace.status === "denied"
-                            ? "warning"
-                            : "danger"
-                      }
-                    />
-                  </td>
-                  <th className="px-2 py-3 text-[13px] font-medium" scope="row">
-                    <Link
-                      className="rounded hover:underline focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:outline-none"
-                      href={`/traces/${trace.id}`}
-                    >
-                      {trace.event_type.replaceAll("_", " ")}
-                    </Link>
-                  </th>
-                  <td className="max-w-48 truncate px-2 py-3 text-xs text-[var(--text-secondary)]">
-                    {trace.user_snapshot?.email ?? "anonymous"}
-                  </td>
-                  <td className="px-2 py-3 text-xs text-[var(--text-secondary)]">
-                    {trace.grant_type}
-                  </td>
-                  <td className="technical-value px-2 py-3">{duration(trace.duration_ms)}</td>
-                  <td className="px-2 py-3 text-xs text-[var(--text-tertiary)]">
+        <Table columns={columns} label="Application activity">
+          <TableHeader>
+            <span>Status</span>
+            <span>Event</span>
+            <span>User</span>
+            <span>Grant</span>
+            <span className="text-right">Duration</span>
+            <span className="text-right">Time</span>
+          </TableHeader>
+          <div className="stagger">
+            {traces.data.data.map((trace) => (
+              <TableRow href={`/traces/${trace.id}`} key={trace.id}>
+                <span className="order-2 lg:order-none">
+                  <StatusBadge label={traceLabel(trace.status)} tone={traceTone(trace.status)} />
+                </span>
+                <div className="order-1 min-w-0 lg:order-none">
+                  <p className="truncate text-[13px] font-medium">{humanize(trace.event_type)}</p>
+                  <p className="truncate text-xs text-[var(--text-secondary)] lg:hidden">
+                    {trace.user_snapshot?.email ?? "anonymous"} ·{" "}
                     <RelativeTime value={trace.started_at} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </p>
+                </div>
+                <span className="hidden truncate text-[13px] text-[var(--text-secondary)] lg:block">
+                  {trace.user_snapshot?.email ?? "anonymous"}
+                </span>
+                <span className="technical-value hidden truncate text-[var(--text-secondary)] lg:block">
+                  {trace.grant_type}
+                </span>
+                <span className="technical-value hidden text-right lg:block">
+                  {duration(trace.duration_ms)}
+                </span>
+                <span className="hidden text-right text-[13px] text-[var(--text-secondary)] lg:block">
+                  <RelativeTime value={trace.started_at} />
+                </span>
+              </TableRow>
+            ))}
+          </div>
+        </Table>
       ) : (
         <EmptyState
-          description="Authorization and token requests for this application will appear here."
+          description="Requests from this application will appear here. Start one from the playground."
           headingLevel="h3"
           icon={Activity}
-          title="No Application Activity"
+          primaryAction={
+            <Button asChild variant="primary">
+              <Link
+                href={`/developer/playground?client_id=${encodeURIComponent(application.client_id)}`}
+              >
+                Test sign-in
+              </Link>
+            </Button>
+          }
+          title="No activity yet"
         />
       )}
     </section>
