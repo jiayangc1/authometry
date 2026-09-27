@@ -1,15 +1,19 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Monitor, Smartphone } from "lucide-react";
+import { Monitor, SearchX, Smartphone } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button, EmptyState, StatusBadge } from "@authometry/ui";
 import { RelativeTime } from "@/components/data-display/formatted-time";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
+import { FilterBar, SearchInput } from "@/components/data-display/search-input";
+import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader } from "@/components/layout/page";
 import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
+import { SegmentedControl } from "@/components/ui/tabs";
+import { Table, TableFooter, TableHeader, TableRow } from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
+import { humanize } from "@/lib/status";
 
 interface SessionRow {
   id: string;
@@ -26,6 +30,8 @@ interface SessionRow {
 export default function SessionsPage() {
   const client = useQueryClient();
   const [selectedSession, setSelectedSession] = useState<SessionRow>();
+  const [filter, setFilter] = useState("");
+  const [activeOnly, setActiveOnly] = useState(true);
   const query = useQuery({
     queryKey: ["sessions"],
     queryFn: () => apiFetch<{ data: SessionRow[] }>("/api/v1/sessions"),
@@ -40,67 +46,159 @@ export default function SessionsPage() {
       throw error;
     }
   }
+  const needle = filter.trim().toLowerCase();
+  const all = query.data?.data ?? [];
+  const rows = all.filter(
+    (session) =>
+      (!activeOnly || session.status === "active") &&
+      (!needle ||
+        [session.user_name, session.email, session.application_name, session.ip_address]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(needle))),
+  );
   return (
     <PageContainer>
-      <PageHeader description="Review active user sessions and token activity." title="Sessions" />
+      <PageHeader
+        description="Signed-in sessions across your applications. Revoke one to sign that person out."
+        title="Sessions"
+      />
+      <FilterBar>
+        <SearchInput
+          className="sm:w-72"
+          onChange={(event) => setFilter(event.target.value)}
+          onClear={() => setFilter("")}
+          placeholder="Filter by person, app, or IP…"
+          value={filter}
+        />
+        <SegmentedControl
+          className="sm:ml-auto"
+          label="Session status"
+          onChange={(value) => setActiveOnly(value === "active")}
+          options={[
+            { value: "active", label: "Active" },
+            { value: "all", label: "All" },
+          ]}
+          size="compact"
+          value={activeOnly ? "active" : "all"}
+        />
+      </FilterBar>
       {query.isLoading ? (
-        <PageSkeleton rows={8} />
+        <ListSkeleton rows={8} />
       ) : query.isError ? (
         <ErrorState
-          description="Authometry could not load active sessions. Check your connection, then retry."
+          description="Authometry could not load sessions. Check your connection, then retry."
           headingLevel="h2"
           onRetry={() => void query.refetch()}
-          title="Unable to Load Sessions"
+          title="Unable to load sessions"
         />
-      ) : query.data?.data.length ? (
-        <div className="border-y border-[var(--border)]">
-          {query.data.data.map((session) => (
-            <div
-              className="virtualized-row grid min-h-16 grid-cols-[28px_1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 py-2.5 last:border-0 sm:grid-cols-[28px_minmax(150px,1fr)_minmax(130px,1fr)_100px_120px_130px_auto]"
-              key={session.id}
-            >
-              <span className="flex size-7 items-center justify-center rounded border border-[var(--border)]">
-                {session.user_agent?.toLowerCase().includes("mobile") ? (
-                  <Smartphone aria-hidden="true" className="size-3.5" />
-                ) : (
-                  <Monitor aria-hidden="true" className="size-3.5" />
-                )}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-[13px] font-medium">{session.user_name}</p>
-                <p className="truncate text-xs text-[var(--text-secondary)]">{session.email}</p>
-              </div>
-              <span className="hidden truncate text-xs text-[var(--text-secondary)] sm:block">
-                {session.application_name ?? "Unknown"}
-              </span>
-              <StatusBadge
-                label={session.status}
-                tone={session.status === "active" ? "success" : "neutral"}
-              />
-              <span className="technical-value hidden sm:block">{session.ip_address ?? "—"}</span>
-              <span className="hidden text-xs text-[var(--text-tertiary)] sm:block">
-                <RelativeTime value={session.last_active_at} />
-              </span>
-              <Button
-                disabled={session.status !== "active"}
-                onClick={() => setSelectedSession(session)}
-                size="compact"
-                variant="ghost"
-              >
-                Revoke
-              </Button>
-            </div>
-          ))}
-        </div>
+      ) : rows.length ? (
+        <Table
+          columns="minmax(200px,1.3fr) minmax(140px,1fr) 100px 130px 120px 90px"
+          label="Sessions"
+        >
+          <TableHeader>
+            <span>Person</span>
+            <span>Application</span>
+            <span>Status</span>
+            <span>IP address</span>
+            <span>Last active</span>
+            <span />
+          </TableHeader>
+          <div className="stagger">
+            {rows.map((session) => {
+              const mobile = session.user_agent?.toLowerCase().includes("mobile");
+              return (
+                <TableRow key={session.id} mobileColumns="minmax(0,1fr) auto">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span
+                      className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-secondary)]"
+                      title={session.user_agent}
+                    >
+                      {mobile ? (
+                        <Smartphone aria-label="Mobile" className="size-3.5" />
+                      ) : (
+                        <Monitor aria-label="Desktop" className="size-3.5" />
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-medium">{session.user_name}</p>
+                      <p className="truncate text-xs text-[var(--text-secondary)]">
+                        {session.email}
+                        <span className="lg:hidden">
+                          {" "}
+                          · {session.application_name ?? "Dashboard"} ·{" "}
+                          <RelativeTime value={session.last_active_at} />
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  <span className="hidden truncate text-[13px] text-[var(--text-secondary)] lg:block">
+                    {session.application_name ?? "Dashboard"}
+                  </span>
+                  <span className="hidden lg:block">
+                    <StatusBadge
+                      label={humanize(session.status)}
+                      tone={session.status === "active" ? "success" : "neutral"}
+                    />
+                  </span>
+                  <span className="technical-value hidden text-[var(--text-secondary)] lg:block">
+                    {session.ip_address ?? "—"}
+                  </span>
+                  <span className="hidden text-[13px] text-[var(--text-secondary)] lg:block">
+                    <RelativeTime value={session.last_active_at} />
+                  </span>
+                  <span className="flex justify-end">
+                    {session.status === "active" ? (
+                      <Button
+                        className="hover:text-[var(--danger)]"
+                        onClick={() => setSelectedSession(session)}
+                        size="compact"
+                        variant="ghost"
+                      >
+                        Revoke
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-[var(--text-tertiary)] lg:hidden">
+                        {humanize(session.status)}
+                      </span>
+                    )}
+                  </span>
+                </TableRow>
+              );
+            })}
+          </div>
+          <TableFooter>
+            <span>
+              {rows.length} of {all.length} {all.length === 1 ? "session" : "sessions"}
+            </span>
+          </TableFooter>
+        </Table>
       ) : (
         <EmptyState
-          description="Active user and refresh-token sessions will appear here."
-          title="No Sessions"
+          description={
+            all.length
+              ? "No sessions match this filter."
+              : "Sessions appear here when people sign in to your applications."
+          }
+          icon={all.length ? SearchX : Monitor}
+          primaryAction={
+            all.length ? (
+              <Button
+                onClick={() => {
+                  setFilter("");
+                  setActiveOnly(false);
+                }}
+              >
+                Clear filters
+              </Button>
+            ) : undefined
+          }
+          title={all.length ? "No matching sessions" : "No sessions"}
         />
       )}
       <ConfirmDialog
-        actionLabel="Revoke Session"
-        description="The user will be signed out of this session and must authenticate again."
+        actionLabel="Revoke session"
+        description="They will be signed out of this session and must sign in again."
         onConfirm={() => (selectedSession ? revoke(selectedSession) : undefined)}
         onOpenChange={(open) => {
           if (!open) setSelectedSession(undefined);
@@ -108,7 +206,7 @@ export default function SessionsPage() {
         open={Boolean(selectedSession)}
         pendingLabel="Revoking…"
         title={
-          selectedSession ? `Revoke ${selectedSession.user_name}'s session?` : "Revoke session?"
+          selectedSession ? `Revoke ${selectedSession.user_name}’s session?` : "Revoke session?"
         }
       />
     </PageContainer>

@@ -1,13 +1,16 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   Activity,
   AppWindow,
   BadgeCheck,
-  ChevronLeft,
+  Copy,
   Fingerprint,
   KeyRound,
+  ListTree,
+  MoreHorizontal,
   ShieldCheck,
   ShieldOff,
   Trash2,
@@ -17,15 +20,28 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
-import { Button, Checkbox, EmptyState, StatusBadge } from "@authometry/ui";
+import { Button, Checkbox, EmptyState, Spinner, StatusBadge, StatusDot, cn } from "@authometry/ui";
 import { CopyableValue } from "@/components/data-display/copyable-value";
 import { FullDateTime, RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
-import { PageContainer, SectionHeader } from "@/components/layout/page";
+import {
+  Breadcrumbs,
+  DescriptionList,
+  PageContainer,
+  SectionHeader,
+} from "@/components/layout/page";
 import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { ResetUserPasswordDialog } from "@/components/users/reset-user-password-dialog";
 import { GroupChipInput } from "@/components/users/group-chip-input";
+import { Card } from "@/components/ui/card";
+import {
+  menuContentClass,
+  menuDangerItemClass,
+  menuItemClass,
+  menuSeparatorClass,
+} from "@/components/ui/menu";
 import { apiFetch } from "@/lib/api";
+import { humanize } from "@/lib/status";
 
 interface UserDetail {
   id: string;
@@ -80,38 +96,6 @@ function formatProvider(provider: string) {
   return provider.charAt(0).toUpperCase() + provider.slice(1);
 }
 
-function Signal({
-  icon: Icon,
-  label,
-  value,
-  tone = "neutral",
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: ReactNode;
-  tone?: "neutral" | "success" | "warning";
-}) {
-  const iconClass =
-    tone === "success"
-      ? "bg-[var(--success-soft)] text-[var(--success)]"
-      : tone === "warning"
-        ? "bg-[var(--warning-soft)] text-[var(--warning)]"
-        : "bg-[var(--surface-subtle)] text-[var(--text-secondary)]";
-  return (
-    <div className="flex min-w-0 items-center gap-3 bg-[var(--surface)] px-4 py-3.5">
-      <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${iconClass}`}>
-        <Icon aria-hidden="true" className="size-4" />
-      </span>
-      <span className="min-w-0">
-        <span className="block text-[11px] leading-4 font-medium tracking-[0.04em] text-[var(--text-tertiary)] uppercase">
-          {label}
-        </span>
-        <span className="block truncate text-[13px] font-medium">{value}</span>
-      </span>
-    </div>
-  );
-}
-
 export default function UserDetailPage() {
   const { userId } = useParams<{ userId: string }>();
   const router = useRouter();
@@ -127,7 +111,7 @@ export default function UserDetailPage() {
     mutationFn: () => apiFetch(`/api/v1/users/${userId}`, { method: "DELETE" }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ["users"] });
-      toast.success("User deleted");
+      toast.success("User deleted.");
       router.push("/users");
     },
     onError: (error) => toast.error(error.message),
@@ -140,7 +124,7 @@ export default function UserDetailPage() {
     onSuccess: async (_result, variables) => {
       await client.invalidateQueries({ queryKey: ["user", userId] });
       toast.success(
-        variables.assigned ? "Application access assigned" : "Application access removed",
+        variables.assigned ? "Application access assigned." : "Application access removed.",
       );
     },
     onError: (error) => toast.error(error.message),
@@ -153,7 +137,7 @@ export default function UserDetailPage() {
       }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ["user", userId] });
-      toast.success("Password reset and active sessions revoked");
+      toast.success("Password reset. Active sessions were signed out.");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -163,14 +147,23 @@ export default function UserDetailPage() {
         method: "PATCH",
         body: JSON.stringify({ groups }),
       }),
-    onSuccess: async ({ groups }) => {
-      setGroupValues(groups);
+    onSuccess: async () => {
       await Promise.all([
         client.invalidateQueries({ queryKey: ["user", userId] }),
         client.invalidateQueries({ queryKey: ["users"] }),
         client.invalidateQueries({ queryKey: ["groups"] }),
       ]);
-      toast.success("Groups updated");
+      setGroupValues(undefined);
+      toast.success("Groups updated.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const revokeSession = useMutation({
+    mutationFn: (sessionId: string) =>
+      apiFetch(`/api/v1/sessions/${sessionId}/revoke`, { method: "POST" }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ["user", userId] });
+      toast.success("Session revoked.");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -178,13 +171,17 @@ export default function UserDetailPage() {
     return (
       <PageContainer>
         {query.isLoading ? (
-          <PageSkeleton />
+          <PageSkeleton metrics={false} />
         ) : (
-          <ErrorState
-            description="Authometry could not load this user. Check your connection, then retry."
-            onRetry={() => void query.refetch()}
-            title="Unable to Load User"
-          />
+          <>
+            <Breadcrumbs items={[{ label: "Users", href: "/users" }, { label: "Not found" }]} />
+            <ErrorState
+              description="This user may have been deleted. Check your connection, then retry."
+              onRetry={() => void query.refetch()}
+              retrying={query.isRefetching}
+              title="Unable to load user"
+            />
+          </>
         )}
       </PageContainer>
     );
@@ -208,149 +205,297 @@ export default function UserDetailPage() {
       ),
     ],
   ];
+  const groupsDirty =
+    groupValues !== undefined && JSON.stringify(groupValues) !== JSON.stringify(user.groups);
+  const statusTone =
+    user.status === "active" ? "success" : user.status === "suspended" ? "danger" : "neutral";
+  const signals: Array<{ label: string; value: string; ok: boolean; icon: LucideIcon }> = [
+    {
+      label: "Email",
+      value: user.email_verified_at ? "Verified" : "Not verified",
+      ok: Boolean(user.email_verified_at),
+      icon: user.email_verified_at ? BadgeCheck : ShieldOff,
+    },
+    {
+      label: "Multi-factor",
+      value: user.mfa_enabled ? "Enabled" : "Not enabled",
+      ok: user.mfa_enabled,
+      icon: user.mfa_enabled ? ShieldCheck : ShieldOff,
+    },
+    {
+      label: "Sign-in methods",
+      value: signInMethods.join(", ") || "None",
+      ok: signInMethods.length > 0,
+      icon: Fingerprint,
+    },
+    {
+      label: "Active sessions",
+      value: String(activeSessions),
+      ok: true,
+      icon: Activity,
+    },
+  ];
   return (
     <PageContainer>
-      <Link
-        className="mb-4 inline-flex items-center gap-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)]"
-        href="/users"
-      >
-        <ChevronLeft aria-hidden="true" className="size-3.5" />
-        All users
-      </Link>
-
-      <header className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]">
-        <div className="absolute inset-y-0 left-0 w-1 bg-[var(--accent)]" />
-        <div className="flex flex-col gap-5 p-5 pl-6 sm:flex-row sm:items-center sm:justify-between sm:p-6 sm:pl-7">
-          <div className="flex min-w-0 items-center gap-4">
-            <div className="flex size-14 shrink-0 items-center justify-center rounded-xl border border-[var(--accent-border)] bg-[var(--accent-soft)] text-lg font-semibold tracking-[-0.03em] text-[var(--accent)] shadow-sm">
-              {getInitials(user.name, user.email)}
-            </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="truncate text-2xl leading-8 font-semibold tracking-[-0.035em]">
-                  {user.name}
-                </h1>
-                <StatusBadge
-                  label={user.status}
-                  tone={user.status === "active" ? "success" : "neutral"}
-                />
-              </div>
-              <p className="mt-0.5 truncate text-sm text-[var(--text-secondary)]">{user.email}</p>
-            </div>
+      <Breadcrumbs items={[{ label: "Users", href: "/users" }, { label: user.name }]} />
+      <header className="mb-6 flex flex-col gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="animate-pop flex size-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--geist-gray-200)] to-[var(--geist-gray-100)] text-lg font-semibold tracking-[-0.03em] text-[var(--text-secondary)] ring-1 ring-[var(--border)]">
+            {getInitials(user.name, user.email)}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => setResettingPassword(true)}>
-              <KeyRound aria-hidden="true" className="size-3.5" /> Reset password
-            </Button>
-            <Button onClick={() => setConfirmingDelete(true)} variant="danger">
-              <Trash2 aria-hidden="true" className="size-3.5" /> Delete user
-            </Button>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-2xl leading-8 font-semibold tracking-[-0.03em]">
+                {user.name}
+              </h1>
+              <StatusBadge label={humanize(user.status)} tone={statusTone} />
+            </div>
+            <p className="truncate text-sm text-[var(--text-secondary)]">{user.email}</p>
           </div>
         </div>
-        <div className="grid gap-px border-t border-[var(--border-subtle)] bg-[var(--border-subtle)] sm:grid-cols-2 xl:grid-cols-4">
-          <Signal
-            icon={user.email_verified_at ? BadgeCheck : ShieldOff}
-            label="Email"
-            tone={user.email_verified_at ? "success" : "warning"}
-            value={user.email_verified_at ? "Verified" : "Not verified"}
-          />
-          <Signal
-            icon={user.mfa_enabled ? ShieldCheck : ShieldOff}
-            label="Multi-factor auth"
-            tone={user.mfa_enabled ? "success" : "warning"}
-            value={user.mfa_enabled ? "Enabled" : "Not enabled"}
-          />
-          <Signal
-            icon={Fingerprint}
-            label="Sign-in methods"
-            value={`${signInMethods.length} configured`}
-          />
-          <Signal
-            icon={Activity}
-            label="Active sessions"
-            tone={activeSessions ? "success" : "neutral"}
-            value={activeSessions === 1 ? "1 session" : `${activeSessions} sessions`}
-          />
+        <div className="flex gap-2">
+          <Button onClick={() => setResettingPassword(true)}>
+            <KeyRound aria-hidden="true" className="size-3.5" /> Reset password
+          </Button>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <Button aria-label="More actions" size="icon">
+                <MoreHorizontal aria-hidden="true" className="size-4" />
+              </Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content align="end" className={menuContentClass} sideOffset={6}>
+                <DropdownMenu.Item
+                  className={menuItemClass}
+                  onSelect={() => {
+                    void navigator.clipboard
+                      .writeText(user.id)
+                      .then(() => toast.success("User ID copied."))
+                      .catch(() => toast.error("Could not copy the user ID."));
+                  }}
+                >
+                  <Copy aria-hidden="true" /> Copy user ID
+                </DropdownMenu.Item>
+                <DropdownMenu.Item asChild className={menuItemClass}>
+                  <Link href={`/traces?q=${encodeURIComponent(user.email)}`}>
+                    <ListTree aria-hidden="true" /> View traces
+                  </Link>
+                </DropdownMenu.Item>
+                <DropdownMenu.Separator className={menuSeparatorClass} />
+                <DropdownMenu.Item
+                  className={menuDangerItemClass}
+                  onSelect={() => setConfirmingDelete(true)}
+                >
+                  <Trash2 aria-hidden="true" /> Delete user
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
       </header>
 
-      <div className="mt-8 grid items-start gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-        <div className="grid gap-6">
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-5 sm:p-6">
-            <SectionHeader
-              description="Core identity information and authentication history."
-              title="Identity details"
-            />
-            <dl className="divide-y divide-[var(--border-subtle)] border-t border-[var(--border-subtle)]">
-              {details.map(([label, value]) => (
-                <div
-                  className="grid gap-1 py-3.5 sm:grid-cols-[145px_1fr] sm:items-center"
-                  key={label}
-                >
-                  <dt className="text-xs font-medium text-[var(--text-secondary)]">{label}</dt>
-                  <dd className="min-w-0 text-[13px]">{value}</dd>
-                </div>
-              ))}
-            </dl>
+      <section
+        aria-label="Security summary"
+        className="stagger mb-8 grid gap-px overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--border)] sm:grid-cols-2 xl:grid-cols-4"
+      >
+        {signals.map((signal) => {
+          const Icon = signal.icon;
+          return (
+            <div
+              className="flex min-w-0 items-center gap-3 bg-[var(--surface-raised)] px-4 py-3.5"
+              key={signal.label}
+            >
+              <Icon
+                aria-hidden="true"
+                className={cn(
+                  "size-4 shrink-0",
+                  signal.ok ? "text-[var(--success)]" : "text-[var(--warning)]",
+                )}
+              />
+              <span className="min-w-0">
+                <span className="block text-xs text-[var(--text-secondary)]">{signal.label}</span>
+                <span className="block truncate text-[13px] font-medium">{signal.value}</span>
+              </span>
+            </div>
+          );
+        })}
+      </section>
+
+      <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
+        <div className="space-y-8">
+          <section>
+            <SectionHeader title="Details" />
+            <DescriptionList items={details} />
           </section>
 
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-5 sm:p-6">
+          <section>
             <SectionHeader
-              description="Groups can grant inherited access to portal applications."
-              title="Group membership"
+              description="Groups grant inherited access to portal applications."
+              title="Groups"
             />
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                updateGroups.mutate(groupValues ?? user.groups);
-              }}
-            >
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-                <div className="min-w-0 flex-1">
-                  <GroupChipInput
-                    disabled={updateGroups.isPending}
-                    groups={groupValues ?? user.groups}
-                    onChange={setGroupValues}
-                  />
-                  <p className="mt-2 text-xs leading-5 text-[var(--text-tertiary)]">
-                    Type a group name and press Enter. Portal access updates after you save.
-                  </p>
+            <Card>
+              <form
+                className="p-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (groupsDirty) updateGroups.mutate(groupValues ?? user.groups);
+                }}
+              >
+                <GroupChipInput
+                  disabled={updateGroups.isPending}
+                  groups={groupValues ?? user.groups}
+                  onChange={setGroupValues}
+                />
+                <div
+                  className={cn(
+                    "grid transition-[grid-template-rows,opacity] duration-[var(--motion-normal)] ease-[var(--ease-out)]",
+                    groupsDirty ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+                  )}
+                >
+                  <div className="overflow-hidden">
+                    <div className="flex items-center justify-end gap-2 pt-3">
+                      <Button
+                        disabled={updateGroups.isPending}
+                        onClick={() => setGroupValues(undefined)}
+                        size="compact"
+                        type="button"
+                        variant="ghost"
+                      >
+                        Reset
+                      </Button>
+                      <Button
+                        loading={updateGroups.isPending}
+                        size="compact"
+                        tabIndex={groupsDirty ? 0 : -1}
+                        type="submit"
+                        variant="primary"
+                      >
+                        Save groups
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <Button disabled={updateGroups.isPending} type="submit" variant="secondary">
-                  {updateGroups.isPending ? "Saving…" : "Save groups"}
-                </Button>
-              </div>
-            </form>
+              </form>
+            </Card>
+          </section>
+
+          <section>
+            <SectionHeader
+              description="Assigned applications appear in this person’s launch portal."
+              title="Application access"
+            />
+            {user.available_applications.length ? (
+              <ul className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-raised)]">
+                {user.available_applications.map((application) => {
+                  const inherited = application.inherited_from_groups.length > 0;
+                  const assigned = application.directly_assigned || inherited;
+                  const pending =
+                    changeApplicationAccess.isPending &&
+                    changeApplicationAccess.variables?.applicationId === application.id;
+                  return (
+                    <li
+                      className="border-b border-[var(--border)] last:border-0"
+                      key={application.id}
+                    >
+                      <label
+                        className={cn(
+                          "flex items-center gap-3 px-4 py-3 transition-colors duration-[var(--motion-fast)]",
+                          inherited
+                            ? "cursor-default"
+                            : "cursor-pointer hover:bg-[var(--surface-subtle)]",
+                        )}
+                        title={
+                          inherited ? "Inherited from a group — change it on the group." : undefined
+                        }
+                      >
+                        <Checkbox
+                          checked={assigned}
+                          disabled={inherited || pending}
+                          onChange={(event) =>
+                            changeApplicationAccess.mutate({
+                              applicationId: application.id,
+                              assigned: event.target.checked,
+                            })
+                          }
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[13px] font-medium">{application.name}</span>
+                          <span className="block truncate text-xs text-[var(--text-secondary)]">
+                            {inherited
+                              ? `Inherited from ${application.inherited_from_groups.join(", ")}`
+                              : application.slug}
+                          </span>
+                        </span>
+                        {pending ? (
+                          <Spinner className="size-3.5 text-[var(--text-tertiary)]" />
+                        ) : (
+                          <StatusBadge
+                            label={
+                              application.provisioning_enabled ? "Ready" : "Needs provisioning"
+                            }
+                            tone={application.provisioning_enabled ? "success" : "warning"}
+                          />
+                        )}
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <EmptyState
+                description="Turn on an application’s employee portal setting and add its sign-in URL first."
+                headingLevel="h3"
+                icon={AppWindow}
+                primaryAction={
+                  <Button asChild>
+                    <Link href="/applications">Configure applications</Link>
+                  </Button>
+                }
+                title="No portal applications"
+              />
+            )}
           </section>
         </div>
 
-        <section className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-5 sm:p-6">
+        <section>
           <SectionHeader
-            description={`${activeSessions} active across ${user.sessions.length} recorded`}
+            description={`${activeSessions} active of ${user.sessions.length} recorded`}
             title="Sessions"
           />
           {user.sessions.length ? (
-            <div className="divide-y divide-[var(--border-subtle)] border-t border-[var(--border-subtle)]">
+            <ul className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-raised)]">
               {user.sessions.map((session) => (
-                <div className="flex items-center gap-3 py-3.5" key={session.id}>
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-subtle)] text-[var(--text-secondary)]">
-                    <AppWindow aria-hidden="true" className="size-4" />
-                  </span>
+                <li
+                  className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-3 last:border-0"
+                  key={session.id}
+                >
+                  <StatusDot tone={session.status === "active" ? "success" : "neutral"} />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-medium">
-                      {session.application_name ?? "Unknown application"}
+                    <p className="truncate text-[13px] font-medium">
+                      {session.application_name ?? "Dashboard"}
                     </p>
                     <p className="truncate text-xs text-[var(--text-secondary)]">
                       Active <RelativeTime value={session.last_active_at} />
                     </p>
                   </div>
-                  <StatusBadge
-                    label={session.status}
-                    tone={session.status === "active" ? "success" : "neutral"}
-                  />
-                </div>
+                  {session.status === "active" ? (
+                    <Button
+                      className="hover:text-[var(--danger)]"
+                      loading={revokeSession.isPending && revokeSession.variables === session.id}
+                      onClick={() => revokeSession.mutate(session.id)}
+                      size="compact"
+                      variant="ghost"
+                    >
+                      Revoke
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-[var(--text-tertiary)]">
+                      {humanize(session.status)}
+                    </span>
+                  )}
+                </li>
               ))}
-            </div>
+            </ul>
           ) : (
             <EmptyState
               description="This user has no active or recent sessions."
@@ -361,94 +506,15 @@ export default function UserDetailPage() {
           )}
         </section>
       </div>
-
-      <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-5 sm:p-6">
-        <SectionHeader
-          description="Assigned services appear in this employee's launch portal. Provisioning must be connected before launch is available."
-          title="Application access"
-        />
-        {user.available_applications.length ? (
-          <div className="divide-y divide-[var(--border-subtle)] border-t border-[var(--border-subtle)]">
-            {user.available_applications.map((application) => {
-              const directlyAssigned = application.directly_assigned;
-              const inherited = application.inherited_from_groups.length > 0;
-              const assigned = directlyAssigned || inherited;
-              return (
-                <label
-                  className="-mx-2 flex cursor-pointer items-center gap-3 rounded-lg px-2 py-3.5 transition-colors hover:bg-[var(--surface-hover)]"
-                  key={application.id}
-                >
-                  <Checkbox
-                    checked={assigned}
-                    disabled={
-                      inherited ||
-                      (changeApplicationAccess.isPending &&
-                        changeApplicationAccess.variables?.applicationId === application.id)
-                    }
-                    onChange={(event) =>
-                      changeApplicationAccess.mutate({
-                        applicationId: application.id,
-                        assigned: event.target.checked,
-                      })
-                    }
-                  />
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-                    <AppWindow aria-hidden="true" className="size-4 text-[var(--accent)]" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[13px] font-medium">{application.name}</span>
-                    <span className="technical-value block text-[var(--text-tertiary)]">
-                      {inherited
-                        ? `Via ${application.inherited_from_groups.join(", ")}`
-                        : application.slug}
-                    </span>
-                    <span className="mt-1.5 inline-flex sm:hidden">
-                      <StatusBadge
-                        label={
-                          application.provisioning_enabled
-                            ? "Ready to launch"
-                            : "Provisioning required"
-                        }
-                        tone={application.provisioning_enabled ? "success" : "warning"}
-                      />
-                    </span>
-                  </span>
-                  <span className="hidden sm:block">
-                    <StatusBadge
-                      label={
-                        application.provisioning_enabled
-                          ? "Ready to launch"
-                          : "Provisioning required"
-                      }
-                      tone={application.provisioning_enabled ? "success" : "warning"}
-                    />
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        ) : (
-          <EmptyState
-            primaryAction={
-              <Button asChild>
-                <Link href="/applications">Configure Applications</Link>
-              </Button>
-            }
-            description="Enable an application's employee portal setting and add its sign-in URL first."
-            headingLevel="h3"
-            icon={AppWindow}
-            title="No portal applications"
-          />
-        )}
-      </section>
       <ConfirmDialog
-        actionLabel="Delete User"
-        description="Their Authometry sessions, grants, and tokens will be removed. Connected services will be notified asynchronously. This action cannot be undone."
+        actionLabel="Delete user"
+        confirmationText={user.email}
+        description="Their sessions, grants, and tokens will be removed, and connected services are notified. This cannot be undone."
         onConfirm={() => remove.mutateAsync()}
         onOpenChange={setConfirmingDelete}
         open={confirmingDelete}
         pendingLabel="Deleting…"
-        title={`Delete ${user.email}?`}
+        title={`Delete ${user.name}?`}
       />
       <ResetUserPasswordDialog
         email={user.email}

@@ -1,14 +1,14 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppWindow, ChevronRight, UsersRound } from "lucide-react";
-import Link from "next/link";
+import { AppWindow, Plus, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button, EmptyState } from "@authometry/ui";
-import { inputClass } from "@/components/auth/auth-shell";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
+import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader } from "@/components/layout/page";
+import { Input } from "@/components/ui/form";
+import { Table, TableHeader, TableRow } from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
 
 interface GroupRow {
@@ -34,78 +34,94 @@ export default function GroupsPage() {
     onSuccess: async () => {
       setName("");
       await client.invalidateQueries({ queryKey: ["groups"] });
-      toast.success("Group created");
+      toast.success("Group created.");
     },
     onError: (error) => toast.error(error.message),
   });
 
+  const list = groups.data?.data ?? [];
   return (
     <PageContainer>
       <PageHeader
-        description="Organize users and grant portal application access once for an entire group."
+        description="Organize people and grant portal application access to a whole group at once."
         title="Groups"
       />
       <form
-        className="mb-7 flex max-w-lg gap-2"
+        className="mb-6 flex max-w-lg gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           if (name.trim()) createGroup.mutate(name.trim());
         }}
       >
         <label className="min-w-0 flex-1">
-          <span className="sr-only">Group name</span>
-          <input
+          <span className="sr-only">New group name</span>
+          <Input
             autoComplete="off"
-            className={inputClass}
+            compact
             maxLength={64}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Create a group…"
+            placeholder="New group name, e.g. Engineering"
             value={name}
           />
         </label>
-        <Button disabled={!name.trim() || createGroup.isPending} type="submit" variant="primary">
-          {createGroup.isPending ? "Creating…" : "Create Group"}
+        <Button
+          disabled={!name.trim()}
+          loading={createGroup.isPending}
+          type="submit"
+          variant="primary"
+        >
+          <Plus aria-hidden="true" className="size-3.5" /> Create group
         </Button>
       </form>
       {groups.isLoading ? (
-        <PageSkeleton rows={5} />
+        <ListSkeleton rows={5} />
       ) : groups.isError ? (
         <ErrorState
           description="Authometry could not load groups. Check your connection, then retry."
           headingLevel="h2"
           onRetry={() => void groups.refetch()}
-          title="Unable to Load Groups"
+          title="Unable to load groups"
         />
-      ) : groups.data?.data.length ? (
-        <div className="border-y border-[var(--border)]">
-          {groups.data.data.map((group) => (
-            <Link
-              className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-[var(--border-subtle)] px-2 py-3 last:border-0 hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:outline-none focus-visible:ring-inset sm:grid-cols-[minmax(0,1fr)_150px_180px_auto]"
-              href={`/groups/${group.id}`}
-              key={group.id}
-            >
-              <span className="flex min-w-0 items-center gap-3">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-raised)]">
-                  <UsersRound aria-hidden="true" className="size-4 text-[var(--accent)]" />
+      ) : list.length ? (
+        <Table columns="minmax(200px,1fr) 140px 160px" label="Groups">
+          <TableHeader>
+            <span>Name</span>
+            <span>Members</span>
+            <span>Portal apps</span>
+          </TableHeader>
+          <div className="stagger">
+            {list.map((group) => (
+              <TableRow href={`/groups/${group.id}`} key={group.id}>
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-subtle)] transition-transform duration-[var(--motion-normal)] ease-[var(--ease-spring)] group-hover:scale-105">
+                    <UsersRound
+                      aria-hidden="true"
+                      className="size-4 text-[var(--text-secondary)]"
+                    />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[13px] font-medium">{group.name}</span>
+                    <span className="block text-xs text-[var(--text-secondary)] lg:hidden">
+                      {group.member_count} members · {group.application_count} apps
+                    </span>
+                  </span>
                 </span>
-                <span className="truncate text-[13px] font-medium">{group.name}</span>
-              </span>
-              <span className="hidden text-xs text-[var(--text-secondary)] sm:block">
-                {group.member_count} {group.member_count === 1 ? "member" : "members"}
-              </span>
-              <span className="hidden items-center gap-1.5 text-xs text-[var(--text-secondary)] sm:flex">
-                <AppWindow aria-hidden="true" className="size-3.5" />
-                {group.application_count} portal {group.application_count === 1 ? "app" : "apps"}
-              </span>
-              <ChevronRight aria-hidden="true" className="size-4 text-[var(--text-tertiary)]" />
-            </Link>
-          ))}
-        </div>
+                <span className="hidden text-[13px] text-[var(--text-secondary)] tabular-nums lg:block">
+                  {group.member_count} {group.member_count === 1 ? "member" : "members"}
+                </span>
+                <span className="hidden items-center gap-1.5 text-[13px] text-[var(--text-secondary)] tabular-nums lg:flex">
+                  <AppWindow aria-hidden="true" className="size-3.5" />
+                  {group.application_count} {group.application_count === 1 ? "app" : "apps"}
+                </span>
+              </TableRow>
+            ))}
+          </div>
+        </Table>
       ) : (
         <EmptyState
-          description="Create a group to manage membership and portal access in one place."
+          description="Create a group above to manage membership and portal access in one place."
           icon={UsersRound}
-          title="No Groups Yet"
+          title="No groups yet"
         />
       )}
     </PageContainer>
