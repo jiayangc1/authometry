@@ -8,15 +8,14 @@ import {
   Bot,
   Cable,
   Clock3,
-  LoaderCircle,
   MapPin,
   ServerCog,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import { Button, StatusBadge } from "@authometry/ui";
+import { Button, Note, StatusBadge } from "@authometry/ui";
 import { AuthorizationShell } from "@/components/auth/auth-shell";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
+import { ErrorState, Skeleton } from "@/components/data-display/states";
 import { apiFetch } from "@/lib/api";
 
 interface ConsentRequest {
@@ -79,7 +78,12 @@ export default function ConsentPage() {
   if (query.isLoading)
     return (
       <AuthorizationShell>
-        <PageSkeleton rows={3} />
+        <div className="space-y-3" role="status" aria-label="Loading…">
+          <Skeleton className="mx-auto h-7 w-48" />
+          <Skeleton className="mx-auto h-4 w-64" />
+          <Skeleton className="mt-6 h-32 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
       </AuthorizationShell>
     );
   if (!requestId || query.isError || !query.data)
@@ -88,15 +92,15 @@ export default function ConsentPage() {
         <ErrorState
           description="The authorization request is missing, expired, or unavailable. Return to the application and start again."
           {...(requestId ? { onRetry: () => void query.refetch() } : {})}
-          title="Authorization Request Unavailable"
+          title="This request is no longer available"
         />
       </AuthorizationShell>
     );
   return (
     <AuthorizationShell>
       <div className="w-full">
-        <header className="mb-8 text-center">
-          <h1 className="text-[28px] leading-9 font-medium tracking-[-0.035em]">
+        <header className="mb-6 text-center">
+          <h1 className="text-2xl leading-8 font-semibold tracking-[-0.03em] text-balance">
             {isAgentRequest
               ? "Authorize this task"
               : isMcpRequest
@@ -129,30 +133,32 @@ export default function ConsentPage() {
           </p>
         </header>
         {query.data?.mcp && (
-          <div className="mb-5 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--surface-subtle)]">
+          <div className="mb-5 overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-subtle)]">
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-4">
               <div className="min-w-0 text-center">
-                <Cable className="mx-auto mb-1.5 size-4 text-[var(--accent)]" />
-                <p className="text-[10px] font-semibold tracking-[0.1em] text-[var(--text-tertiary)] uppercase">
-                  MCP client
-                </p>
+                <Cable
+                  aria-hidden="true"
+                  className="mx-auto mb-1.5 size-4 text-[var(--text-secondary)]"
+                />
+                <p className="text-[11px] text-[var(--text-tertiary)]">MCP client</p>
                 <p className="mt-1 truncate text-xs font-medium">{query.data.application.name}</p>
                 {query.data.application.clientIdSource === "dynamic" && (
-                  <p className="mt-1 text-[10px] text-[var(--text-tertiary)]">
+                  <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">
                     Name supplied by client
                   </p>
                 )}
               </div>
               <div className="flex items-center gap-1 text-[var(--text-tertiary)]">
                 <span className="h-px w-4 bg-[var(--border-strong)]" />
-                <ArrowRight className="size-3.5" />
+                <ArrowRight aria-hidden="true" className="size-3.5" />
                 <span className="h-px w-4 bg-[var(--border-strong)]" />
               </div>
               <div className="min-w-0 text-center">
-                <ServerCog className="mx-auto mb-1.5 size-4 text-[var(--accent)]" />
-                <p className="text-[10px] font-semibold tracking-[0.1em] text-[var(--text-tertiary)] uppercase">
-                  Protected resource
-                </p>
+                <ServerCog
+                  aria-hidden="true"
+                  className="mx-auto mb-1.5 size-4 text-[var(--text-secondary)]"
+                />
+                <p className="text-[11px] text-[var(--text-tertiary)]">Protected resource</p>
                 <p className="mt-1 text-xs leading-4 font-medium break-words">
                   {query.data.mcp.serverName}
                 </p>
@@ -167,29 +173,36 @@ export default function ConsentPage() {
         )}
         {query.data?.agent && (
           <>
-            <div className="mb-5 grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] p-3">
+            <div className="mb-5 grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-subtle)] p-3">
               <div className="min-w-0 text-center">
-                <UserRound className="mx-auto mb-1 size-4 text-[var(--text-secondary)]" />
+                <UserRound
+                  aria-hidden="true"
+                  className="mx-auto mb-1 size-4 text-[var(--text-secondary)]"
+                />
                 <p className="text-[11px] text-[var(--text-tertiary)]">Authority owner</p>
                 <p className="truncate text-xs font-medium">You</p>
               </div>
-              <ArrowRight className="size-3.5 text-[var(--text-tertiary)]" />
+              <ArrowRight aria-hidden="true" className="size-3.5 text-[var(--text-tertiary)]" />
               <div className="min-w-0 text-center">
-                <Bot className="mx-auto mb-1 size-4 text-[var(--text-secondary)]" />
+                <Bot
+                  aria-hidden="true"
+                  className="mx-auto mb-1 size-4 text-[var(--text-secondary)]"
+                />
                 <p className="text-[11px] text-[var(--text-tertiary)]">Actor</p>
                 <p className="truncate text-xs font-medium">{query.data.agent.displayName}</p>
               </div>
-              <ArrowRight className="size-3.5 text-[var(--text-tertiary)]" />
+              <ArrowRight aria-hidden="true" className="size-3.5 text-[var(--text-tertiary)]" />
               <div className="min-w-0 text-center">
-                <MapPin className="mx-auto mb-1 size-4 text-[var(--text-secondary)]" />
+                <MapPin
+                  aria-hidden="true"
+                  className="mx-auto mb-1 size-4 text-[var(--text-secondary)]"
+                />
                 <p className="text-[11px] text-[var(--text-tertiary)]">Resource</p>
                 <p className="technical-value truncate">{query.data.resource}</p>
               </div>
             </div>
-            <div className="mb-5 border-l-2 border-[var(--accent)] pl-3">
-              <p className="text-[11px] font-medium tracking-wide text-[var(--text-tertiary)] uppercase">
-                Approved purpose
-              </p>
+            <div className="mb-5 rounded-[var(--radius-card)] border border-[var(--border)] p-3">
+              <p className="text-xs text-[var(--text-secondary)]">Approved purpose</p>
               <p className="mt-1 text-sm font-semibold">{query.data.purpose}</p>
               <p className="mt-1 text-xs text-[var(--text-secondary)]">
                 Operated by {query.data.agent.operator}
@@ -197,14 +210,17 @@ export default function ConsentPage() {
             </div>
           </>
         )}
-        <div className="overflow-hidden rounded-xl border border-[var(--border)] px-4">
+        <div className="stagger overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] px-4">
           {query.data?.authorizationDetails?.map((detail, index) => (
             <div
-              className="border-b border-[var(--border-subtle)] py-3"
+              className="border-b border-[var(--border)] py-3"
               key={`${detail.locations.join(":")}-${index}`}
             >
               <div className="flex items-start gap-3">
-                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-[var(--text-secondary)]" />
+                <ShieldCheck
+                  aria-hidden="true"
+                  className="mt-0.5 size-4 shrink-0 text-[var(--success)]"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-medium">
                     {detail.actions
@@ -223,7 +239,7 @@ export default function ConsentPage() {
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {Object.entries(detail.constraints).map(([name, value]) => (
                         <span
-                          className="rounded border border-[var(--border)] bg-[var(--surface-subtle)] px-1.5 py-0.5 text-[11px] text-[var(--text-secondary)]"
+                          className="rounded-[4px] bg-[var(--geist-gray-100)] px-1.5 py-0.5 text-[11px] text-[var(--text-secondary)]"
                           key={name}
                         >
                           {name.replaceAll("_", " ")}:{" "}
@@ -239,15 +255,23 @@ export default function ConsentPage() {
           {!isAgentRequest &&
             query.data?.scopes.map((scope) => (
               <div
-                className="flex gap-3 border-b border-[var(--border-subtle)] py-3 last:border-0"
+                className="flex gap-3 border-b border-[var(--border)] py-3 last:border-0"
                 key={scope.name}
               >
-                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-[var(--text-secondary)]" />
+                <ShieldCheck
+                  aria-hidden="true"
+                  className="mt-0.5 size-4 shrink-0 text-[var(--success)]"
+                />
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <p className="text-[13px] font-medium">{scope.display_name}</p>
                     {scope.sensitivity !== "standard" && (
-                      <StatusBadge label={scope.sensitivity} tone="warning" />
+                      <StatusBadge
+                        label={
+                          scope.sensitivity.charAt(0).toUpperCase() + scope.sensitivity.slice(1)
+                        }
+                        tone={scope.sensitivity === "restricted" ? "danger" : "warning"}
+                      />
                     )}
                   </div>
                   <p className="mt-0.5 text-xs leading-5 text-[var(--text-secondary)]">
@@ -259,7 +283,7 @@ export default function ConsentPage() {
         </div>
         {query.data?.agent ? (
           <div className="mt-4 flex items-start gap-2 text-xs leading-5 text-[var(--text-secondary)]">
-            <Clock3 className="mt-0.5 size-3.5 shrink-0" />
+            <Clock3 aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
             <p>
               Expires {Math.round(query.data.agent.maximumAuthorizationSeconds / 60)} minutes after
               approval. The agent cannot use this grant for another resource or purpose, and cannot
@@ -279,44 +303,36 @@ export default function ConsentPage() {
             You can revoke this access later from your account sessions.
           </p>
         )}
-        <div className="mt-7 grid grid-cols-2 gap-2.5">
+        {error && (
+          <Note className="mt-4" role="alert" tone="danger">
+            {error} Try again or return to the requesting application.
+          </Note>
+        )}
+        <div className="mt-6 grid grid-cols-2 gap-2">
           <Button
-            className="h-10 rounded-full text-sm"
-            disabled={loading || !query.data}
+            disabled={loading}
+            loading={loading && decision === "deny"}
             onClick={() => void decide(false)}
+            size="large"
           >
-            {loading && decision === "deny" ? (
-              <>
-                <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> Denying…
-              </>
-            ) : (
-              "Deny"
-            )}
+            {loading && decision === "deny" ? "Denying…" : "Deny"}
           </Button>
           <Button
-            className="h-10 rounded-full text-sm"
-            disabled={loading || !query.data}
+            disabled={loading}
+            loading={loading && decision === "approve"}
             onClick={() => void decide(true)}
+            size="large"
             variant="primary"
           >
-            {loading && decision === "approve" ? (
-              <>
-                <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> Saving…
-              </>
-            ) : isAgentRequest ? (
-              "Approve Task"
-            ) : isMcpRequest ? (
-              "Connect"
-            ) : (
-              "Allow Access"
-            )}
+            {loading && decision === "approve"
+              ? "Saving…"
+              : isAgentRequest
+                ? "Approve task"
+                : isMcpRequest
+                  ? "Connect"
+                  : "Allow access"}
           </Button>
         </div>
-        {error && (
-          <p className="mt-3 text-center text-xs text-[var(--danger)]" role="alert">
-            {error} Try again or return to the requesting application.
-          </p>
-        )}
       </div>
     </AuthorizationShell>
   );

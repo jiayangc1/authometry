@@ -1,17 +1,27 @@
 "use client";
 
+import { CheckCircle2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { CheckCircle2, LoaderCircle } from "lucide-react";
-import { Button } from "@authometry/ui";
-import { AuthHeading, AuthShell, inputClass } from "@/components/auth/auth-shell";
+import { Button, Note } from "@authometry/ui";
+import { AuthorizationShell } from "@/components/auth/auth-shell";
+import { Field, Input } from "@/components/ui/form";
+import { PasswordInput } from "@/components/ui/password-input";
 import { apiFetch } from "@/lib/api";
 import { useHydrated } from "@/lib/use-hydrated";
+
+function formatCode(value: string) {
+  const clean = value
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]/g, "")
+    .slice(0, 8);
+  return clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
+}
 
 export default function DevicePage() {
   const hydrated = useHydrated();
   const params = useSearchParams();
-  const [code, setCode] = useState(params.get("user_code") ?? "");
+  const [code, setCode] = useState(formatCode(params.get("user_code") ?? ""));
   const [complete, setComplete] = useState(false);
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
@@ -32,87 +42,87 @@ export default function DevicePage() {
       });
       setComplete(true);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Device verification failed.");
+      setError(
+        `${caught instanceof Error ? caught.message : "Device verification failed."} Check the code and your credentials, then try again.`,
+      );
     } finally {
       setLoading(false);
     }
   }
   return (
-    <AuthShell>
+    <AuthorizationShell>
       <div className="w-full">
         {complete ? (
-          <div className="text-center">
-            <CheckCircle2 aria-hidden="true" className="mx-auto size-8 text-[var(--success)]" />
-            <h1 className="mt-4 text-xl font-semibold text-balance">Device Connected</h1>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+          <div className="animate-enter text-center" role="status">
+            <span className="animate-pop mx-auto flex size-12 items-center justify-center rounded-full bg-[var(--success-soft)] text-[var(--success)]">
+              <CheckCircle2 aria-hidden="true" className="size-6" />
+            </span>
+            <h1 className="mt-4 text-xl font-semibold tracking-[-0.02em] text-balance">
+              Device connected
+            </h1>
+            <p className="mt-1.5 text-sm text-[var(--text-secondary)]">
               Return to your device. You can close this page.
             </p>
           </div>
         ) : (
           <>
-            <AuthHeading
-              description="Enter the code shown on your device, then authenticate to approve access."
-              title="Connect a Device"
-            />
+            <header className="mb-6 text-center">
+              <h1 className="text-2xl leading-8 font-semibold tracking-[-0.03em]">
+                Connect a device
+              </h1>
+              <p className="mt-1.5 text-sm text-[var(--text-secondary)]">
+                Enter the code shown on your device, then sign in to approve it.
+              </p>
+            </header>
             <form className="space-y-4" method="post" onSubmit={submit}>
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium">Device code</span>
-                <input
+              <Field label="Device code">
+                <Input
                   autoCapitalize="characters"
                   autoComplete="one-time-code"
-                  className={`${inputClass} technical-value text-center tracking-[0.2em] uppercase`}
-                  inputMode="text"
+                  autoFocus={!code}
+                  className="h-12 text-center text-lg tracking-[0.3em] uppercase"
+                  mono
                   name="userCode"
-                  onChange={(event) => setCode(event.target.value)}
+                  onChange={(event) => setCode(formatCode(event.target.value))}
+                  placeholder="ABCD-EFGH"
+                  required
                   spellCheck={false}
                   value={code}
                 />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium">Email address</span>
-                <input
+              </Field>
+              <Field label="Email">
+                <Input
                   autoComplete="email"
-                  className={inputClass}
+                  autoFocus={Boolean(code)}
+                  className="h-10"
                   name="email"
                   required
                   spellCheck={false}
                   type="email"
                 />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium">Password</span>
-                <input
-                  autoComplete="current-password"
-                  className={inputClass}
-                  name="password"
-                  required
-                  type="password"
-                />
-              </label>
+              </Field>
+              <Field label="Password">
+                <PasswordInput autoComplete="current-password" large name="password" required />
+              </Field>
               {error && (
-                <p className="text-xs text-[var(--danger)]" role="alert">
-                  {error} Check the code and credentials, then try again.
-                </p>
+                <Note role="alert" tone="danger">
+                  {error}
+                </Note>
               )}
               <Button
-                aria-busy={loading}
                 className="w-full"
-                disabled={!hydrated || loading}
+                disabled={!hydrated}
+                loading={loading}
+                size="large"
                 type="submit"
                 variant="primary"
               >
-                {loading ? (
-                  <>
-                    <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> Connecting…
-                  </>
-                ) : (
-                  "Connect Device"
-                )}
+                {loading ? "Connecting…" : "Connect device"}
               </Button>
             </form>
           </>
         )}
       </div>
-    </AuthShell>
+    </AuthorizationShell>
   );
 }
