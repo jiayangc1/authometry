@@ -1,13 +1,14 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, AppWindow, Check, Clock3, LoaderCircle } from "lucide-react";
+import { ArrowUpRight, AppWindow, Clock3 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button, EmptyState } from "@authometry/ui";
+import { EmptyState, Spinner, StatusBadge, cn } from "@authometry/ui";
+import { SearchInput } from "@/components/data-display/search-input";
 import type { PortalMe } from "@/components/portal/types";
 import { RelativeTime } from "@/components/data-display/formatted-time";
-import { ErrorState } from "@/components/data-display/states";
+import { ErrorState, Skeleton } from "@/components/data-display/states";
 import { createPortalLaunchHandoff } from "@/components/portal/launch-handoff";
 import { portalApiFetch } from "@/lib/portal-api";
 
@@ -26,7 +27,7 @@ function ApplicationLogo({ application }: { application: PortalApplication }) {
   const fallback = application.name.slice(0, 2).toUpperCase();
 
   return (
-    <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-[15px] bg-[var(--portal-accent)] text-base font-semibold text-white ring-1 ring-black/5">
+    <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] bg-gradient-to-br from-[var(--geist-gray-1000)] to-[var(--geist-gray-800)] text-sm font-semibold text-[var(--background)] ring-1 ring-[var(--border)] transition-transform duration-[var(--motion-normal)] ease-[var(--ease-spring)] group-hover:scale-105">
       {application.logo_uri && !failed ? (
         <img
           alt=""
@@ -44,6 +45,7 @@ function ApplicationLogo({ application }: { application: PortalApplication }) {
 
 export default function PortalApplicationsPage() {
   const [launching, setLaunching] = useState<string>();
+  const [filter, setFilter] = useState("");
   const me = useQuery({
     queryKey: ["portal-me"],
     queryFn: () => portalApiFetch<PortalMe>("/me"),
@@ -86,117 +88,127 @@ export default function PortalApplicationsPage() {
   }
 
   const firstName = me.data?.user.name.split(/\s+/)[0] ?? "there";
+  const list = applications.data?.data ?? [];
+  const needle = filter.trim().toLowerCase();
+  const visible = list.filter(
+    (application) =>
+      !needle ||
+      application.name.toLowerCase().includes(needle) ||
+      (application.description ?? "").toLowerCase().includes(needle),
+  );
   return (
-    <div className="mx-auto max-w-4xl">
-      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="portal-caption mb-2">{me.data?.workspace.name ?? "YOUR WORKSPACE"}</p>
-          <h1 className="text-[34px] leading-[1.08] font-semibold tracking-[-0.05em] text-balance sm:text-[42px]">
-            Welcome back, {firstName}.
+          <h1 className="text-2xl leading-8 font-semibold tracking-[-0.03em] text-balance sm:text-[32px] sm:leading-10">
+            Welcome back, {firstName}
           </h1>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--portal-muted)]">
-            Open a company app. Your Authometry session signs you in securely.
+          <p className="mt-1 text-sm text-[var(--portal-muted)]">
+            Open a company app — your Authometry session signs you in.
           </p>
         </div>
-        <div className="flex w-fit items-center gap-2 rounded-full border border-[var(--portal-line)] bg-[var(--portal-paper)] py-1.5 pr-3 pl-1.5 text-[11px] font-medium shadow-[0_1px_2px_rgba(20,20,30,.04)]">
-          <span className="flex size-6 items-center justify-center rounded-full bg-[#e7f7f1] text-[var(--portal-ready)] dark:bg-[#17352c]">
-            <Check aria-hidden="true" className="size-3.5" strokeWidth={2.5} />
-          </span>
-          Session verified
-        </div>
+        {list.length > 6 && (
+          <SearchInput
+            className="sm:w-64"
+            onChange={(event) => setFilter(event.target.value)}
+            onClear={() => setFilter("")}
+            placeholder="Find an app…"
+            value={filter}
+          />
+        )}
       </header>
 
-      <section className="mt-14 sm:mt-16">
-        <div className="mb-5 flex items-end justify-between gap-4">
-          <div>
-            <h2 className="text-base font-semibold tracking-[-0.025em]">Your apps</h2>
-            <p className="mt-1 text-xs text-[var(--portal-muted)]">
-              Access approved for {me.data?.user.email}
-            </p>
-          </div>
-          <p className="text-xs text-[var(--portal-muted)]">
-            {applications.data?.data.length ?? 0} assigned
-          </p>
-        </div>
+      <section aria-label="Your apps">
         {applications.isLoading ? (
-          <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             {[0, 1, 2, 3].map((item) => (
               <div
-                className="h-28 animate-pulse rounded-2xl border border-[var(--portal-line)] bg-[var(--portal-paper)]"
+                className="flex h-[132px] flex-col justify-between rounded-[var(--radius-card)] border border-[var(--portal-line)] bg-[var(--portal-paper)] p-4"
                 key={item}
-              />
+              >
+                <div className="flex gap-3">
+                  <Skeleton className="size-11" />
+                  <div className="flex-1 space-y-2 pt-1">
+                    <Skeleton className="h-3.5 w-1/2" />
+                    <Skeleton className="h-3 w-3/4" />
+                  </div>
+                </div>
+                <Skeleton className="h-7 w-20 self-end" />
+              </div>
             ))}
           </div>
         ) : applications.isError ? (
-          <div className="rounded-xl border border-[var(--portal-line)] bg-[var(--portal-paper)]">
-            <ErrorState
-              description="Your assigned applications could not be loaded. Check your connection, then retry."
-              onRetry={() => void applications.refetch()}
-              title="Unable to load applications"
-            />
-          </div>
-        ) : applications.data?.data.length ? (
-          <div className="grid gap-3">
-            {applications.data.data.map((application) => (
-              <article
-                className="group flex flex-col gap-5 rounded-2xl border border-[var(--portal-line)] bg-[var(--portal-paper)] p-4 shadow-[0_1px_2px_rgba(20,20,30,.03)] transition-[border-color,box-shadow] hover:border-[color:var(--portal-accent)/.35] hover:shadow-[0_12px_32px_rgba(32,30,60,.07)] sm:flex-row sm:items-center sm:p-5"
-                key={application.id}
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-4">
-                  <ApplicationLogo application={application} />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="truncate text-sm font-semibold">{application.name}</h3>
-                      <span
-                        className={`size-1.5 shrink-0 rounded-full ${application.provisioning_enabled ? "bg-[var(--portal-ready)]" : "bg-[var(--warning)]"}`}
-                        title={application.provisioning_enabled ? "Ready" : "Provisioning required"}
-                      />
-                    </div>
-                    <p className="mt-1 line-clamp-2 max-w-lg text-xs leading-5 text-[var(--portal-muted)]">
-                      {application.description || "Company-managed access"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-4 sm:justify-end">
-                  <p className="flex min-w-0 items-center gap-1.5 text-[11px] whitespace-nowrap text-[var(--portal-muted)]">
-                    <Clock3 aria-hidden="true" className="size-3" />
-                    {application.last_launched_at ? (
-                      <>
-                        Opened <RelativeTime value={application.last_launched_at} />
-                      </>
-                    ) : (
-                      "Not opened yet"
+          <ErrorState
+            description="Your assigned applications could not be loaded. Check your connection, then retry."
+            headingLevel="h2"
+            onRetry={() => void applications.refetch()}
+            title="Unable to load applications"
+          />
+        ) : visible.length ? (
+          <ul className="stagger grid gap-3 sm:grid-cols-2">
+            {visible.map((application) => {
+              const ready = application.provisioning_enabled;
+              return (
+                <li key={application.id}>
+                  <button
+                    className={cn(
+                      "group flex h-full w-full flex-col gap-4 rounded-[var(--radius-card)] border border-[var(--portal-line)] bg-[var(--portal-paper)] p-4 text-left focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none",
+                      ready ? "lift cursor-pointer" : "cursor-not-allowed opacity-70",
                     )}
-                  </p>
-                  <Button
-                    className="rounded-full px-4"
-                    disabled={!application.provisioning_enabled || launching === application.id}
+                    disabled={!ready || launching === application.id}
                     onClick={() => void launch(application)}
-                    size="compact"
-                    variant={application.provisioning_enabled ? "primary" : "secondary"}
+                    title={
+                      ready ? `Open ${application.name}` : "Your administrator is finishing setup"
+                    }
+                    type="button"
                   >
-                    {launching === application.id ? (
-                      <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
-                    ) : application.provisioning_enabled ? (
-                      <>
-                        Open <ArrowUpRight aria-hidden="true" className="size-3.5" />
-                      </>
-                    ) : (
-                      "Setup pending"
-                    )}
-                  </Button>
-                </div>
-              </article>
-            ))}
-          </div>
+                    <span className="flex w-full min-w-0 items-start gap-3">
+                      <ApplicationLogo application={application} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">
+                          {application.name}
+                        </span>
+                        <span className="mt-0.5 line-clamp-2 text-[13px] leading-5 text-[var(--portal-muted)]">
+                          {application.description || "Company-managed access"}
+                        </span>
+                      </span>
+                      {launching === application.id ? (
+                        <Spinner className="size-4 text-[var(--text-tertiary)]" />
+                      ) : ready ? (
+                        <ArrowUpRight
+                          aria-hidden="true"
+                          className="size-4 shrink-0 text-[var(--text-tertiary)] transition-[transform,color] duration-[var(--motion-normal)] ease-[var(--ease-spring)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[var(--text-primary)]"
+                        />
+                      ) : null}
+                    </span>
+                    <span className="mt-auto flex w-full items-center justify-between gap-3 text-xs text-[var(--portal-muted)]">
+                      <span className="flex items-center gap-1.5">
+                        <Clock3 aria-hidden="true" className="size-3" />
+                        {application.last_launched_at ? (
+                          <>
+                            Opened <RelativeTime value={application.last_launched_at} />
+                          </>
+                        ) : (
+                          "Not opened yet"
+                        )}
+                      </span>
+                      {!ready && <StatusBadge label="Setup pending" tone="warning" />}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         ) : (
-          <div className="rounded-xl border border-[var(--portal-line)] bg-[var(--portal-paper)]">
-            <EmptyState
-              description="Your workspace administrator has not assigned any portal applications yet."
-              icon={AppWindow}
-              title="No applications assigned"
-            />
-          </div>
+          <EmptyState
+            description={
+              list.length
+                ? "No apps match your search."
+                : "Your workspace administrator hasn’t assigned any apps to you yet."
+            }
+            icon={AppWindow}
+            title={list.length ? "No matching apps" : "No apps assigned"}
+          />
         )}
       </section>
     </div>

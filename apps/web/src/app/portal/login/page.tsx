@@ -1,12 +1,13 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Check, Github, KeyRound, LoaderCircle, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, Github, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { AuthometryLogo, Button, GoogleIcon } from "@authometry/ui";
-import { inputClass } from "@/components/auth/auth-shell";
+import { AuthometryLogo, Button, GoogleIcon, Note } from "@authometry/ui";
+import { Field, Input } from "@/components/ui/form";
+import { PasswordInput } from "@/components/ui/password-input";
 import { ApiClientError } from "@/lib/api";
 import { portalApiFetch } from "@/lib/portal-api";
 import { useHydrated } from "@/lib/use-hydrated";
@@ -60,110 +61,114 @@ export default function PortalLoginPage() {
     return `/api/v1/portal/auth/social/${provider}?${query.toString()}`;
   }
 
+  const hasSocial = Boolean(providers.data?.google || providers.data?.github);
   return (
-    <main className="portal-surface grid min-h-dvh lg:grid-cols-[minmax(0,0.88fr)_minmax(520px,1.12fr)]">
-      <section className="flex min-h-dvh flex-col bg-[var(--portal-paper)] px-5 py-5 sm:px-10 sm:py-7 lg:px-14">
+    <main className="portal-surface grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <section className="flex min-h-dvh flex-col bg-[var(--background)] px-6 py-6 sm:px-10">
         <div className="flex items-center justify-between">
           <Link
-            className="rounded-md focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
+            className="rounded-[var(--radius-control)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
             href="/"
           >
             <AuthometryLogo />
           </Link>
           <Link
-            className="text-xs text-[var(--portal-muted)] hover:text-[var(--portal-ink)]"
+            className="text-[13px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
             href="/login"
           >
-            Workspace admin
+            Admin sign in
           </Link>
         </div>
-        <div className="mx-auto flex w-full max-w-[390px] flex-1 flex-col justify-center py-12">
-          <p className="portal-caption mb-3">EMPLOYEE ACCESS / SIGN IN</p>
-          <h1 className="text-[32px] leading-[38px] font-semibold tracking-[-0.045em] text-balance">
-            Your work starts here.
+        <div className="mx-auto flex w-full max-w-[360px] flex-1 animate-[enter_var(--motion-slow)_var(--ease-out)] flex-col justify-center py-12">
+          <h1 className="text-2xl leading-8 font-semibold tracking-[-0.03em] text-balance">
+            Sign in to your apps
           </h1>
-          <p className="mt-3 text-sm leading-6 text-[var(--portal-muted)]">
-            Sign in once to open the services your company has assigned to you.
+          <p className="mt-1.5 text-sm leading-6 text-[var(--text-secondary)]">
+            One sign-in opens every service your company has assigned to you.
           </p>
-          <form className="mt-8 space-y-4" method="post" onSubmit={submit}>
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium">Company workspace</span>
-              <div className="flex rounded-[6px] border border-[var(--border-strong)] bg-[var(--surface-raised)] focus-within:border-[var(--focus)] focus-within:ring-2 focus-within:ring-[var(--accent-soft)]">
-                <span className="flex items-center border-r border-[var(--border)] px-3 text-xs text-[var(--text-tertiary)]">
-                  authometry /
+          <form className="mt-6 space-y-4" method="post" onSubmit={submit}>
+            <Field label="Company workspace">
+              <span className="flex h-10 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-raised)] transition-[border-color,box-shadow] duration-[var(--motion-fast)] focus-within:border-[var(--text-tertiary)] focus-within:shadow-[0_0_0_3px_var(--geist-gray-alpha-200)] hover:border-[var(--border-strong)]">
+                <span className="technical-value flex items-center border-r border-[var(--border)] bg-[var(--surface-subtle)] px-3 text-[var(--text-tertiary)]">
+                  authometry/
                 </span>
                 <input
                   autoCapitalize="none"
                   autoComplete="organization"
-                  className="h-10 min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-[var(--text-tertiary)]"
+                  autoFocus={!workspace}
+                  className="min-w-0 flex-1 bg-transparent px-3 font-mono text-[13px] outline-none placeholder:text-[var(--text-tertiary)]"
                   name="workspace"
                   onChange={(event) => setWorkspace(event.target.value)}
                   placeholder="acme"
+                  readOnly={mfaRequired}
                   required
                   spellCheck={false}
                   value={workspace}
                 />
-              </div>
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium">Work email</span>
-              <input
+              </span>
+            </Field>
+            <Field label="Work email">
+              <Input
                 autoComplete="email"
-                className={`${inputClass} h-10`}
+                autoFocus={Boolean(workspace)}
+                className="h-10"
                 name="email"
+                readOnly={mfaRequired}
                 required
                 spellCheck={false}
                 type="email"
               />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium">Password</span>
-              <input
+            </Field>
+            <Field label="Password">
+              <PasswordInput
                 autoComplete="current-password"
-                className={`${inputClass} h-10`}
+                large
                 name="password"
+                readOnly={mfaRequired}
                 required
-                type="password"
               />
-            </label>
+            </Field>
             {mfaRequired && (
-              <label className="block">
-                <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium">
-                  <ShieldCheck
-                    aria-hidden="true"
-                    className="size-3.5 text-[var(--portal-accent)]"
+              <div className="animate-enter">
+                <Field
+                  description="Open your authenticator app, or use a recovery code."
+                  label={
+                    <span className="flex items-center gap-1.5">
+                      <ShieldCheck aria-hidden="true" className="size-3.5 text-[var(--success)]" />
+                      Authentication code
+                    </span>
+                  }
+                >
+                  <Input
+                    autoComplete="one-time-code"
+                    autoFocus
+                    className="h-10 text-center tracking-[0.3em]"
+                    inputMode="numeric"
+                    mono
+                    name="mfaCode"
+                    placeholder="000000"
+                    required
                   />
-                  Authentication code
-                </span>
-                <input
-                  autoComplete="one-time-code"
-                  autoFocus
-                  className={`${inputClass} h-10 font-mono tracking-[0.18em]`}
-                  inputMode="numeric"
-                  name="mfaCode"
-                  placeholder="000000 or recovery code"
-                  required
-                />
-              </label>
+                </Field>
+              </div>
             )}
             {error && (
-              <p className="text-xs leading-5 text-[var(--danger)]" role="alert">
+              <Note role="alert" tone="danger">
                 {error}
-              </p>
+              </Note>
             )}
             <Button
-              className="h-10 w-full"
-              disabled={!hydrated || loading}
+              className="w-full [&:hover_svg]:translate-x-0.5"
+              disabled={!hydrated}
+              loading={loading}
+              size="large"
               type="submit"
               variant="primary"
             >
               {loading ? (
-                <>
-                  <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> Checking
-                  access…
-                </>
+                "Checking access…"
               ) : mfaRequired ? (
-                "Verify & Continue"
+                "Verify & continue"
               ) : (
                 <>
                   Continue <ArrowRight aria-hidden="true" className="size-4" />
@@ -171,90 +176,81 @@ export default function PortalLoginPage() {
               )}
             </Button>
           </form>
-          {!mfaRequired && (
+          {!mfaRequired && hasSocial && (
             <>
-              <div className="my-6 flex items-center gap-3 text-[10px] tracking-[0.1em] text-[var(--portal-muted)] before:h-px before:flex-1 before:bg-[var(--portal-line)] after:h-px after:flex-1 after:bg-[var(--portal-line)]">
-                OR USE A CONNECTED ACCOUNT
+              <div className="my-5 flex items-center gap-3 text-xs text-[var(--text-tertiary)] before:h-px before:flex-1 before:bg-[var(--border)] after:h-px after:flex-1 after:bg-[var(--border)]">
+                or
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button asChild>
-                  <a
-                    aria-disabled={!socialReady || !providers.data?.google}
-                    className={
-                      !socialReady || !providers.data?.google
-                        ? "pointer-events-none opacity-45"
-                        : undefined
-                    }
-                    href={socialReady && providers.data?.google ? socialHref("google") : undefined}
-                    title={!socialReady ? "Enter your company workspace first" : undefined}
-                  >
-                    <GoogleIcon className="size-4" /> Google
-                  </a>
-                </Button>
-                <Button asChild>
-                  <a
-                    aria-disabled={!socialReady || !providers.data?.github}
-                    className={
-                      !socialReady || !providers.data?.github
-                        ? "pointer-events-none opacity-45"
-                        : undefined
-                    }
-                    href={socialReady && providers.data?.github ? socialHref("github") : undefined}
-                    title={!socialReady ? "Enter your company workspace first" : undefined}
-                  >
-                    <Github aria-hidden="true" className="size-4" /> GitHub
-                  </a>
-                </Button>
+              <div className="grid gap-2">
+                {providers.data?.google && (
+                  <Button asChild className="w-full" size="large">
+                    <a
+                      aria-disabled={!socialReady}
+                      className={!socialReady ? "pointer-events-none opacity-50" : undefined}
+                      href={socialReady ? socialHref("google") : undefined}
+                    >
+                      <GoogleIcon className="size-4" /> Continue with Google
+                    </a>
+                  </Button>
+                )}
+                {providers.data?.github && (
+                  <Button asChild className="w-full" size="large">
+                    <a
+                      aria-disabled={!socialReady}
+                      className={!socialReady ? "pointer-events-none opacity-50" : undefined}
+                      href={socialReady ? socialHref("github") : undefined}
+                    >
+                      <Github aria-hidden="true" className="size-4" /> Continue with GitHub
+                    </a>
+                  </Button>
+                )}
               </div>
               {!socialReady && (
-                <p className="mt-2 text-center text-[11px] text-[var(--portal-muted)]">
-                  Enter your workspace to use a connected account.
+                <p className="mt-2 text-center text-xs text-[var(--text-tertiary)]">
+                  Enter your workspace first to use a connected account.
                 </p>
               )}
             </>
           )}
         </div>
-        <p className="text-[11px] text-[var(--portal-muted)]">Secured by Authometry</p>
+        <p className="text-xs text-[var(--text-tertiary)]">Secured by Authometry</p>
       </section>
-      <aside className="relative hidden overflow-hidden bg-[#252344] text-white lg:flex lg:items-center lg:px-14 lg:py-16">
-        <div className="absolute inset-0 [background-image:linear-gradient(rgba(255,255,255,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.08)_1px,transparent_1px)] [background-size:42px_42px] opacity-25" />
-        <div className="relative mx-auto w-full max-w-xl">
-          <div className="mb-10 flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-full bg-white/10">
-              <KeyRound aria-hidden="true" className="size-4 text-[#b8b4ff]" />
-            </span>
-            <span className="font-mono text-[10px] tracking-[0.16em] text-white/55">
-              ONE VERIFIED IDENTITY
-            </span>
-          </div>
-          <h2 className="max-w-lg text-4xl leading-[1.12] font-semibold tracking-[-0.045em] text-balance">
+      <aside
+        aria-hidden="true"
+        className="dark relative hidden overflow-hidden bg-[#0a0a0a] text-[#ededed] lg:flex lg:items-center lg:justify-center lg:p-12"
+      >
+        <div className="pointer-events-none absolute inset-0 [background-image:radial-gradient(rgb(255_255_255/0.1)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)] [background-size:16px_16px]" />
+        <div className="relative w-full max-w-md">
+          <p className="technical-value mb-3 text-[#8f8f8f]">one verified identity</p>
+          <h2 className="text-[28px] leading-9 font-semibold tracking-[-0.04em] text-balance">
             One front door for every service you use at work.
           </h2>
-          <p className="mt-5 max-w-md text-sm leading-6 text-white/65">
+          <p className="mt-2 text-sm leading-6 text-[#a1a1a1]">
             Your company controls access. You control your identity, sign-in methods, and security.
           </p>
-          <div className="mt-12 overflow-hidden rounded-2xl border border-white/15 bg-white/[0.07] shadow-[0_28px_70px_rgba(0,0,0,.24)] backdrop-blur">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <div>
-                <p className="font-mono text-[9px] tracking-[0.14em] text-white/45">ACCESS PASS</p>
-                <p className="mt-1 text-sm font-medium">Company applications</p>
-              </div>
-              <span className="flex items-center gap-1.5 text-[11px] text-[#80e0c3]">
-                <span className="size-1.5 rounded-full bg-[#55d5ad]" /> Verified session
+          <div className="mt-8 overflow-hidden rounded-[var(--radius-panel)] border border-white/10 bg-white/[0.04] shadow-[0_24px_48px_-12px_rgb(0_0_0/0.6)]">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <p className="text-[13px] font-medium">Company applications</p>
+              <span className="flex items-center gap-1.5 text-[11px] text-[#62c073]">
+                <span className="size-1.5 rounded-full bg-[#46a758]" /> Verified session
               </span>
             </div>
-            {["Email & collaboration", "Reporting workspace", "Customer support"].map(
-              (service, index) => (
-                <div
-                  className="grid grid-cols-[28px_1fr_auto] items-center border-b border-white/10 px-5 py-3.5 last:border-0"
-                  key={service}
-                >
-                  <span className="font-mono text-[10px] text-white/35">0{index + 1}</span>
-                  <span className="text-[13px] text-white/85">{service}</span>
-                  <Check aria-hidden="true" className="size-3.5 text-[#65dbb7]" />
-                </div>
-              ),
-            )}
+            <ul className="stagger">
+              {["Email & collaboration", "Reporting workspace", "Customer support"].map(
+                (service) => (
+                  <li
+                    className="flex items-center gap-3 border-b border-white/10 px-4 py-3 last:border-0"
+                    key={service}
+                  >
+                    <span className="flex size-7 items-center justify-center rounded-[var(--radius-control)] bg-white/10 text-[11px] font-semibold">
+                      {service.charAt(0)}
+                    </span>
+                    <span className="flex-1 text-[13px] text-white/85">{service}</span>
+                    <Check className="size-3.5 text-[#62c073]" />
+                  </li>
+                ),
+              )}
+            </ul>
           </div>
         </div>
       </aside>

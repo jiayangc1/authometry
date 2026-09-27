@@ -8,7 +8,7 @@ import {
   KeyRound,
   Laptop,
   Link2,
-  LoaderCircle,
+  Download,
   LockKeyhole,
   ShieldCheck,
   Smartphone,
@@ -18,7 +18,9 @@ import { useEffect, useState } from "react";
 import QRCode from "react-qr-code";
 import { toast } from "sonner";
 import { Button, GoogleIcon, StatusBadge } from "@authometry/ui";
-import { inputClass } from "@/components/auth/auth-shell";
+import { Snippet } from "@/components/data-display/copyable-value";
+import { inputClass } from "@/components/ui/form";
+import { PasswordInput } from "@/components/ui/password-input";
 import { RelativeTime } from "@/components/data-display/formatted-time";
 import type { PortalMe } from "@/components/portal/types";
 import { portalApiFetch, portalCsrfToken } from "@/lib/portal-api";
@@ -71,7 +73,7 @@ export default function PortalSecurityPage() {
       });
       form.reset();
       await queryClient.invalidateQueries({ queryKey: ["portal-me"] });
-      toast.success(me.data?.user.passwordEnabled ? "Password changed" : "Password created");
+      toast.success(me.data?.user.passwordEnabled ? "Password changed." : "Password created.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The password could not be changed.");
     } finally {
@@ -104,7 +106,7 @@ export default function PortalSecurityPage() {
       setRecoveryCodes(result.recoveryCodes);
       setMfaSetup(undefined);
       await queryClient.invalidateQueries({ queryKey: ["portal-me"] });
-      toast.success("Multi-factor authentication enabled");
+      toast.success("Multi-factor authentication enabled.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The code could not be verified.");
     } finally {
@@ -128,7 +130,7 @@ export default function PortalSecurityPage() {
       form.reset();
       setRecoveryCodes(undefined);
       await queryClient.invalidateQueries({ queryKey: ["portal-me"] });
-      toast.success("Multi-factor authentication disabled");
+      toast.success("Multi-factor authentication disabled.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "MFA could not be disabled.");
     } finally {
@@ -152,7 +154,7 @@ export default function PortalSecurityPage() {
     try {
       await portalApiFetch(`/sessions/${sessionId}`, { method: "DELETE" });
       await queryClient.invalidateQueries({ queryKey: ["portal-me"] });
-      toast.success("Session signed out");
+      toast.success("Session signed out.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The session could not be signed out.");
     }
@@ -162,7 +164,7 @@ export default function PortalSecurityPage() {
     if (!recoveryCodes) return;
     try {
       await navigator.clipboard.writeText(recoveryCodes.join("\n"));
-      toast.success("Recovery codes copied");
+      toast.success("Recovery codes copied.");
     } catch {
       toast.error("Recovery codes could not be copied.");
     }
@@ -173,19 +175,20 @@ export default function PortalSecurityPage() {
   );
 
   return (
-    <div className="max-w-4xl">
+    <div>
       <header className="mb-8">
-        <p className="portal-caption mb-1">SIGN-IN & PROTECTION</p>
-        <h1 className="text-2xl font-semibold tracking-[-0.035em]">Security</h1>
-        <p className="mt-2 text-sm text-[var(--portal-muted)]">
+        <h1 className="text-2xl leading-8 font-semibold tracking-[-0.03em] sm:text-[32px] sm:leading-10">
+          Security
+        </h1>
+        <p className="mt-1 text-sm text-[var(--portal-muted)]">
           Manage how you sign in and review the devices currently using your identity.
         </p>
       </header>
 
       <div className="space-y-5">
-        <section className="overflow-hidden rounded-xl border border-[var(--portal-line)] bg-[var(--portal-paper)]">
+        <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--portal-line)] bg-[var(--portal-paper)]">
           <div className="flex items-start gap-3 border-b border-[var(--portal-line)] px-5 py-4 sm:px-6">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[var(--portal-line)] bg-[var(--surface-subtle)] text-[var(--text-secondary)]">
               <LockKeyhole aria-hidden="true" className="size-4" />
             </span>
             <div>
@@ -201,52 +204,39 @@ export default function PortalSecurityPage() {
             {me.data?.user.passwordEnabled && (
               <label className="block sm:col-span-2 sm:max-w-[calc(50%-0.5rem)]">
                 <span className="mb-1.5 block text-xs font-medium">Current password</span>
-                <input
-                  autoComplete="current-password"
-                  className={inputClass}
-                  name="currentPassword"
-                  required
-                  type="password"
-                />
+                <PasswordInput autoComplete="current-password" name="currentPassword" required />
               </label>
             )}
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium">New password</span>
-              <input
+              <PasswordInput
                 autoComplete="new-password"
-                className={inputClass}
                 minLength={12}
                 name="newPassword"
                 required
-                type="password"
               />
             </label>
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium">Confirm new password</span>
-              <input
+              <PasswordInput
                 autoComplete="new-password"
-                className={inputClass}
                 minLength={12}
                 name="confirmPassword"
                 required
-                type="password"
               />
             </label>
             <div className="flex items-center justify-between gap-3 border-t border-[var(--portal-line)] pt-4 sm:col-span-2">
               <p className="text-[11px] text-[var(--portal-muted)]">At least 12 characters</p>
-              <Button disabled={passwordSaving} type="submit" variant="primary">
-                {passwordSaving && (
-                  <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
-                )}
+              <Button loading={passwordSaving} type="submit" variant="primary">
                 {me.data?.user.passwordEnabled ? "Change password" : "Create password"}
               </Button>
             </div>
           </form>
         </section>
 
-        <section className="overflow-hidden rounded-xl border border-[var(--portal-line)] bg-[var(--portal-paper)]">
+        <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--portal-line)] bg-[var(--portal-paper)]">
           <div className="flex items-start gap-3 border-b border-[var(--portal-line)] px-5 py-4 sm:px-6">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[var(--portal-line)] bg-[var(--surface-subtle)] text-[var(--text-secondary)]">
               <ShieldCheck aria-hidden="true" className="size-4" />
             </span>
             <div className="min-w-0 flex-1">
@@ -265,7 +255,7 @@ export default function PortalSecurityPage() {
 
           {recoveryCodes ? (
             <div className="px-5 py-5 sm:px-6">
-              <div className="rounded-lg border border-[var(--success-border)] bg-[var(--success-soft)] p-4">
+              <div className="rounded-[var(--radius-card)] border border-[var(--success-border)] bg-[var(--success-soft)] p-4">
                 <div className="flex items-start gap-2">
                   <Check
                     aria-hidden="true"
@@ -278,14 +268,37 @@ export default function PortalSecurityPage() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 rounded-md bg-[var(--portal-paper)] p-3 font-mono text-xs sm:grid-cols-4">
+                <div className="mt-3 grid grid-cols-2 gap-2 rounded-[var(--radius-control)] border border-[var(--portal-line)] bg-[var(--portal-paper)] p-3 font-mono text-xs sm:grid-cols-4">
                   {recoveryCodes.map((code) => (
                     <code key={code}>{code}</code>
                   ))}
                 </div>
-                <Button className="mt-3" onClick={() => void copyRecoveryCodes()} size="compact">
-                  <Clipboard aria-hidden="true" className="size-3.5" /> Copy codes
-                </Button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button onClick={() => void copyRecoveryCodes()} size="compact">
+                    <Clipboard aria-hidden="true" className="size-3.5" /> Copy codes
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      const blob = new Blob([recoveryCodes.join("\n")], { type: "text/plain" });
+                      const url = URL.createObjectURL(blob);
+                      const anchor = document.createElement("a");
+                      anchor.href = url;
+                      anchor.download = "authometry-recovery-codes.txt";
+                      anchor.click();
+                      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    }}
+                    size="compact"
+                  >
+                    <Download aria-hidden="true" className="size-3.5" /> Download
+                  </Button>
+                  <Button
+                    onClick={() => setRecoveryCodes(undefined)}
+                    size="compact"
+                    variant="ghost"
+                  >
+                    I’ve saved them
+                  </Button>
+                </div>
               </div>
             </div>
           ) : mfaSetup ? (
@@ -293,7 +306,7 @@ export default function PortalSecurityPage() {
               className="grid gap-6 px-5 py-5 sm:grid-cols-[160px_1fr] sm:px-6"
               onSubmit={enableMfa}
             >
-              <div className="rounded-xl border border-[var(--portal-line)] bg-white p-3">
+              <div className="w-fit rounded-[var(--radius-card)] border border-[var(--portal-line)] bg-white p-3">
                 <QRCode bgColor="#ffffff" fgColor="#161722" size={136} value={mfaSetup.uri} />
               </div>
               <div>
@@ -301,15 +314,13 @@ export default function PortalSecurityPage() {
                 <p className="mt-1 text-xs leading-5 text-[var(--portal-muted)]">
                   Or enter this setup key manually:
                 </p>
-                <code className="mt-2 block rounded-md bg-[var(--portal-canvas)] px-3 py-2 font-mono text-xs break-all">
-                  {mfaSetup.secret}
-                </code>
+                <Snippet className="mt-2" label="setup key" value={mfaSetup.secret} />
                 <label className="mt-4 block max-w-xs">
                   <span className="mb-1.5 block text-xs font-medium">6-digit code</span>
                   <input
                     autoComplete="one-time-code"
                     autoFocus
-                    className={`${inputClass} font-mono tracking-[0.18em]`}
+                    className={`${inputClass} text-center font-mono tracking-[0.3em]`}
                     inputMode="numeric"
                     maxLength={6}
                     name="code"
@@ -318,10 +329,7 @@ export default function PortalSecurityPage() {
                   />
                 </label>
                 <div className="mt-4 flex gap-2">
-                  <Button disabled={mfaLoading} type="submit" variant="primary">
-                    {mfaLoading && (
-                      <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
-                    )}
+                  <Button loading={mfaLoading} type="submit" variant="primary">
                     Verify & enable
                   </Button>
                   <Button onClick={() => setMfaSetup(undefined)} type="button">
@@ -335,13 +343,7 @@ export default function PortalSecurityPage() {
               {me.data.user.passwordEnabled && (
                 <label className="block">
                   <span className="mb-1.5 block text-xs font-medium">Current password</span>
-                  <input
-                    autoComplete="current-password"
-                    className={inputClass}
-                    name="password"
-                    required
-                    type="password"
-                  />
+                  <PasswordInput autoComplete="current-password" name="password" required />
                 </label>
               )}
               <label className="block">
@@ -351,7 +353,7 @@ export default function PortalSecurityPage() {
                 <input autoComplete="one-time-code" className={inputClass} name="code" required />
               </label>
               <div className="flex justify-end border-t border-[var(--portal-line)] pt-4 sm:col-span-2">
-                <Button disabled={mfaLoading} type="submit" variant="danger">
+                <Button loading={mfaLoading} type="submit" variant="danger">
                   Disable MFA
                 </Button>
               </div>
@@ -362,19 +364,16 @@ export default function PortalSecurityPage() {
                 <Smartphone aria-hidden="true" className="size-5" />
                 Works with any standards-based TOTP authenticator.
               </div>
-              <Button disabled={mfaLoading} onClick={() => void beginMfaSetup()} variant="primary">
-                {mfaLoading && (
-                  <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
-                )}
+              <Button loading={mfaLoading} onClick={() => void beginMfaSetup()} variant="primary">
                 Set up MFA
               </Button>
             </div>
           )}
         </section>
 
-        <section className="overflow-hidden rounded-xl border border-[var(--portal-line)] bg-[var(--portal-paper)]">
+        <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--portal-line)] bg-[var(--portal-paper)]">
           <div className="flex items-start gap-3 border-b border-[var(--portal-line)] px-5 py-4 sm:px-6">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[var(--portal-line)] bg-[var(--surface-subtle)] text-[var(--text-secondary)]">
               <Link2 aria-hidden="true" className="size-4" />
             </span>
             <div>
@@ -391,8 +390,8 @@ export default function PortalSecurityPage() {
               const Icon = provider === "github" ? Github : GoogleIcon;
               return (
                 <div className="flex items-center gap-3 px-5 py-4 sm:px-6" key={provider}>
-                  <span className="flex size-9 items-center justify-center rounded-lg border border-[var(--portal-line)] bg-[var(--portal-canvas)]">
-                    <Icon className="size-4" />
+                  <span className="flex size-8 items-center justify-center rounded-[var(--radius-control)] border border-[var(--portal-line)] bg-[var(--surface-subtle)]">
+                    <Icon aria-hidden="true" className="size-4" />
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold">{label}</p>
@@ -429,9 +428,9 @@ export default function PortalSecurityPage() {
           </div>
         </section>
 
-        <section className="overflow-hidden rounded-xl border border-[var(--portal-line)] bg-[var(--portal-paper)]">
+        <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--portal-line)] bg-[var(--portal-paper)]">
           <div className="flex items-start gap-3 border-b border-[var(--portal-line)] px-5 py-4 sm:px-6">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-[var(--portal-accent-soft)] text-[var(--portal-accent)]">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[var(--portal-line)] bg-[var(--surface-subtle)] text-[var(--text-secondary)]">
               <Laptop aria-hidden="true" className="size-4" />
             </span>
             <div>
