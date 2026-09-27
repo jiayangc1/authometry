@@ -19,6 +19,14 @@ import { PageContainer, PageHeader } from "@/components/layout/page";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Field, Input, Select } from "@/components/ui/form";
 import { apiFetch } from "@/lib/api";
+import {
+  parsePlaygroundFlow,
+  playgroundConfiguration,
+  validatePlaygroundCallback,
+  validatePlaygroundRequest,
+  type PlaygroundApplication,
+  type PlaygroundFlow,
+} from "@/lib/playground";
 import { useActiveEnvironment } from "@/lib/use-environment";
 
 const defaultScopes = ["openid", "profile", "email", "offline_access"];
@@ -53,16 +61,8 @@ function decodeJwt(token: string): Record<string, unknown> | undefined {
   }
 }
 
-interface ApplicationOption {
-  id: string;
-  name: string;
-  client_id: string;
-  type: string;
-  redirect_uris: string[];
-}
-
 export default function PlaygroundPage() {
-  const [clientId, setClientId] = useState("amt_client_dashboard");
+  const [clientId, setClientId] = useState("");
   const [redirectUri, setRedirectUri] = useState("");
   const [scopes, setScopes] = useState(["openid", "profile", "email"]);
   const [verifier, setVerifier] = useState("");
@@ -70,6 +70,8 @@ export default function PlaygroundPage() {
   const [state, setState] = useState("");
   const [nonce, setNonce] = useState("");
   const [callback, setCallback] = useState<Array<[string, string]>>([]);
+  const [savedFlow, setSavedFlow] = useState<PlaygroundFlow>();
+  const [storageError, setStorageError] = useState("");
   const [playgroundUri, setPlaygroundUri] = useState("");
   const [initialized, setInitialized] = useState(false);
   const [exchange, setExchange] = useState<{
@@ -79,10 +81,15 @@ export default function PlaygroundPage() {
   }>({ status: "idle" });
   const { active } = useActiveEnvironment();
   const applications = useQuery({
-    queryKey: ["applications", "", "", ""],
-    queryFn: () => apiFetch<{ data: ApplicationOption[] }>("/api/v1/applications?q=&type=&status="),
+    queryKey: ["applications", "playground", active?.id],
+    queryFn: () =>
+      apiFetch<{ data: PlaygroundApplication[] }>("/api/v1/applications?q=&type=&status="),
+    enabled: Boolean(active),
   });
   const issuer = active?.issuer ?? "";
+  const selectedApplication = applications.data?.data.find(
+    (application) => application.client_id === clientId,
+  );
 
   const regenerateSecurityValues = async () => {
     const pair = await createPkcePair();
@@ -98,7 +105,7 @@ export default function PlaygroundPage() {
     const configuredClientId = current.searchParams.get("client_id")?.trim();
     const configuredRedirectUri = current.searchParams.get("redirect_uri")?.trim();
     const configuredScopes = current.searchParams.get("scope")?.split(/\s+/).filter(Boolean);
-    const callbackEntries = ["code", "state", "error", "error_description"]
+    const callbackEntries = ["code", "state", "iss", "error", "error_description"]
       .map((key) => [key, current.searchParams.get(key)] as const)
       .filter((entry): entry is [string, string] => Boolean(entry[1]));
     if (configuredClientId) setClientId(configuredClientId);
@@ -107,14 +114,14 @@ export default function PlaygroundPage() {
     setCallback(callbackEntries);
     setInitialized(true);
     try {
-      const saved = callbackEntries.length ? sessionStorage.getItem(flowStorageKey) : null;
-      if (saved) {
-        const flow = JSON.parse(saved) as {
-          verifier: string;
-          challenge: string;
-          state: string;
-          nonce: string;
-        };
+      const flow = parsePlaygroundFlow(
+        callbackEntries.length ? sessionStorage.getItem(flowStorageKey) : null,
+      );
+      if (flow) {
+        setSavedFlow(flow);
+        setClientId(flow.clientId);
+        setRedirectUri(flow.redirectUri);
+        setScopes(flow.scopes);
         setVerifier(flow.verifier);
         setChallenge(flow.challenge);
         setState(flow.state);
@@ -122,9 +129,9 @@ export default function PlaygroundPage() {
         return;
       }
     } catch {
-      sessionStorage.removeItem(flowStorageKey);
+      setStorageError("Allow session storage in this tab to preserve the authorization request.");
     }
-    void regenerateSecurityValues();
+    if (!callbackEntries.length) void regenerateSecurityValues();
   }, []);
 
   useEffect(() => {
@@ -137,18 +144,31 @@ export default function PlaygroundPage() {
   }, [clientId, initialized, redirectUri, scopes]);
 
   const validation = useMemo(() => {
-    if (!clientId.trim()) return "Enter a client ID to build the request.";
-    try {
-      const redirect = new URL(redirectUri);
-      if (!["http:", "https:"].includes(redirect.protocol)) throw new Error();
-    } catch {
-      return "Enter a valid HTTP or HTTPS redirect URI.";
-    }
-    if (!scopes.length) return "Select at least one scope.";
-    if (!challenge || !state || !nonce) return "Generating security values…";
     if (!issuer) return "Loading the environment issuer…";
+    if (applications.isPending) return "Loading applications…";
+    if (applications.isError)
+      return "Could not load applications. Retry before starting authorization.";
+    const configurationError = validatePlaygroundRequest(
+      { clientId, redirectUri, scopes },
+      selectedApplication,
+    );
+    if (configurationError) return configurationError;
+    if (callback.length) return "Reset the playground to start a new authorization request.";
+    if (!challenge || !state || !nonce) return "Generating security values…";
     return "";
-  }, [challenge, clientId, issuer, nonce, redirectUri, scopes.length, state]);
+  }, [
+    applications.isError,
+    applications.isPending,
+    callback.length,
+    challenge,
+    clientId,
+    issuer,
+    nonce,
+    redirectUri,
+    scopes,
+    selectedApplication,
+    state,
+  ]);
 
   const parameters = useMemo(
     () => [
@@ -172,10 +192,22 @@ export default function PlaygroundPage() {
   }, [issuer, parameters]);
 
   const reset = () => {
-    setClientId("amt_client_dashboard");
-    setScopes(["openid", "profile", "email"]);
-    if (typeof window !== "undefined") {
-      setRedirectUri(new URL(window.location.pathname, window.location.origin).toString());
+    const configuration = playgroundConfiguration(selectedApplication, playgroundUri);
+    setClientId(configuration.clientId);
+    setRedirectUri(configuration.redirectUri);
+    setScopes(configuration.scopes);
+    setCallback([]);
+    setSavedFlow(undefined);
+    setStorageError("");
+    setExchange({ status: "idle" });
+    const current = new URL(window.location.href);
+    for (const key of ["code", "state", "iss", "error", "error_description"])
+      current.searchParams.delete(key);
+    window.history.replaceState(window.history.state, "", current);
+    try {
+      sessionStorage.removeItem(flowStorageKey);
+    } catch {
+      setStorageError("Allow session storage in this tab to preserve the authorization request.");
     }
     void regenerateSecurityValues();
   };
@@ -183,30 +215,53 @@ export default function PlaygroundPage() {
   const selectApplication = (id: string) => {
     const application = applications.data?.data.find((candidate) => candidate.id === id);
     if (!application) return;
-    setClientId(application.client_id);
-    if (application.redirect_uris.length) {
-      setRedirectUri(
-        application.redirect_uris.includes(playgroundUri)
-          ? playgroundUri
-          : (application.redirect_uris[0] ?? playgroundUri),
-      );
-    }
+    const configuration = playgroundConfiguration(application, playgroundUri);
+    setClientId(configuration.clientId);
+    setRedirectUri(configuration.redirectUri);
+    setScopes(configuration.scopes);
   };
+
+  const callbackError = validatePlaygroundCallback(
+    savedFlow,
+    new URLSearchParams(callback),
+    issuer,
+  );
+  const callbackApplication = applications.data?.data.find(
+    (application) => application.client_id === savedFlow?.clientId,
+  );
+  const exchangeError =
+    callbackError ||
+    (applications.isPending
+      ? "Loading applications…"
+      : applications.isError
+        ? "Could not load applications. Retry before exchanging the code."
+        : !callbackApplication || callbackApplication.status !== "active"
+          ? "The original application is no longer available in this environment."
+          : callbackApplication.token_endpoint_auth_method !== "none"
+            ? "This application requires client authentication. Exchange the code on your server using the saved PKCE verifier and registered credentials."
+            : "");
 
   const exchangeCode = async () => {
     const code = callback.find(([key]) => key === "code")?.[1];
-    if (!code || !issuer) return;
+    if (
+      !code ||
+      !savedFlow ||
+      exchangeError ||
+      exchange.status === "pending" ||
+      exchange.status === "done"
+    )
+      return;
     setExchange({ status: "pending" });
     try {
-      const response = await fetch(`${issuer}/oauth/token`, {
+      const response = await fetch(`${savedFlow.issuer}/oauth/token`, {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
           grant_type: "authorization_code",
           code,
-          redirect_uri: redirectUri,
-          client_id: clientId,
-          code_verifier: verifier,
+          redirect_uri: savedFlow.redirectUri,
+          client_id: savedFlow.clientId,
+          code_verifier: savedFlow.verifier,
         }),
       });
       const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
@@ -224,17 +279,32 @@ export default function PlaygroundPage() {
     }
   };
 
-  const preserveFlowForRedirect = () => {
-    sessionStorage.setItem(flowStorageKey, JSON.stringify({ verifier, challenge, state, nonce }));
+  const preserveFlowForRedirect = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (validation) {
+      event.preventDefault();
+      return;
+    }
+    try {
+      const flow: PlaygroundFlow = {
+        clientId,
+        redirectUri,
+        scopes,
+        issuer,
+        verifier,
+        challenge,
+        state,
+        nonce,
+      };
+      sessionStorage.setItem(flowStorageKey, JSON.stringify(flow));
+    } catch {
+      event.preventDefault();
+      setStorageError("Allow session storage in this tab to preserve the authorization request.");
+    }
   };
 
-  const returnedState = callback.find(([key]) => key === "state")?.[1];
-  const callbackStateMatches = !returnedState || !state || returnedState === state;
-  const scopeOptions = [...new Set([...defaultScopes, ...scopes])];
-
-  const selectedApplication = applications.data?.data.find(
-    (application) => application.client_id === clientId,
-  );
+  const scopeOptions = [
+    ...new Set([...(selectedApplication?.allowed_scopes ?? defaultScopes), ...scopes]),
+  ];
   const redirectRegistered =
     !selectedApplication || selectedApplication.redirect_uris.includes(redirectUri);
   const hasCode = callback.some(([key]) => key === "code");
@@ -297,7 +367,11 @@ export default function PlaygroundPage() {
             actions={
               hasCode && !hasError ? (
                 <Button
-                  disabled={exchange.status === "pending" || exchange.status === "done"}
+                  disabled={
+                    Boolean(exchangeError) ||
+                    exchange.status === "pending" ||
+                    exchange.status === "done"
+                  }
                   loading={exchange.status === "pending"}
                   onClick={() => void exchangeCode()}
                   size="compact"
@@ -308,15 +382,15 @@ export default function PlaygroundPage() {
               ) : undefined
             }
             description={
-              !callbackStateMatches
-                ? "The returned state does not match the one you sent — this response should be rejected."
+              callbackError
+                ? callbackError
                 : hasError
                   ? "Authometry returned an error. Check the trace for the full explanation."
                   : "Authometry redirected back with an authorization code."
             }
             title={
               <span className="flex items-center gap-2">
-                {hasError || !callbackStateMatches ? (
+                {hasError || callbackError ? (
                   <TriangleAlert aria-hidden="true" className="size-4 text-[var(--warning)]" />
                 ) : (
                   <CheckCircle2 aria-hidden="true" className="size-4 text-[var(--success)]" />
@@ -325,6 +399,11 @@ export default function PlaygroundPage() {
               </span>
             }
           />
+          {hasCode && exchangeError && !callbackError && (
+            <div className="px-4 pb-4 sm:px-5">
+              <Note tone="warning">{exchangeError}</Note>
+            </div>
+          )}
           <dl className="divide-y divide-[var(--border)]">
             {callback.map(([key, value]) => (
               <div
@@ -372,20 +451,69 @@ export default function PlaygroundPage() {
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(440px,1fr)]">
         <Card>
-          <CardHeader description="The request on the right updates as you type." title="Request" />
+          <CardHeader
+            description={
+              callback.length
+                ? "The saved authorization request. Reset to start a new request."
+                : "The request on the right updates as you type."
+            }
+            title="Request"
+          />
           <div className="space-y-5 p-4 sm:p-5">
+            {applications.isError ? (
+              <Note
+                tone="danger"
+                action={
+                  <Button onClick={() => void applications.refetch()} size="compact">
+                    Retry
+                  </Button>
+                }
+              >
+                Could not load applications for this environment.
+              </Note>
+            ) : applications.isSuccess && !applications.data.data.length ? (
+              <Note
+                tone="info"
+                action={
+                  <Button asChild size="compact">
+                    <Link href="/applications/new">Create application</Link>
+                  </Button>
+                }
+              >
+                Create an application in this environment before starting authorization. For token
+                exchange here, use a single-page application and register {playgroundUri} as a
+                callback URL.
+              </Note>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Application">
                 <Select
+                  disabled={callback.length > 0}
                   onChange={(event) => selectApplication(event.target.value)}
                   value={selectedApplication?.id ?? ""}
                 >
                   <option disabled value="">
-                    {applications.isLoading ? "Loading…" : "Custom client ID"}
+                    {applications.isPending
+                      ? "Loading…"
+                      : clientId
+                        ? "Select a registered application"
+                        : "Select an application"}
                   </option>
                   {(applications.data?.data ?? []).map((application) => (
-                    <option key={application.id} value={application.id}>
+                    <option
+                      disabled={
+                        application.status !== "active" ||
+                        !application.grant_types.includes("authorization_code")
+                      }
+                      key={application.id}
+                      value={application.id}
+                    >
                       {application.name}
+                      {application.status !== "active"
+                        ? " (disabled)"
+                        : !application.grant_types.includes("authorization_code")
+                          ? " (no Authorization Code grant)"
+                          : ""}
                     </option>
                   ))}
                 </Select>
@@ -393,6 +521,7 @@ export default function PlaygroundPage() {
               <Field label="Client ID">
                 <Input
                   autoComplete="off"
+                  disabled={callback.length > 0}
                   mono
                   name="clientId"
                   onChange={(event) => setClientId(event.target.value)}
@@ -401,6 +530,22 @@ export default function PlaygroundPage() {
                 />
               </Field>
             </div>
+
+            {selectedApplication && (
+              <p className="text-xs text-[var(--text-secondary)]">
+                To inspect the callback here, register{" "}
+                <span className="technical-value">{playgroundUri}</span> in{" "}
+                <Link
+                  className="font-medium hover:underline"
+                  href={`/applications/${selectedApplication.id}/configuration`}
+                >
+                  application configuration
+                </Link>
+                .
+                {selectedApplication.token_endpoint_auth_method !== "none" &&
+                  " This application exchanges codes on its server with client authentication."}
+              </p>
+            )}
 
             <Field
               description={
@@ -415,7 +560,7 @@ export default function PlaygroundPage() {
               }
               label="Redirect URI"
               labelAction={
-                playgroundUri && redirectUri !== playgroundUri ? (
+                !callback.length && playgroundUri && redirectUri !== playgroundUri ? (
                   <button
                     className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                     onClick={() => setRedirectUri(playgroundUri)}
@@ -428,6 +573,7 @@ export default function PlaygroundPage() {
             >
               <Input
                 autoComplete="off"
+                disabled={callback.length > 0}
                 mono
                 name="redirectUri"
                 onChange={(event) => setRedirectUri(event.target.value)}
@@ -454,6 +600,7 @@ export default function PlaygroundPage() {
                     >
                       <Checkbox
                         checked={checked}
+                        disabled={callback.length > 0}
                         onChange={(event) =>
                           setScopes(
                             event.target.checked
@@ -496,6 +643,7 @@ export default function PlaygroundPage() {
                 </div>
                 <Button
                   className="[&:hover_svg]:rotate-180"
+                  disabled={callback.length > 0}
                   onClick={() => void regenerateSecurityValues()}
                   size="compact"
                   variant="ghost"
@@ -512,6 +660,7 @@ export default function PlaygroundPage() {
                     <Input
                       autoComplete="off"
                       compact
+                      disabled={callback.length > 0}
                       mono
                       name="state"
                       onChange={(event) => setState(event.target.value)}
@@ -523,6 +672,7 @@ export default function PlaygroundPage() {
                     <Input
                       autoComplete="off"
                       compact
+                      disabled={callback.length > 0}
                       mono
                       name="nonce"
                       onChange={(event) => setNonce(event.target.value)}
@@ -563,6 +713,11 @@ export default function PlaygroundPage() {
           </dl>
 
           <div className="border-t border-[var(--border)] bg-[var(--surface-subtle)] p-4">
+            {storageError && (
+              <Note className="mb-3" role="alert" tone="danger">
+                {storageError}
+              </Note>
+            )}
             <p aria-live="polite" className="mb-3 flex items-center gap-2 text-[13px]">
               {validation ? (
                 <>

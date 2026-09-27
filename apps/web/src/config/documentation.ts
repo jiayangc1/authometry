@@ -99,6 +99,13 @@ export const documentationPages: DocumentationPage[] = [
       "Bind an authorization request to a one-time verifier using the S256 challenge method.",
     sections: [
       {
+        title: "Try the OAuth playground",
+        paragraphs: [
+          "Select a registered application in Developer → OAuth playground. The playground loads its callback URLs and allowed scopes; there is no built-in dashboard OAuth client.",
+          "To inspect the callback and exchange tokens here, register your dashboard origin followed by /developer/playground as a callback URL on a public application, such as a SPA. The request is saved in this tab and restored after authorization. Missing request state or a different issuer blocks token exchange. Confidential applications exchange codes on their server with their registered credentials.",
+        ],
+      },
+      {
         title: "Create the challenge",
         paragraphs: [
           "Generate a high-entropy verifier for every authorization attempt. Hash its ASCII value with SHA-256 and base64url-encode the result without padding. Keep the verifier in the client until the callback.",

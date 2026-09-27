@@ -56,6 +56,21 @@ Client credentials are opaque and stored as hashes. A newly generated secret is 
 
 ## Authorization Code with PKCE
 
+### Use the dashboard playground
+
+Select a registered application in **Developer → OAuth playground**. There is no built-in
+dashboard OAuth client. The playground uses that application's registered callback URLs and
+allowed scopes, and blocks requests for unavailable clients, disabled applications, unsupported
+grants, unregistered callbacks, or unassigned scopes.
+
+To inspect the callback and exchange a code in the playground, use a public application (such as
+a SPA) and register your dashboard origin followed by `/developer/playground` as a callback URL.
+The request's client, redirect URI, scopes, issuer, PKCE verifier, state, and nonce are preserved
+in the same tab for the return trip. A missing saved request, mismatched state, or different issuer
+blocks the exchange. Confidential applications must exchange codes on their server using their
+registered client authentication. Reset clears the previous callback and retains the selected
+application's configuration.
+
 ### User accounts and the sign-in button
 
 Authometry is the identity provider, not a shared consumer account network. Each workspace has its
