@@ -72,7 +72,7 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(function Switch(
       />
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow-[0_1px_2px_rgb(0_0_0/0.2)] transition-transform duration-[var(--motion-normal)] ease-[var(--ease-spring)] peer-checked:translate-x-3 peer-active:scale-x-110"
+        className="pointer-events-none absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow-[0_1px_2px_rgb(0_0_0/0.2)] transition-[background-color,transform] duration-[var(--motion-normal)] ease-[var(--ease-spring)] peer-checked:translate-x-3 peer-checked:bg-[var(--primary-foreground)] peer-active:scale-x-110"
       />
     </span>
   );
