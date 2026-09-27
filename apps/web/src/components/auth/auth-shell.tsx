@@ -166,5 +166,4 @@ export function AuthHeading({ title, description }: { title: string; description
   );
 }
 
-export const inputClass =
-  "h-9 w-full rounded-[6px] border border-[var(--border-strong)] bg-[var(--surface-raised)] px-3 text-sm text-[var(--text-primary)] shadow-[0_1px_1px_rgba(0,0,0,0.02)] placeholder:text-[var(--text-tertiary)] focus-visible:border-[var(--focus)] focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)] focus-visible:outline-none";
+export { inputClass } from "@/components/ui/form";

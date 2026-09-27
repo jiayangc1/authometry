@@ -1,30 +1,45 @@
 import type { ReactNode } from "react";
+import { Card, CardFooter } from "@/components/ui/card";
 
+/**
+ * Vercel-style settings card: title + description + controls, with an optional footer
+ * that carries a hint on the left and the primary action on the right.
+ */
 export function SettingsSection({
   title,
   description,
   children,
   footer,
+  footerHint,
+  tone = "neutral",
 }: {
   title: string;
-  description: string;
-  children: ReactNode;
+  description: ReactNode;
+  children?: ReactNode;
   footer?: ReactNode;
+  footerHint?: ReactNode;
+  tone?: "neutral" | "danger";
 }) {
   return (
-    <section className="grid gap-5 border-t border-[var(--border)] py-7 first:border-0 first:pt-0 lg:grid-cols-[240px_1fr]">
-      <div>
-        <h2 className="text-sm font-semibold text-balance">{title}</h2>
-        <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{description}</p>
+    <Card
+      className={tone === "danger" ? "border-[var(--danger-border)]" : undefined}
+      role="region"
+      aria-label={title}
+    >
+      <div className="p-4 sm:p-5">
+        <h2 className="text-base leading-6 font-semibold tracking-[-0.01em] text-balance">
+          {title}
+        </h2>
+        <p className="mt-1 max-w-2xl text-[13px] leading-5 text-pretty text-[var(--text-secondary)]">
+          {description}
+        </p>
+        {children && <div className="mt-4 space-y-4">{children}</div>}
       </div>
-      <div>
-        <div className="space-y-5">{children}</div>
-        {footer && (
-          <div className="mt-5 flex justify-end border-t border-[var(--border-subtle)] pt-4">
-            {footer}
-          </div>
-        )}
-      </div>
-    </section>
+      {(footer || footerHint) && (
+        <CardFooter hint={footerHint} tone={tone}>
+          {footer}
+        </CardFooter>
+      )}
+    </Card>
   );
 }

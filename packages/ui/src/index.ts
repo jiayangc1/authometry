@@ -5,3 +5,4 @@ export * from "./data-display";
 export * from "./oauth-button";
 export * from "./provider-icons";
 export * from "./utils";
+export * from "./spinner";
