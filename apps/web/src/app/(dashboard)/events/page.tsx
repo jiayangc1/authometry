@@ -1,14 +1,17 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Activity, GitCommitHorizontal } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { EmptyState, StatusBadge } from "@authometry/ui";
+import { Activity, SearchX } from "lucide-react";
+import { Button, EmptyState, StatusBadge, type StatusTone } from "@authometry/ui";
 import { RelativeTime } from "@/components/data-display/formatted-time";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
-import { selectClass } from "@/components/data-display/search-input";
+import { ErrorState, ListSkeleton } from "@/components/data-display/states";
+import { FilterBar, SearchInput } from "@/components/data-display/search-input";
 import { PageContainer, PageHeader } from "@/components/layout/page";
+import { DisclosureRow } from "@/components/ui/disclosure-row";
+import { Select } from "@/components/ui/form";
 import { apiFetch } from "@/lib/api";
+import { humanize } from "@/lib/status";
+import { useDebouncedSearchParam } from "@/lib/use-query-params";
 
 interface EventRow {
   id: string;
@@ -21,155 +24,171 @@ interface EventRow {
   changes?: Array<{ path: string; before?: unknown; after?: unknown }>;
   created_at: string;
 }
+
+const severityTone: Record<string, StatusTone> = {
+  high: "danger",
+  critical: "danger",
+  warning: "warning",
+  info: "neutral",
+};
+
+function format(value: unknown) {
+  return value === undefined ? "—" : JSON.stringify(value);
+}
+
 export default function EventsPage() {
-  const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const category = searchParams.get("category") ?? "all";
-  const severity = searchParams.get("severity") ?? "all";
-  const expandedEvent = searchParams.get("event");
+  const search = useDebouncedSearchParam("q", 150);
+  const category = search.parameters.get("category") ?? "";
+  const severity = search.parameters.get("severity") ?? "";
+  const expandedEvent = search.parameters.get("event");
   const query = useQuery({
     queryKey: ["events"],
     queryFn: () => apiFetch<{ data: EventRow[] }>("/api/v1/events"),
   });
-  const events = (query.data?.data ?? []).filter(
+  const all = query.data?.data ?? [];
+  const needle = search.query.toLowerCase();
+  const events = all.filter(
     (event) =>
-      (category === "all" || event.category === category) &&
-      (severity === "all" || event.severity === severity),
+      (!category || event.category === category) &&
+      (!severity || event.severity === severity) &&
+      (!needle ||
+        event.summary.toLowerCase().includes(needle) ||
+        event.event_type.toLowerCase().includes(needle) ||
+        (event.actor_name ?? "").toLowerCase().includes(needle)),
   );
-  const categories = [...new Set((query.data?.data ?? []).map((event) => event.category))];
-  const severities = [...new Set((query.data?.data ?? []).map((event) => event.severity))];
-  function updateParam(name: string, value: string) {
-    const next = new URLSearchParams(searchParams);
-    if (value === "all") next.delete(name);
-    else next.set(name, value);
-    const queryString = next.toString();
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname);
+  const categories = [...new Set(all.map((event) => event.category))];
+  const severities = [...new Set(all.map((event) => event.severity))];
+  const filtered = Boolean(category || severity || search.query);
+  function clearFilters() {
+    search.clear();
+    search.update({ q: undefined, category: undefined, severity: undefined });
   }
   return (
     <PageContainer>
       <PageHeader
-        description="Review configuration, security, and system activity."
+        description="An audit trail of configuration, security, and system activity in this environment."
         title="Events"
       />
-      <div className="mb-4 flex gap-2">
-        <label>
-          <span className="sr-only">Event category</span>
-          <select
-            className={selectClass}
-            name="category"
-            onChange={(event) => updateParam("category", event.target.value)}
-            value={category}
-          >
-            <option value="all">All categories</option>
-            {categories.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className="sr-only">Event severity</span>
-          <select
-            className={selectClass}
-            name="severity"
-            onChange={(event) => updateParam("severity", event.target.value)}
-            value={severity}
-          >
-            <option value="all">All severities</option>
-            {severities.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <FilterBar>
+        <SearchInput
+          className="sm:w-72"
+          onChange={(event) => search.setValue(event.target.value)}
+          onClear={search.clear}
+          placeholder="Search events or people…"
+          value={search.value}
+        />
+        <Select
+          aria-label="Event category"
+          compact
+          onChange={(event) => search.update({ category: event.target.value || undefined })}
+          value={category}
+          wrapperClassName="sm:w-44"
+        >
+          <option value="">All categories</option>
+          {categories.map((value) => (
+            <option key={value} value={value}>
+              {humanize(value)}
+            </option>
+          ))}
+        </Select>
+        <Select
+          aria-label="Event severity"
+          compact
+          onChange={(event) => search.update({ severity: event.target.value || undefined })}
+          value={severity}
+          wrapperClassName="sm:w-40"
+        >
+          <option value="">All severities</option>
+          {severities.map((value) => (
+            <option key={value} value={value}>
+              {humanize(value)}
+            </option>
+          ))}
+        </Select>
+        {filtered && (
+          <Button className="sm:ml-auto" onClick={clearFilters} size="compact" variant="ghost">
+            Clear filters
+          </Button>
+        )}
+      </FilterBar>
       {query.isLoading ? (
-        <PageSkeleton />
+        <ListSkeleton rows={8} />
       ) : query.isError ? (
         <ErrorState
           description="Authometry could not load events. Check your connection, then retry."
           headingLevel="h2"
           onRetry={() => void query.refetch()}
-          title="Unable to Load Events"
+          title="Unable to load events"
         />
       ) : events.length ? (
-        <div className="border-y border-[var(--border)]">
+        <div className="stagger overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-raised)]">
           {events.map((event) => (
-            <details
-              className="virtualized-row group border-b border-[var(--border-subtle)] last:border-0"
+            <DisclosureRow
               key={event.id}
-              onToggle={(toggleEvent) => {
-                const next = new URLSearchParams(searchParams);
-                if (toggleEvent.currentTarget.open) next.set("event", event.id);
-                else if (next.get("event") === event.id) next.delete("event");
-                const queryString = next.toString();
-                router.replace(queryString ? `${pathname}?${queryString}` : pathname);
-              }}
+              onOpenChange={(open) => search.update({ event: open ? event.id : undefined })}
               open={expandedEvent === event.id}
-            >
-              <summary className="grid min-h-14 cursor-pointer list-none grid-cols-[24px_1fr_auto] items-center gap-3 px-2 py-2.5 hover:bg-[var(--surface-hover)] sm:grid-cols-[24px_minmax(200px,1fr)_140px_110px_140px]">
-                <Activity aria-hidden="true" className="size-4 text-[var(--text-secondary)]" />
-                <div>
-                  <p className="text-[13px] font-medium">{event.summary}</p>
-                  <p className="technical-value text-[var(--text-tertiary)]">{event.event_type}</p>
+              summary={
+                <div className="grid items-center gap-x-4 gap-y-1 sm:grid-cols-[minmax(0,1fr)_140px_110px_110px]">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-medium">{event.summary}</p>
+                    <p className="technical-value truncate text-[var(--text-tertiary)]">
+                      {event.event_type}
+                    </p>
+                  </div>
+                  <span className="truncate text-[13px] text-[var(--text-secondary)]">
+                    {event.actor_name ?? "System"}
+                  </span>
+                  <span>
+                    <StatusBadge
+                      label={humanize(event.category)}
+                      tone={severityTone[event.severity] ?? "neutral"}
+                    />
+                  </span>
+                  <span className="text-[13px] text-[var(--text-secondary)] sm:text-right">
+                    <RelativeTime value={event.created_at} />
+                  </span>
                 </div>
-                <span className="hidden text-xs text-[var(--text-secondary)] capitalize sm:block">
-                  {event.actor_name ?? "System"}
-                </span>
-                <StatusBadge
-                  label={event.category}
-                  tone={
-                    event.severity === "high"
-                      ? "danger"
-                      : event.severity === "warning"
-                        ? "warning"
-                        : "neutral"
-                  }
-                />
-                <span className="hidden text-xs text-[var(--text-tertiary)] sm:block">
-                  <RelativeTime value={event.created_at} />
-                </span>
-              </summary>
+              }
+            >
               {event.changes?.length ? (
-                <div className="border-t border-[var(--border-subtle)] bg-[var(--surface)] px-10 py-4">
-                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold">
-                    <GitCommitHorizontal aria-hidden="true" className="size-3.5" />
-                    Changes
-                  </p>
+                <div className="space-y-2">
                   {event.changes.map((change) => (
                     <div
-                      className="technical-value grid grid-cols-[140px_1fr] gap-3 py-1"
+                      className="technical-value grid gap-1 sm:grid-cols-[160px_minmax(0,1fr)]"
                       key={change.path}
                     >
-                      <span>{change.path}</span>
-                      <span>
-                        <span className="text-[var(--danger)]">
-                          - {JSON.stringify(change.before)}
+                      <span className="text-[var(--text-secondary)]">{change.path}</span>
+                      <span className="min-w-0 overflow-hidden rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-raised)]">
+                        <span className="block bg-[var(--danger-soft)] px-2 py-0.5 break-all text-[var(--danger)]">
+                          − {format(change.before)}
                         </span>
-                        <br />
-                        <span className="text-[var(--success)]">
-                          + {JSON.stringify(change.after)}
+                        <span className="block bg-[var(--success-soft)] px-2 py-0.5 break-all text-[var(--success)]">
+                          + {format(change.after)}
                         </span>
                       </span>
                     </div>
                   ))}
                 </div>
-              ) : null}
-            </details>
+              ) : (
+                <p className="text-[13px] text-[var(--text-secondary)]">
+                  No field-level changes were recorded for this event.
+                </p>
+              )}
+            </DisclosureRow>
           ))}
         </div>
       ) : (
         <EmptyState
           description={
-            category === "all" && severity === "all"
-              ? "Configuration, security, and system events will appear here."
-              : "Try a different category or severity filter."
+            filtered
+              ? "Try a different search, category, or severity."
+              : "Configuration, security, and system events will appear here."
           }
-          icon={Activity}
-          title={category === "all" && severity === "all" ? "No Events Yet" : "No Matching Events"}
+          icon={filtered ? SearchX : Activity}
+          primaryAction={
+            filtered ? <Button onClick={clearFilters}>Clear filters</Button> : undefined
+          }
+          title={filtered ? "No matching events" : "No events yet"}
         />
       )}
     </PageContainer>

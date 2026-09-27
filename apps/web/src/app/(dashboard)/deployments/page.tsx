@@ -1,14 +1,23 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, CircleDashed, GitPullRequestArrow, TriangleAlert } from "lucide-react";
+import {
+  BookOpen,
+  CheckCircle2,
+  CircleDashed,
+  GitCommitHorizontal,
+  GitPullRequestArrow,
+  TriangleAlert,
+} from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Button, StatusBadge } from "@authometry/ui";
+import { Button, EmptyState, Note, StatusBadge } from "@authometry/ui";
 import { RelativeTime } from "@/components/data-display/formatted-time";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
+import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
+import { DisclosureRow } from "@/components/ui/disclosure-row";
 import { apiFetch } from "@/lib/api";
+import { humanize } from "@/lib/status";
+import { useQueryParams } from "@/lib/use-query-params";
 
 interface Deployment {
   id: string;
@@ -20,10 +29,8 @@ interface Deployment {
   plan: Array<{ key: string; operation: string }>;
 }
 export default function DeploymentsPage() {
-  const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const expandedDeployment = searchParams.get("deployment");
+  const [parameters, update] = useQueryParams();
+  const expandedDeployment = parameters.get("deployment");
   const status = useQuery({
     queryKey: ["config-status"],
     queryFn: () =>
@@ -37,102 +44,108 @@ export default function DeploymentsPage() {
     queryKey: ["deployments"],
     queryFn: () => apiFetch<{ data: Deployment[] }>("/api/v1/config/deployments"),
   });
+  const state = status.isLoading
+    ? "loading"
+    : status.isError
+      ? "error"
+      : (status.data?.status ?? "not_applied");
+  const summary = {
+    loading: { tone: "neutral", title: "Checking configuration…", icon: CircleDashed },
+    error: { tone: "warning", title: "Configuration status is unavailable", icon: TriangleAlert },
+    drifted: { tone: "warning", title: "Configuration drift detected", icon: TriangleAlert },
+    not_applied: { tone: "neutral", title: "No manifest has been applied yet", icon: CircleDashed },
+    in_sync: { tone: "success", title: "In sync with the last apply", icon: CheckCircle2 },
+  }[state] ?? { tone: "neutral", title: humanize(state), icon: CircleDashed };
+  const drifted = (status.data?.resources ?? []).filter(
+    (resource) => resource.status !== "in_sync",
+  );
   return (
     <PageContainer>
       <PageHeader
         actions={
           <Button asChild>
-            <Link href="/docs/configuration-as-code">CLI Guide</Link>
+            <Link href="/docs/configuration-as-code">
+              <BookOpen aria-hidden="true" className="size-3.5" /> CLI guide
+            </Link>
           </Button>
         }
-        description="Review manifest applies, deployment provenance, and configuration drift."
-        title="Configuration Deployments"
+        description="Manifest applies from Git, where they came from, and whether the live configuration still matches."
+        title="Deployments"
       />
-      <section
-        aria-live="polite"
-        className={`mb-8 flex items-start gap-3 rounded-lg border p-4 ${status.isLoading || status.isError || status.data?.status === "not_applied" ? "border-[var(--border)] bg-[var(--surface-subtle)]" : status.data?.status === "drifted" ? "border-[var(--warning-border)] bg-[var(--warning-soft)]" : "border-[var(--success-border)] bg-[var(--success-soft)]"}`}
+      <Note
+        className="mb-8"
+        icon={summary.icon}
+        role="status"
+        tone={summary.tone as "neutral" | "warning" | "success"}
       >
-        {status.isLoading ? null : status.isError || status.data?.status === "drifted" ? (
-          <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 text-[var(--warning)]" />
-        ) : status.data?.status === "applied" ? (
-          <CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 text-[var(--success)]" />
-        ) : (
-          <CircleDashed aria-hidden="true" className="mt-0.5 size-4 text-[var(--text-secondary)]" />
+        <p className="font-medium">{summary.title}</p>
+        <p className="mt-0.5 text-[var(--text-secondary)]">
+          {status.isError
+            ? "Check your connection, then reload this page."
+            : `${status.data?.environment ?? "—"} · ${status.data?.resources.length ?? 0} managed resources`}
+        </p>
+        {state === "drifted" && drifted.length > 0 && (
+          <ul className="mt-2 space-y-0.5">
+            {drifted.slice(0, 6).map((resource) => (
+              <li className="technical-value text-[var(--text-primary)]" key={resource.key}>
+                ~ {resource.key}{" "}
+                <span className="text-[var(--text-tertiary)]">{resource.status}</span>
+              </li>
+            ))}
+          </ul>
         )}
-        <div>
-          <p className="text-[13px] font-semibold">
-            {status.isLoading
-              ? "Loading configuration status…"
-              : status.isError
-                ? "Configuration status is unavailable"
-                : status.data?.status === "drifted"
-                  ? "Configuration drift detected"
-                  : status.data?.status === "not_applied"
-                    ? "No manifest has been applied"
-                    : "Configuration matches the last apply"}
-          </p>
-          <p className="mt-1 text-xs text-[var(--text-secondary)]">
-            {status.isError
-              ? "Check your connection, then reload this page."
-              : `${status.data?.environment ?? "Production"} · ${status.data?.resources.length ?? 0} managed resources`}
-          </p>
-        </div>
-      </section>
+      </Note>
       <SectionHeader
         description="Every atomic apply records its source revision and actor."
-        title="Deployment History"
+        title="History"
       />
       {deployments.isLoading ? (
-        <PageSkeleton rows={6} />
+        <ListSkeleton rows={5} />
       ) : deployments.isError ? (
         <ErrorState
           description="Authometry could not load deployment history. Check your connection, then retry."
           headingLevel="h2"
           onRetry={() => void deployments.refetch()}
-          title="Unable to Load Deployments"
+          title="Unable to load deployments"
         />
       ) : deployments.data?.data.length ? (
-        <div className="border-y border-[var(--border)]">
+        <div className="stagger overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-raised)]">
           {deployments.data.data.map((deployment) => (
-            <details
-              className="virtualized-row border-b border-[var(--border-subtle)] last:border-0"
+            <DisclosureRow
               key={deployment.id}
-              onToggle={(event) => {
-                const next = new URLSearchParams(searchParams);
-                if (event.currentTarget.open) next.set("deployment", deployment.id);
-                else if (next.get("deployment") === deployment.id) next.delete("deployment");
-                router.replace(`${pathname}?${next}`);
-              }}
+              onOpenChange={(open) => update({ deployment: open ? deployment.id : undefined })}
               open={expandedDeployment === deployment.id}
-            >
-              <summary className="grid min-h-16 cursor-pointer list-none grid-cols-[28px_1fr_auto] items-center gap-3 px-2 hover:bg-[var(--surface-hover)] sm:grid-cols-[28px_1fr_140px_150px_120px]">
-                <GitPullRequestArrow
-                  aria-hidden="true"
-                  className="size-4 text-[var(--text-secondary)]"
-                />
-                <div>
-                  <p className="text-[13px] font-medium">
-                    {deployment.repository ?? "Local manifests"}
-                  </p>
-                  <p className="technical-value text-[var(--text-tertiary)]">
-                    {deployment.revision?.slice(0, 12) ?? deployment.id.slice(0, 12)}
-                  </p>
+              summary={
+                <div className="grid items-center gap-x-4 gap-y-1 sm:grid-cols-[minmax(0,1fr)_140px_120px_100px]">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-medium">
+                      {deployment.repository ?? "Local manifests"}
+                    </p>
+                    <p className="technical-value flex items-center gap-1.5 text-[var(--text-tertiary)]">
+                      <GitCommitHorizontal aria-hidden="true" className="size-3.5" />
+                      {deployment.revision?.slice(0, 12) ?? deployment.id.slice(0, 12)} ·{" "}
+                      {deployment.plan.length} {deployment.plan.length === 1 ? "change" : "changes"}
+                    </p>
+                  </div>
+                  <span className="truncate text-[13px] text-[var(--text-secondary)]">
+                    {deployment.actor}
+                  </span>
+                  <span className="text-[13px] text-[var(--text-secondary)]">
+                    <RelativeTime value={deployment.applied_at} />
+                  </span>
+                  <span className="sm:text-right">
+                    <StatusBadge
+                      label={humanize(deployment.status)}
+                      tone={deployment.status === "applied" ? "success" : "danger"}
+                    />
+                  </span>
                 </div>
-                <span className="hidden text-xs text-[var(--text-secondary)] sm:block">
-                  {deployment.actor}
-                </span>
-                <span className="hidden text-xs text-[var(--text-tertiary)] sm:block">
-                  <RelativeTime value={deployment.applied_at} />
-                </span>
-                <StatusBadge
-                  label={deployment.status}
-                  tone={deployment.status === "applied" ? "success" : "danger"}
-                />
-              </summary>
-              <div className="border-t border-[var(--border-subtle)] bg-[var(--surface)] px-10 py-3">
-                {deployment.plan.length ? (
-                  deployment.plan.map((entry) => (
-                    <p className="technical-value py-1" key={entry.key}>
+              }
+            >
+              {deployment.plan.length ? (
+                <ul className="space-y-0.5">
+                  {deployment.plan.map((entry) => (
+                    <li className="technical-value" key={entry.key}>
                       <span
                         className={
                           entry.operation === "create"
@@ -145,26 +158,30 @@ export default function DeploymentsPage() {
                         {entry.operation === "create"
                           ? "+"
                           : entry.operation === "delete"
-                            ? "-"
+                            ? "−"
                             : "~"}
                       </span>{" "}
                       {entry.key}
-                    </p>
-                  ))
-                ) : (
-                  <p className="text-xs text-[var(--text-secondary)]">No resource changes.</p>
-                )}
-              </div>
-            </details>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[13px] text-[var(--text-secondary)]">No resource changes.</p>
+              )}
+            </DisclosureRow>
           ))}
         </div>
       ) : (
-        <div className="border-y border-[var(--border)] py-12 text-center">
-          <h2 className="text-sm font-semibold text-balance">No Deployments</h2>
-          <p className="mt-1 text-xs text-[var(--text-secondary)]">
-            Apply a manifest with the CLI to create the first deployment record.
-          </p>
-        </div>
+        <EmptyState
+          description="Apply a manifest with the Authometry CLI to record the first deployment."
+          icon={GitPullRequestArrow}
+          primaryAction={
+            <Button asChild>
+              <Link href="/docs/configuration-as-code">Read the CLI guide</Link>
+            </Button>
+          }
+          title="No deployments yet"
+        />
       )}
     </PageContainer>
   );
