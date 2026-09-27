@@ -1,26 +1,36 @@
 import { notFound } from "next/navigation";
-import { AlertTriangle, AppWindow, CheckCircle2, Info, Plus, type LucideIcon } from "lucide-react";
-import { AuthometryProviderButton, Button, EmptyState, StatusBadge } from "@authometry/ui";
-import { inputClass } from "@/components/auth/auth-shell";
+import { AppWindow, Plus } from "lucide-react";
+import {
+  AuthometryProviderButton,
+  Button,
+  Checkbox,
+  EmptyState,
+  Kbd,
+  LoadingDots,
+  Note,
+  Spinner,
+  StatusBadge,
+  StatusDot,
+  Switch,
+} from "@authometry/ui";
+import { CodeBlock, Snippet } from "@/components/data-display/copyable-value";
+import { Skeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader, SectionHeader } from "@/components/layout/page";
+import { Card, CardFooter, CardHeader } from "@/components/ui/card";
+import { ChoiceRow, Field, Input, Select, Textarea } from "@/components/ui/form";
 
 export default function ComponentShowcasePage() {
   if (process.env.NODE_ENV === "production") notFound();
-  const alerts: Array<[LucideIcon, string, string, string]> = [
-    [CheckCircle2, "var(--success-soft)", "var(--success-border)", "Configuration applied"],
-    [AlertTriangle, "var(--warning-soft)", "var(--warning-border)", "Issuer change pending"],
-    [Info, "var(--info-soft)", "var(--info-border)", "Managed by Git"],
-  ];
   return (
     <PageContainer>
       <PageHeader
-        description="Internal development route for visual-system states and regression checks."
-        title="Component Showcase"
+        description="Internal route for checking every design-system state in both themes."
+        title="Component showcase"
       />
       <div className="space-y-10">
         <section>
           <SectionHeader title="Buttons" />
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="primary">
               <Plus aria-hidden="true" className="size-3.5" /> Primary
             </Button>
@@ -28,91 +38,109 @@ export default function ComponentShowcasePage() {
             <Button variant="ghost">Ghost</Button>
             <Button variant="danger">Danger</Button>
             <Button disabled>Disabled</Button>
+            <Button loading variant="primary">
+              Saving…
+            </Button>
+            <Button size="compact">Compact</Button>
+            <Button size="large" variant="primary">
+              Large
+            </Button>
           </div>
         </section>
-        <section className="border-t border-[var(--border)] pt-7">
+        <section>
           <SectionHeader
             description="Branded entry points for applications that delegate sign-in to Authometry."
-            title="OAuth Provider Buttons"
+            title="Provider buttons"
           />
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] p-5">
+          <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-subtle)] p-5">
             <AuthometryProviderButton />
             <AuthometryProviderButton appearance="brand" />
             <AuthometryProviderButton appearance="dark" />
             <AuthometryProviderButton compact>Sign in with Authometry</AuthometryProviderButton>
           </div>
         </section>
-        <section className="border-t border-[var(--border)] pt-7">
+        <section>
           <SectionHeader title="Status" />
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge label="Success" tone="success" />
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusBadge label="Authorized" tone="success" />
             <StatusBadge label="Denied" tone="warning" />
             <StatusBadge label="Error" tone="danger" />
             <StatusBadge label="Pending" tone="neutral" />
-            <StatusBadge label="Informational" tone="info" />
+            <StatusBadge label="Info" tone="info" />
+            <StatusDot label="Live" pulse tone="success" />
+            <Spinner />
+            <LoadingDots />
+            <Kbd>⌘K</Kbd>
           </div>
         </section>
-        <section className="border-t border-[var(--border)] pt-7">
-          <SectionHeader title="Form Controls" />
-          <div className="grid max-w-2xl gap-4 sm:grid-cols-2">
-            <label>
-              <span className="mb-1.5 block text-xs font-medium">Client ID</span>
-              <input
-                autoComplete="off"
-                className={`${inputClass} technical-value`}
-                defaultValue="amt_client_M9bA2f7Jq"
-                name="clientId"
-                spellCheck={false}
+        <section>
+          <SectionHeader title="Form controls" />
+          <Card>
+            <CardHeader description="Labels, help text, and inline errors." title="Example form" />
+            <div className="grid gap-4 p-5 sm:grid-cols-2">
+              <Field description="Public identifier." label="Client ID">
+                <Input defaultValue="amt_client_M9bA2f7Jq" mono />
+              </Field>
+              <Field label="Disabled">
+                <Input disabled value="Managed by Git" readOnly />
+              </Field>
+              <Field error="Use HTTPS unless the host is localhost." label="Callback URL">
+                <Input defaultValue="http://production.example.com" mono />
+              </Field>
+              <Field label="Type">
+                <Select defaultValue="web">
+                  <option value="web">Web application</option>
+                  <option value="spa">Single-page application</option>
+                </Select>
+              </Field>
+              <Field className="sm:col-span-2" label="Description" optional>
+                <Textarea placeholder="What does this application do?" />
+              </Field>
+              <ChoiceRow
+                control={<Checkbox defaultChecked />}
+                description="Checkbox row."
+                title="Require PKCE"
               />
-            </label>
-            <label>
-              <span className="mb-1.5 block text-xs font-medium">Disabled</span>
-              <input
-                className={inputClass}
-                disabled
-                name="disabledExample"
-                value="Managed by Git"
-                readOnly
+              <ChoiceRow
+                control={<Switch defaultChecked />}
+                description="Switch row."
+                title="Enforce policy"
               />
-            </label>
-            <label className="sm:col-span-2">
-              <span className="mb-1.5 block text-xs font-medium">Validation error</span>
-              <input
-                aria-invalid
-                autoComplete="off"
-                className={`${inputClass} border-[var(--danger)]`}
-                defaultValue="http://production.example.com"
-                name="validationExample"
-              />
-              <span className="mt-1 block text-xs text-[var(--danger)]">
-                Use HTTPS unless the host is localhost.
-              </span>
-            </label>
+            </div>
+            <CardFooter hint="Footer hint text.">
+              <Button variant="primary">Save</Button>
+            </CardFooter>
+          </Card>
+        </section>
+        <section>
+          <SectionHeader title="Notes" />
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Note tone="success">Configuration applied.</Note>
+            <Note tone="warning">Issuer change pending.</Note>
+            <Note tone="info">Managed by Git.</Note>
+            <Note tone="danger">The request was denied.</Note>
           </div>
         </section>
-        <section className="border-t border-[var(--border)] pt-7">
-          <SectionHeader title="Alerts" />
-          <div className="grid gap-3 lg:grid-cols-3">
-            {alerts.map(([Icon, background, border, label]) => (
-              <div
-                className="flex items-center gap-3 border p-3 text-[13px]"
-                key={label}
-                style={{ background, borderColor: border }}
-              >
-                <Icon aria-hidden="true" className="size-4" />
-                {label}
-              </div>
-            ))}
+        <section>
+          <SectionHeader title="Code" />
+          <div className="space-y-3">
+            <Snippet prompt value="npx authometry apply ./manifests" />
+            <CodeBlock code={'{\n  "issuer": "https://auth.example.com"\n}'} label="JSON" />
           </div>
         </section>
-        <section className="border-t border-[var(--border)] pt-7">
-          <EmptyState
-            description="Applications represent websites, mobile apps, APIs, and services that use Authometry."
-            icon={AppWindow}
-            primaryAction={<Button variant="primary">Add Application</Button>}
-            title="Create Your First Application"
-          />
+        <section>
+          <SectionHeader title="Loading" />
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-1/3" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
         </section>
+        <EmptyState
+          description="Applications represent websites, mobile apps, APIs, and services that use Authometry."
+          icon={AppWindow}
+          primaryAction={<Button variant="primary">Create application</Button>}
+          title="Create your first application"
+        />
       </div>
     </PageContainer>
   );

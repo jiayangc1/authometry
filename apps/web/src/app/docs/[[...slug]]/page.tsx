@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, BookOpen, Braces, KeyRound, ShieldCheck } from "lucide-react";
-import { AuthometryLogo, Button } from "@authometry/ui";
+import { AuthometryLogo, Button, Note } from "@authometry/ui";
+import { CodeBlock } from "@/components/data-display/copyable-value";
 import { SkipLink } from "@/components/layout/skip-link";
 import {
   documentationGroups,
@@ -25,19 +26,19 @@ function Navigation({ selected }: { selected: DocumentationPage | undefined }) {
         const Icon = groupIcons[group];
         return (
           <div key={group}>
-            <p className="mb-2 flex items-center gap-2 px-2 text-[10px] font-semibold tracking-[0.12em] text-[var(--text-tertiary)] uppercase">
+            <p className="mb-1 flex items-center gap-2 px-2.5 text-xs text-[var(--text-tertiary)]">
               <Icon aria-hidden="true" className="size-3" /> {group}
             </p>
-            <div className="space-y-0.5">
+            <div className="space-y-px">
               {documentationPages
                 .filter((page) => page.group === group)
                 .map((page) => (
                   <Link
                     aria-current={selected?.slug === page.slug ? "page" : undefined}
-                    className={`block border-l-2 px-3 py-2 text-xs leading-5 transition-colors ${
+                    className={`flex h-8 items-center rounded-[var(--radius-control)] px-2.5 text-[13px] transition-colors duration-[var(--motion-fast)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none ${
                       selected?.slug === page.slug
-                        ? "border-[var(--accent)] bg-[var(--accent-soft)] font-medium text-[var(--text-primary)]"
-                        : "border-transparent text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]"
+                        ? "bg-[var(--surface-active)] font-medium text-[var(--text-primary)]"
+                        : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                     }`}
                     href={`/docs/${page.slug}`}
                     key={page.slug}
@@ -56,30 +57,32 @@ function Navigation({ selected }: { selected: DocumentationPage | undefined }) {
 function DocumentationIndex() {
   return (
     <article>
-      <p className="technical-value mb-3 text-[var(--accent)]">AUTHOMETRY FIELD MANUAL</p>
-      <h1 className="max-w-2xl text-4xl font-semibold tracking-[-0.045em] text-balance md:text-5xl">
+      <p className="technical-value mb-3 text-[var(--text-tertiary)]">Documentation</p>
+      <h1 className="max-w-2xl text-[32px] leading-10 font-semibold tracking-[-0.04em] text-balance md:text-[40px] md:leading-[48px]">
         Follow the request. Find the decision.
       </h1>
       <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--text-secondary)]">
         Configure clients, implement supported OAuth flows, and operate each environment with the
         same exact inputs Authometry records in its authorization traces.
       </p>
-      <div className="mt-10 grid gap-px overflow-hidden border border-[var(--border)] bg-[var(--border)] sm:grid-cols-2">
+      <div className="stagger mt-10 grid gap-3 sm:grid-cols-2">
         {documentationPages.map((page) => (
           <Link
-            className="group min-h-40 bg-[var(--surface)] p-5 transition-colors hover:bg-[var(--surface-hover)]"
+            className="lift group min-h-36 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-raised)] p-5 focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
             href={`/docs/${page.slug}`}
             key={page.slug}
           >
             <p className="technical-value text-[var(--text-tertiary)]">{page.group}</p>
-            <h2 className="mt-4 flex items-center justify-between text-base font-semibold tracking-[-0.02em]">
+            <h2 className="mt-3 flex items-center justify-between text-base font-semibold tracking-[-0.02em]">
               {page.title}
               <ArrowRight
                 aria-hidden="true"
-                className="size-4 text-[var(--text-tertiary)] transition-transform group-hover:translate-x-1 group-hover:text-[var(--accent)]"
+                className="size-4 text-[var(--text-tertiary)] transition-[transform,color] duration-[var(--motion-normal)] ease-[var(--ease-spring)] group-hover:translate-x-1 group-hover:text-[var(--text-primary)]"
               />
             </h2>
-            <p className="mt-3 text-xs leading-6 text-[var(--text-secondary)]">{page.summary}</p>
+            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+              {page.summary}
+            </p>
           </Link>
         ))}
       </div>
@@ -90,9 +93,9 @@ function DocumentationIndex() {
 function Article({ page }: { page: DocumentationPage }) {
   return (
     <>
-      <article className="min-w-0">
-        <p className="technical-value mb-3 text-[var(--accent)]">{page.group}</p>
-        <h1 className="text-3xl font-semibold tracking-[-0.04em] text-balance md:text-4xl">
+      <article className="min-w-0 animate-[enter_var(--motion-slow)_var(--ease-out)]">
+        <p className="technical-value mb-3 text-[var(--text-tertiary)]">{page.group}</p>
+        <h1 className="text-[32px] leading-10 font-semibold tracking-[-0.04em] text-balance">
           {page.title}
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--text-secondary)]">
@@ -102,7 +105,7 @@ function Article({ page }: { page: DocumentationPage }) {
           {page.sections.map((section) => (
             <section className="scroll-mt-20" id={slugId(section.title)} key={section.title}>
               <div className="mb-5 flex items-center gap-3 border-b border-[var(--border)] pb-3">
-                <Braces aria-hidden="true" className="size-3.5 text-[var(--accent)]" />
+                <Braces aria-hidden="true" className="size-3.5 text-[var(--text-tertiary)]" />
                 <h2 className="text-lg font-semibold tracking-[-0.025em] text-balance">
                   {section.title}
                 </h2>
@@ -114,22 +117,17 @@ function Article({ page }: { page: DocumentationPage }) {
                 {section.bullets ? (
                   <ul className="space-y-2 pl-5">
                     {section.bullets.map((bullet) => (
-                      <li className="list-[square] pl-1 marker:text-[var(--accent)]" key={bullet}>
+                      <li
+                        className="list-disc pl-1 marker:text-[var(--text-tertiary)]"
+                        key={bullet}
+                      >
                         {bullet}
                       </li>
                     ))}
                   </ul>
                 ) : null}
-                {section.code ? (
-                  <pre className="overflow-x-auto border border-[var(--border)] bg-[var(--surface-subtle)] p-4 text-xs leading-6 text-[var(--text-primary)]">
-                    <code>{section.code}</code>
-                  </pre>
-                ) : null}
-                {section.note ? (
-                  <div className="border-l-2 border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-3 text-xs leading-6 text-[var(--text-primary)]">
-                    {section.note}
-                  </div>
-                ) : null}
+                {section.code ? <CodeBlock code={section.code} label="Example" /> : null}
+                {section.note ? <Note tone="info">{section.note}</Note> : null}
               </div>
             </section>
           ))}
@@ -137,11 +135,11 @@ function Article({ page }: { page: DocumentationPage }) {
       </article>
       <aside className="hidden xl:block">
         <div className="sticky top-8 border-l border-[var(--border)] pl-5">
-          <p className="technical-value mb-3 text-[var(--text-tertiary)]">ON THIS PAGE</p>
+          <p className="mb-3 text-xs font-medium text-[var(--text-primary)]">On this page</p>
           <div className="space-y-2">
             {page.sections.map((section) => (
               <a
-                className="block text-xs leading-5 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                className="block text-[13px] leading-5 text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
                 href={`#${slugId(section.title)}`}
                 key={section.title}
               >
@@ -161,11 +159,15 @@ export default async function DocsPage({ params }: { params: Promise<{ slug?: st
   return (
     <div className="mx-auto min-h-screen max-w-[1440px] pt-[max(1.5rem,env(safe-area-inset-top))] pr-[max(1.25rem,env(safe-area-inset-right))] pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1.25rem,env(safe-area-inset-left))] md:pr-[max(2rem,env(safe-area-inset-right))] md:pl-[max(2rem,env(safe-area-inset-left))]">
       <SkipLink />
-      <header className="flex items-center justify-between border-b border-[var(--border)] pb-5">
-        <Link aria-label="Documentation home" href="/docs">
+      <header className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+        <Link
+          aria-label="Documentation home"
+          className="rounded-[var(--radius-control)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
+          href="/docs"
+        >
           <AuthometryLogo />
         </Link>
-        <Button asChild variant="ghost">
+        <Button asChild className="[&:hover_svg]:-translate-x-0.5" variant="ghost">
           <Link href="/overview">
             <ArrowLeft aria-hidden="true" className="size-3.5" /> Dashboard
           </Link>
