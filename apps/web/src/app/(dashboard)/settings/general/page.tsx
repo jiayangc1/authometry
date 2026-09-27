@@ -3,11 +3,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button, StatusBadge } from "@authometry/ui";
-import { inputClass } from "@/components/auth/auth-shell";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
+import Link from "next/link";
+import { Button, Note, StatusBadge } from "@authometry/ui";
+import { Snippet } from "@/components/data-display/copyable-value";
+import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
+import { Field, Input } from "@/components/ui/form";
 import { apiFetch } from "@/lib/api";
+import { humanize } from "@/lib/status";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
 interface GeneralSettings {
@@ -44,109 +47,138 @@ export default function GeneralSettingsPage() {
         body: JSON.stringify({ workspaceName, environmentName }),
       }),
     onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: ["settings-general"] });
-      toast.success("Settings saved");
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["settings-general"] }),
+        client.invalidateQueries({ queryKey: ["me"] }),
+        client.invalidateQueries({ queryKey: ["environments"] }),
+      ]);
+      toast.success("Settings saved.");
     },
     onError: (error) => toast.error(error.message),
   });
-  if (query.isLoading) return <PageSkeleton rows={4} />;
+  if (query.isLoading) return <ListSkeleton rows={4} />;
   if (query.isError)
     return (
       <ErrorState
         description="Authometry could not load general settings. Check your connection, then retry."
         headingLevel="h2"
         onRetry={() => void query.refetch()}
-        title="Unable to Load General Settings"
+        title="Unable to load general settings"
       />
     );
   return (
-    <div>
-      <SettingsSection
-        description="Displayed throughout administration interfaces and authorization screens."
-        footer={
-          <Button
-            disabled={save.isPending || !isDirty}
-            onClick={() => save.mutate()}
-            variant="primary"
-          >
-            {save.isPending ? "Saving…" : "Save Changes"}
-          </Button>
-        }
-        title="Workspace"
+    <>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (isDirty) save.mutate();
+        }}
       >
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-medium">Workspace name</span>
-          <input
-            autoComplete="off"
-            className={inputClass}
-            name="workspaceName"
-            onChange={(event) => setWorkspaceName(event.target.value)}
-            value={workspaceName}
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-medium">Environment name</span>
-          <input
-            autoComplete="off"
-            className={inputClass}
-            name="environmentName"
-            onChange={(event) => setEnvironmentName(event.target.value)}
-            value={environmentName}
-          />
-        </label>
-      </SettingsSection>
+        <SettingsSection
+          description="Shown throughout the dashboard and on authorization screens."
+          footer={
+            <>
+              {isDirty && (
+                <Button
+                  disabled={save.isPending}
+                  onClick={() => {
+                    setWorkspaceName(query.data?.name ?? "");
+                    setEnvironmentName(query.data?.environment_name ?? "");
+                  }}
+                  type="button"
+                  variant="ghost"
+                >
+                  Reset
+                </Button>
+              )}
+              <Button disabled={!isDirty} loading={save.isPending} type="submit" variant="primary">
+                Save
+              </Button>
+            </>
+          }
+          footerHint={isDirty ? "You have unsaved changes." : "Names can be changed at any time."}
+          title="Workspace"
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Workspace name">
+              <Input
+                autoComplete="off"
+                maxLength={100}
+                name="workspaceName"
+                onChange={(event) => setWorkspaceName(event.target.value)}
+                required
+                value={workspaceName}
+              />
+            </Field>
+            <Field
+              description="Applies to the environment you’re viewing."
+              label="Environment name"
+            >
+              <Input
+                autoComplete="off"
+                maxLength={100}
+                name="environmentName"
+                onChange={(event) => setEnvironmentName(event.target.value)}
+                required
+                value={environmentName}
+              />
+            </Field>
+          </div>
+        </SettingsSection>
+      </form>
       <SettingsSection
-        description="The issuer identifies tokens and discovery metadata. Activate a verified domain before changing a production issuer."
+        description="The issuer identifies tokens and discovery metadata for this environment."
+        footerHint={
+          <>
+            Change it by activating a{" "}
+            <Link
+              className="underline underline-offset-2 hover:text-[var(--text-primary)]"
+              href="/settings/domains"
+            >
+              verified domain
+            </Link>{" "}
+            or through an AuthometryInstance manifest.
+          </>
+        }
         title="Issuer URL"
       >
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-medium">Current issuer</span>
-          <input
-            className={`${inputClass} technical-value`}
-            name="issuer"
-            readOnly
-            value={query.data?.issuer ?? ""}
-          />
-        </label>
-        <p className="text-xs leading-5 text-[var(--text-secondary)]">
-          Issuer changes are applied through a verified domain or an AuthometryInstance manifest.
-        </p>
+        <Snippet label="issuer" value={query.data?.issuer ?? ""} />
       </SettingsSection>
       <SettingsSection
-        description="External authentication and delivery remain disabled until complete runtime credentials are supplied."
+        description="Social sign-in and email delivery stay off until their runtime credentials are configured."
         title="Integrations"
       >
         {providers.isLoading ? (
-          <p className="text-xs text-[var(--text-secondary)]" role="status">
-            Loading integrations…
-          </p>
+          <ListSkeleton rows={3} />
         ) : providers.isError ? (
-          <div className="flex items-center justify-between gap-3" role="alert">
-            <p className="text-xs text-[var(--danger)]">
-              Integration status is unavailable. Check your connection, then retry.
-            </p>
-            <Button onClick={() => void providers.refetch()} size="compact">
-              Retry
-            </Button>
-          </div>
+          <Note
+            action={
+              <Button onClick={() => void providers.refetch()} size="compact">
+                Retry
+              </Button>
+            }
+            tone="danger"
+          >
+            Integration status is unavailable.
+          </Note>
         ) : Object.keys(providers.data ?? {}).length ? (
-          <div className="divide-y divide-[var(--border-subtle)] border-y border-[var(--border)]">
+          <ul className="divide-y divide-[var(--border)] rounded-[var(--radius-control)] border border-[var(--border)]">
             {Object.entries(providers.data ?? {}).map(([name, provider]) => (
-              <div className="flex min-h-12 items-center justify-between px-2" key={name}>
-                <span className="text-[13px] capitalize">{name}</span>
+              <li className="flex min-h-11 items-center justify-between gap-3 px-3" key={name}>
+                <span className="text-[13px]">{name === "github" ? "GitHub" : humanize(name)}</span>
                 <StatusBadge
-                  label={provider.enabled ? "Configured" : "Disabled"}
+                  label={provider.enabled ? "Configured" : "Not configured"}
                   tone={provider.enabled ? "success" : "neutral"}
                 />
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         ) : (
-          <p className="text-xs text-[var(--text-secondary)]">
+          <p className="text-[13px] text-[var(--text-secondary)]">
             No integration providers available.
           </p>
         )}
       </SettingsSection>
-    </div>
+    </>
   );
 }
