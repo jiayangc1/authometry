@@ -1,14 +1,16 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, RotateCw } from "lucide-react";
+import { ExternalLink, KeyRound, RotateCw } from "lucide-react";
 import { useState } from "react";
 import { Button, EmptyState, StatusBadge } from "@authometry/ui";
 import { RelativeTime } from "@/components/data-display/formatted-time";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
+import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { apiFetch } from "@/lib/api";
+import { humanize } from "@/lib/status";
+import { useActiveEnvironment } from "@/lib/use-environment";
 import { toast } from "sonner";
 
 interface SigningKey {
@@ -23,6 +25,7 @@ interface SigningKey {
 export default function SigningKeysPage() {
   const client = useQueryClient();
   const [confirmingRotation, setConfirmingRotation] = useState(false);
+  const { active } = useActiveEnvironment();
   const query = useQuery({
     queryKey: ["signing-keys"],
     queryFn: () => apiFetch<{ data: SigningKey[] }>("/api/v1/settings/signing-keys"),
@@ -31,73 +34,86 @@ export default function SigningKeysPage() {
     mutationFn: () => apiFetch("/api/v1/settings/signing-keys/rotate", { method: "POST" }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ["signing-keys"] });
-      toast.success("Signing key rotated");
+      toast.success("Signing key rotated.");
     },
     onError: (error) => toast.error(error.message),
   });
+  const jwksUrl = `${active?.issuer ?? ""}/.well-known/jwks.json`;
   return (
-    <SettingsSection
-      description="Keys used to sign access tokens and ID tokens. Private key material is never displayed."
-      title="Signing Keys"
-    >
-      <div className="flex justify-end">
-        <Button disabled={rotate.isPending} onClick={() => setConfirmingRotation(true)}>
-          <RotateCw aria-hidden="true" className="size-3.5" />{" "}
-          {rotate.isPending ? "Rotating…" : "Rotate Key"}
-        </Button>
-      </div>
-      {query.isLoading ? (
-        <PageSkeleton rows={4} />
-      ) : query.isError ? (
-        <ErrorState
-          description="Authometry could not load signing keys. Check your connection, then retry."
-          headingLevel="h3"
-          onRetry={() => void query.refetch()}
-          title="Unable to Load Signing Keys"
-        />
-      ) : query.data?.data.length ? (
-        <div className="border-y border-[var(--border)]">
-          {query.data.data.map((key) => (
-            <div
-              className="virtualized-row grid min-h-16 grid-cols-[28px_1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 last:border-0 sm:grid-cols-[28px_1fr_100px_130px_auto]"
-              key={key.id}
+    <>
+      <SettingsSection
+        description="Keys that sign access tokens and ID tokens. Private key material is never displayed."
+        footer={
+          <>
+            <Button asChild size="compact" variant="ghost">
+              <a href={jwksUrl} rel="noreferrer" target="_blank">
+                View JWKS <ExternalLink aria-hidden="true" className="size-3" />
+              </a>
+            </Button>
+            <Button
+              className="[&:hover_svg]:rotate-90"
+              loading={rotate.isPending}
+              onClick={() => setConfirmingRotation(true)}
+              size="compact"
             >
-              <KeyRound aria-hidden="true" className="size-4 text-[var(--text-secondary)]" />
-              <div>
-                <p className="technical-value font-medium">{key.kid}</p>
-                <p className="text-xs text-[var(--text-tertiary)]">
-                  Created <RelativeTime value={key.created_at} />
-                </p>
-              </div>
-              <span className="technical-value hidden sm:block">{key.algorithm}</span>
-              <StatusBadge
-                label={key.status}
-                tone={key.status === "active" ? "success" : "neutral"}
-              />
-              <Button asChild size="compact" variant="ghost">
-                <a href={`/.well-known/jwks.json#${key.kid}`} rel="noreferrer" target="_blank">
-                  View Public Key
-                </a>
-              </Button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          description="Rotate a signing key to create the first key for this workspace."
-          headingLevel="h3"
-          icon={KeyRound}
-          title="No Signing Keys"
-        />
-      )}
-      <Button asChild variant="ghost">
-        <a href="/.well-known/jwks.json" rel="noreferrer" target="_blank">
-          View JWKS
-        </a>
-      </Button>
+              {!rotate.isPending && <RotateCw aria-hidden="true" className="size-3.5" />} Rotate key
+            </Button>
+          </>
+        }
+        footerHint="Rotate after a suspected compromise or on a regular schedule."
+        title="Signing keys"
+      >
+        {query.isLoading ? (
+          <ListSkeleton rows={2} />
+        ) : query.isError ? (
+          <ErrorState
+            description="Authometry could not load signing keys. Check your connection, then retry."
+            headingLevel="h3"
+            onRetry={() => void query.refetch()}
+            title="Unable to load signing keys"
+          />
+        ) : query.data?.data.length ? (
+          <ul className="divide-y divide-[var(--border)] rounded-[var(--radius-control)] border border-[var(--border)]">
+            {query.data.data.map((key) => (
+              <li className="flex min-h-14 items-center gap-3 px-3 py-2.5" key={key.id}>
+                <KeyRound
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-[var(--text-secondary)]"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="technical-value truncate font-medium text-[var(--text-primary)]">
+                    {key.kid}
+                  </p>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    <span className="technical-value">{key.algorithm}</span> · Created{" "}
+                    <RelativeTime value={key.created_at} />
+                    {key.retires_at && (
+                      <>
+                        {" "}
+                        · Retires <RelativeTime value={key.retires_at} />
+                      </>
+                    )}
+                  </p>
+                </div>
+                <StatusBadge
+                  label={humanize(key.status)}
+                  tone={key.status === "active" ? "success" : "neutral"}
+                />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState
+            description="Rotate to create the first signing key for this environment."
+            headingLevel="h3"
+            icon={KeyRound}
+            title="No signing keys"
+          />
+        )}
+      </SettingsSection>
       <ConfirmDialog
-        actionLabel="Rotate Key"
-        description="A new active signing key will be created. Existing keys will follow the configured retirement policy."
+        actionLabel="Rotate key"
+        description="A new active signing key is created. Existing keys keep verifying tokens until they retire."
         onConfirm={() => rotate.mutateAsync()}
         onOpenChange={setConfirmingRotation}
         open={confirmingRotation}
@@ -105,6 +121,6 @@ export default function SigningKeysPage() {
         title="Rotate the active signing key?"
         tone="neutral"
       />
-    </SettingsSection>
+    </>
   );
 }

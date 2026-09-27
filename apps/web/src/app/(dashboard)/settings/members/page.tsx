@@ -4,10 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button, EmptyState, StatusBadge } from "@authometry/ui";
-import { inputClass } from "@/components/auth/auth-shell";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
+import { Button, EmptyState, Spinner, StatusBadge } from "@authometry/ui";
+import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
+import { Modal } from "@/components/ui/dialog";
+import { Field, Input, Select } from "@/components/ui/form";
 import { apiFetch } from "@/lib/api";
 
 interface Member {
@@ -17,6 +18,20 @@ interface Member {
   role: "owner" | "admin" | "developer" | "auditor" | "viewer";
 }
 const roles: Member["role"][] = ["admin", "developer", "auditor", "viewer"];
+const roleLabels: Record<Member["role"], string> = {
+  owner: "Owner",
+  admin: "Admin",
+  developer: "Developer",
+  auditor: "Auditor",
+  viewer: "Viewer",
+};
+const roleDescriptions: Record<Member["role"], string> = {
+  owner: "Full control, including deleting the workspace.",
+  admin: "Manage members, settings, and every resource.",
+  developer: "Create and edit applications, scopes, and policies.",
+  auditor: "Read-only access plus traces and the audit log.",
+  viewer: "Read-only access to configuration.",
+};
 
 export default function MembersPage() {
   const client = useQueryClient();
@@ -35,7 +50,7 @@ export default function MembersPage() {
     onSuccess: async () => {
       setInviting(false);
       await client.invalidateQueries({ queryKey: ["members"] });
-      toast.success("Workspace invitation sent");
+      toast.success("Invitation sent.");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -47,28 +62,132 @@ export default function MembersPage() {
       }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ["members"] });
-      toast.success("Member role updated");
+      toast.success("Role updated.");
     },
     onError: (error) => toast.error(error.message),
   });
+  const smtpEnabled = Boolean(providers.data?.smtp.enabled);
   return (
-    <SettingsSection
-      description="Members can access workspace environments according to their assigned role."
-      title="Workspace Members"
-    >
-      <div className="flex justify-end">
-        <Button
-          disabled={!providers.data?.smtp.enabled}
-          onClick={() => setInviting((value) => !value)}
-          title={providers.data?.smtp.enabled ? undefined : "Configure SMTP to invite members"}
-        >
-          <UserPlus aria-hidden="true" className="size-3.5" /> Invite Member
-        </Button>
-      </div>
-      {inviting && (
+    <>
+      <SettingsSection
+        description="People who can manage this workspace. Roles control what each member can change."
+        footer={
+          <Button
+            disabled={!smtpEnabled}
+            onClick={() => setInviting(true)}
+            size="compact"
+            variant="primary"
+          >
+            <UserPlus aria-hidden="true" className="size-3.5" /> Invite member
+          </Button>
+        }
+        footerHint={
+          smtpEnabled
+            ? "Invitations are single-use and expire after 24 hours."
+            : "Configure SMTP or Resend email delivery to send invitations."
+        }
+        title="Members"
+      >
+        {query.isLoading ? (
+          <ListSkeleton rows={3} />
+        ) : query.isError ? (
+          <ErrorState
+            description="Authometry could not load workspace members. Check your connection, then retry."
+            headingLevel="h3"
+            onRetry={() => void query.refetch()}
+            title="Unable to load members"
+          />
+        ) : query.data?.data.length ? (
+          <ul className="divide-y divide-[var(--border)] rounded-[var(--radius-control)] border border-[var(--border)]">
+            {query.data.data.map((member) => {
+              const pending = update.isPending && update.variables?.id === member.id;
+              return (
+                <li className="flex min-h-14 items-center gap-3 px-3 py-2" key={member.id}>
+                  <span
+                    aria-hidden="true"
+                    className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--geist-gray-100)] text-[11px] font-semibold text-[var(--text-secondary)]"
+                  >
+                    {member.name
+                      .split(/\s+/)
+                      .map((part) => part[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium">{member.name}</p>
+                    <p className="truncate text-xs text-[var(--text-secondary)]">{member.email}</p>
+                  </div>
+                  {pending && <Spinner className="size-3.5 text-[var(--text-tertiary)]" />}
+                  {member.role === "owner" ? (
+                    <StatusBadge label="Owner" tone="info" />
+                  ) : (
+                    <Select
+                      aria-label={`Role for ${member.name}`}
+                      compact
+                      disabled={pending}
+                      onChange={(event) =>
+                        update.mutate({ id: member.id, role: event.target.value as Member["role"] })
+                      }
+                      value={member.role}
+                      wrapperClassName="w-32"
+                    >
+                      {roles.map((role) => (
+                        <option key={role} value={role}>
+                          {roleLabels[role]}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <EmptyState
+            description="Invite a teammate to give them access to this workspace."
+            headingLevel="h3"
+            icon={UserPlus}
+            title="No members yet"
+          />
+        )}
+      </SettingsSection>
+      <SettingsSection description="What each role can do." title="Roles">
+        <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          {(["owner", ...roles] as Member["role"][]).map((role) => (
+            <div key={role}>
+              <dt className="text-[13px] font-medium">{roleLabels[role]}</dt>
+              <dd className="text-xs text-[var(--text-secondary)]">{roleDescriptions[role]}</dd>
+            </div>
+          ))}
+        </dl>
+      </SettingsSection>
+      <Modal
+        description="They’ll get an email with a single-use link that expires in 24 hours."
+        footer={
+          <>
+            <Button disabled={invite.isPending} onClick={() => setInviting(false)}>
+              Cancel
+            </Button>
+            <Button
+              form="invite-member-form"
+              loading={invite.isPending}
+              type="submit"
+              variant="primary"
+            >
+              Send invitation
+            </Button>
+          </>
+        }
+        onOpenChange={setInviting}
+        open={inviting}
+        preventClose={invite.isPending}
+        title="Invite member"
+      >
         <form
           autoComplete="off"
-          className="grid gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 sm:grid-cols-2"
+          className="grid gap-4 sm:grid-cols-2"
+          id="invite-member-form"
           onSubmit={(event) => {
             event.preventDefault();
             const data = new FormData(event.currentTarget);
@@ -79,89 +198,23 @@ export default function MembersPage() {
               invite.mutate({ name, email, role: role as Member["role"] });
           }}
         >
-          <label>
-            <span className="mb-1.5 block text-xs font-medium">Name</span>
-            <input autoComplete="off" className={inputClass} name="name" required />
-          </label>
-          <label>
-            <span className="mb-1.5 block text-xs font-medium">Email</span>
-            <input
-              autoComplete="email"
-              className={inputClass}
-              name="email"
-              required
-              spellCheck={false}
-              type="email"
-            />
-          </label>
-          <label>
-            <span className="mb-1.5 block text-xs font-medium">Role</span>
-            <select className={inputClass} defaultValue="developer" name="role">
+          <Field label="Name">
+            <Input autoComplete="off" autoFocus name="name" required />
+          </Field>
+          <Field label="Email">
+            <Input autoComplete="off" name="email" required spellCheck={false} type="email" />
+          </Field>
+          <Field className="sm:col-span-2" label="Role">
+            <Select defaultValue="developer" name="role">
               {roles.map((role) => (
                 <option key={role} value={role}>
-                  {role}
+                  {roleLabels[role]} — {roleDescriptions[role]}
                 </option>
               ))}
-            </select>
-          </label>
-          <Button className="self-end" disabled={invite.isPending} type="submit" variant="primary">
-            {invite.isPending ? "Sending…" : "Send Invitation"}
-          </Button>
+            </Select>
+          </Field>
         </form>
-      )}
-      {query.isLoading ? (
-        <PageSkeleton rows={5} />
-      ) : query.isError ? (
-        <ErrorState
-          description="Authometry could not load workspace members. Check your connection, then retry."
-          headingLevel="h3"
-          onRetry={() => void query.refetch()}
-          title="Unable to Load Members"
-        />
-      ) : query.data?.data.length ? (
-        <div className="border-y border-[var(--border)]">
-          {query.data.data.map((member) => (
-            <div
-              className="virtualized-row grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 border-b border-[var(--border-subtle)] px-2 last:border-0 sm:grid-cols-[1fr_220px]"
-              key={member.id}
-            >
-              <div>
-                <p className="text-[13px] font-medium">{member.name}</p>
-                <p className="text-xs text-[var(--text-secondary)]">{member.email}</p>
-              </div>
-              {member.role === "owner" ? (
-                <StatusBadge label="Owner" tone="info" />
-              ) : (
-                <select
-                  aria-label={`Role for ${member.name}`}
-                  className="h-8 rounded border border-[var(--border)] bg-[var(--surface-raised)] px-2 text-xs text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:outline-none"
-                  disabled={update.isPending}
-                  onChange={(event) =>
-                    update.mutate({ id: member.id, role: event.target.value as Member["role"] })
-                  }
-                  value={member.role}
-                >
-                  {roles.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          description="Invite a teammate to give them access to this workspace."
-          headingLevel="h3"
-          icon={UserPlus}
-          title="No Workspace Members"
-        />
-      )}
-      <p className="text-xs text-[var(--text-tertiary)]">
-        Invitations are single-use, expire after 24 hours, and require configured SMTP delivery.
-      </p>
-    </SettingsSection>
+      </Modal>
+    </>
   );
 }

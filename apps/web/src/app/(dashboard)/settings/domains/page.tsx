@@ -1,14 +1,16 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Globe2, Plus } from "lucide-react";
+import { Globe2, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button, EmptyState, StatusBadge } from "@authometry/ui";
-import { inputClass } from "@/components/auth/auth-shell";
-import { ErrorState, PageSkeleton } from "@/components/data-display/states";
+import { Button, StatusBadge } from "@authometry/ui";
+import { Snippet } from "@/components/data-display/copyable-value";
+import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
+import { Field, Input } from "@/components/ui/form";
 import { apiFetch } from "@/lib/api";
+import { humanize } from "@/lib/status";
 
 interface Domain {
   id: string;
@@ -24,7 +26,6 @@ interface Verification {
 
 export default function DomainsPage() {
   const client = useQueryClient();
-  const [adding, setAdding] = useState(false);
   const [hostname, setHostname] = useState("");
   const [verification, setVerification] = useState<Verification>();
   const query = useQuery({
@@ -39,9 +40,9 @@ export default function DomainsPage() {
       }),
     onSuccess: async (result) => {
       setVerification(result);
-      setAdding(false);
+      setHostname("");
       await client.invalidateQueries({ queryKey: ["domains"] });
-      toast.success("Domain added");
+      toast.success("Domain added.");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -50,131 +51,118 @@ export default function DomainsPage() {
       apiFetch(`/api/v1/settings/domains/${id}/verify`, { method: "POST" }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ["domains"] });
-      toast.success("Domain verified");
+      toast.success("Domain verified.");
     },
     onError: (error) => toast.error(error.message),
   });
-  async function copy(value: string) {
-    await navigator.clipboard.writeText(value);
-    toast.success("Copied");
-  }
   return (
-    <SettingsSection
-      description="Use a verified custom domain as an environment issuer."
-      title="Domains"
-    >
-      <div className="flex justify-end">
-        <Button onClick={() => setAdding((value) => !value)}>
-          <Plus aria-hidden="true" className="size-3.5" /> Add Domain
-        </Button>
-      </div>
-      {adding && (
+    <>
+      <SettingsSection
+        description="Serve an environment’s issuer from your own domain. Add it, publish a TXT record, then verify."
+        title="Domains"
+      >
         <form
-          className="flex gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3"
+          className="flex flex-col gap-2 sm:flex-row"
           onSubmit={(event) => {
             event.preventDefault();
-            add.mutate();
+            if (hostname.trim()) add.mutate();
           }}
         >
           <label className="min-w-0 flex-1">
             <span className="sr-only">Domain hostname</span>
-            <input
+            <Input
               autoComplete="off"
-              className={inputClass}
+              compact
+              mono
               name="hostname"
               onChange={(event) => setHostname(event.target.value)}
-              placeholder="login.example.com…"
+              placeholder="login.example.com"
               required
               spellCheck={false}
               value={hostname}
             />
           </label>
-          <Button disabled={add.isPending} type="submit" variant="primary">
-            {add.isPending ? "Adding…" : "Add Domain"}
+          <Button disabled={!hostname.trim()} loading={add.isPending} type="submit">
+            <Plus aria-hidden="true" className="size-3.5" /> Add domain
           </Button>
         </form>
-      )}
-      {query.isLoading ? (
-        <PageSkeleton rows={4} />
-      ) : query.isError ? (
-        <ErrorState
-          description="Authometry could not load custom domains. Check your connection, then retry."
-          headingLevel="h3"
-          onRetry={() => void query.refetch()}
-          title="Unable to Load Domains"
-        />
-      ) : query.data?.data.length ? (
-        <div className="border-y border-[var(--border)]">
-          {query.data.data.map((domain) => (
-            <div
-              className="virtualized-row flex min-h-14 items-center gap-3 border-b border-[var(--border-subtle)] px-2 last:border-0"
-              key={domain.id}
-            >
-              <Globe2 aria-hidden="true" className="size-4 text-[var(--text-secondary)]" />
-              <div className="flex-1">
-                <p className="technical-value">{domain.hostname}</p>
-                {domain.is_primary && (
-                  <p className="text-[10px] text-[var(--text-tertiary)]">Primary issuer</p>
-                )}
-              </div>
-              <StatusBadge
-                label={domain.status}
-                tone={domain.status === "verified" ? "success" : "warning"}
-              />
-              {domain.status !== "verified" && (
-                <Button
-                  disabled={verify.isPending}
-                  onClick={() => verify.mutate(domain.id)}
-                  size="compact"
-                  variant="ghost"
-                >
-                  Verify
-                </Button>
-              )}
+        {verification && (
+          <div className="animate-enter space-y-3 rounded-[var(--radius-card)] border border-[var(--info-border)] bg-[var(--info-soft)] p-4">
+            <div>
+              <p className="text-[13px] font-medium">
+                Add this TXT record to{" "}
+                <span className="technical-value">{verification.hostname}</span>
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+                Copy it now — the value is shown only once. DNS changes can take a few minutes.
+              </p>
             </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          description="Add a domain, publish the provided TXT record, and verify it before activation."
-          headingLevel="h3"
-          icon={Globe2}
-          title="No Custom Domains"
-        />
-      )}
-      {verification && (
-        <div className="rounded-lg border border-[var(--info-border)] bg-[var(--info-soft)] p-4">
-          <p className="text-xs font-semibold">Publish this DNS record</p>
-          <p className="mt-1 text-xs text-[var(--text-secondary)]">
-            The verification value is displayed only once.
+            <Field label="Name">
+              <Snippet label="DNS name" value={verification.verification.name} />
+            </Field>
+            <Field label="Value">
+              <Snippet label="DNS value" value={verification.verification.value} />
+            </Field>
+            <div className="flex justify-end">
+              <Button
+                loading={verify.isPending && verify.variables === verification.id}
+                onClick={() => verify.mutate(verification.id)}
+                size="compact"
+                variant="primary"
+              >
+                Verify now
+              </Button>
+            </div>
+          </div>
+        )}
+        {query.isLoading ? (
+          <ListSkeleton rows={2} />
+        ) : query.isError ? (
+          <ErrorState
+            description="Authometry could not load custom domains. Check your connection, then retry."
+            headingLevel="h3"
+            onRetry={() => void query.refetch()}
+            title="Unable to load domains"
+          />
+        ) : query.data?.data.length ? (
+          <ul className="divide-y divide-[var(--border)] rounded-[var(--radius-control)] border border-[var(--border)]">
+            {query.data.data.map((domain) => (
+              <li className="flex min-h-12 items-center gap-3 px-3 py-2" key={domain.id}>
+                <Globe2
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-[var(--text-secondary)]"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="technical-value truncate text-[var(--text-primary)]">
+                    {domain.hostname}
+                  </p>
+                  {domain.is_primary && (
+                    <p className="text-xs text-[var(--text-tertiary)]">Primary issuer</p>
+                  )}
+                </div>
+                <StatusBadge
+                  label={humanize(domain.status)}
+                  tone={domain.status === "verified" ? "success" : "warning"}
+                />
+                {domain.status !== "verified" && (
+                  <Button
+                    loading={verify.isPending && verify.variables === domain.id}
+                    onClick={() => verify.mutate(domain.id)}
+                    size="compact"
+                    variant="ghost"
+                  >
+                    Verify
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="rounded-[var(--radius-control)] border border-dashed border-[var(--border-strong)] px-4 py-6 text-center text-[13px] text-[var(--text-secondary)]">
+            No custom domains yet.
           </p>
-          <dl className="mt-3 grid grid-cols-[64px_1fr_auto] items-center gap-y-2 text-xs">
-            <dt>Type</dt>
-            <dd className="technical-value">TXT</dd>
-            <span />
-            <dt>Name</dt>
-            <dd className="technical-value break-all">{verification.verification.name}</dd>
-            <Button
-              aria-label="Copy DNS name"
-              onClick={() => void copy(verification.verification.name)}
-              size="icon"
-              variant="ghost"
-            >
-              <Copy aria-hidden="true" className="size-3.5" />
-            </Button>
-            <dt>Value</dt>
-            <dd className="technical-value break-all">{verification.verification.value}</dd>
-            <Button
-              aria-label="Copy DNS value"
-              onClick={() => void copy(verification.verification.value)}
-              size="icon"
-              variant="ghost"
-            >
-              <Copy aria-hidden="true" className="size-3.5" />
-            </Button>
-          </dl>
-        </div>
-      )}
-    </SettingsSection>
+        )}
+      </SettingsSection>
+    </>
   );
 }
