@@ -30,6 +30,13 @@ export class ApiClientError extends Error {
 }
 
 let refreshPromise: Promise<boolean> | undefined;
+const sessionExpiredListeners = new Set<() => void>();
+
+/** Subscribe to dashboard sessions that could not be renewed. Returns an unsubscribe function. */
+export function onSessionExpired(listener: () => void): () => void {
+  sessionExpiredListeners.add(listener);
+  return () => sessionExpiredListeners.delete(listener);
+}
 
 async function requestSessionRefresh(csrf: string | undefined): Promise<boolean> {
   async function refresh(csrfToken: string | undefined): Promise<Response> {
@@ -77,8 +84,10 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = 
       ...init.headers,
     },
   });
+  const authEndpoint = path.startsWith("/api/v1/auth/");
   if (response.status === 401 && retry && !path.includes("/auth/refresh")) {
     if (await renewDashboardSession()) return apiFetch<T>(path, init, false);
+    if (!authEndpoint) for (const listener of sessionExpiredListeners) listener();
   }
   if (!response.ok) {
     const result = (await response.json().catch(() => undefined)) as

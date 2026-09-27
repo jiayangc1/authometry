@@ -54,3 +54,12 @@ void test("login redirects reject external return destinations", () => {
 void test("the login route is included in the session proxy matcher", () => {
   assert.ok(config.matcher.includes("/login"));
 });
+
+void test("every dashboard section is protected by the session proxy", () => {
+  for (const section of ["/agents", "/agent-grants", "/groups"]) {
+    assert.ok(
+      config.matcher.includes(`${section}/:path*`),
+      `${section} should redirect signed-out visitors to login`,
+    );
+  }
+});

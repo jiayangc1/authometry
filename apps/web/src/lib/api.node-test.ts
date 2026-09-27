@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { apiFetch, renewDashboardSession } from "./api.js";
+import { apiFetch, onSessionExpired, renewDashboardSession } from "./api.js";
 
 void test("concurrent unauthorized requests share one session refresh", async () => {
   const originalFetch = globalThis.fetch;
@@ -148,5 +148,27 @@ void test("malformed browser cookies do not crash API requests", async () => {
       configurable: true,
       value: originalDocument,
     });
+  }
+});
+
+void test("an unrecoverable dashboard session notifies session-expired listeners", async () => {
+  const originalFetch = globalThis.fetch;
+  const expired: string[] = [];
+  const unsubscribe = onSessionExpired(() => expired.push("expired"));
+
+  globalThis.fetch = async (input) => {
+    const path = String(input);
+    if (path === "/api/v1/auth/refresh") return new Response(null, { status: 401 });
+    return Response.json({ error: { code: "authentication_required" } }, { status: 401 });
+  };
+
+  try {
+    await assert.rejects(apiFetch("/api/v1/users"), { status: 401 });
+    assert.deepEqual(expired, ["expired"]);
+    await assert.rejects(apiFetch("/api/v1/auth/me", {}, false), { status: 401 });
+    assert.deepEqual(expired, ["expired"], "auth endpoints must not trigger the redirect");
+  } finally {
+    unsubscribe();
+    globalThis.fetch = originalFetch;
   }
 });

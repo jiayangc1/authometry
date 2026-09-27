@@ -26,7 +26,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AuthometryMark, Button, Kbd, StatusDot, cn } from "@authometry/ui";
 import { navigation, utilityNavigation } from "@/config/navigation";
-import { apiFetch, renewDashboardSession } from "@/lib/api";
+import { apiFetch, onSessionExpired, renewDashboardSession } from "@/lib/api";
 import { useHydrated } from "@/lib/use-hydrated";
 import { SkipLink } from "@/components/layout/skip-link";
 import {
@@ -133,6 +133,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  useEffect(
+    () =>
+      onSessionExpired(() => {
+        const returnTo = `${window.location.pathname}${window.location.search}`;
+        toast.info("Your session ended. Sign in again to continue.", { id: "session-expired" });
+        window.location.assign(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+      }),
+    [],
+  );
 
   useEffect(() => {
     let lastSuccessfulRenewal = Date.now();

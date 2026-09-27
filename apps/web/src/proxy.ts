@@ -44,7 +44,10 @@ export const config = {
   matcher: [
     "/overview/:path*",
     "/applications/:path*",
+    "/agents/:path*",
+    "/agent-grants/:path*",
     "/users/:path*",
+    "/groups/:path*",
     "/sessions/:path*",
     "/traces/:path*",
     "/scopes/:path*",
