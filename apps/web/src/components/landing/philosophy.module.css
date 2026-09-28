@@ -1,0 +1,153 @@
+.section {
+  position: relative;
+  padding-block: clamp(104px, 13vw, 184px) clamp(72px, 9vw, 120px);
+  border-top: 1px solid var(--line);
+}
+
+.head {
+  display: grid;
+  gap: 24px;
+  max-width: 920px;
+  margin-bottom: clamp(48px, 6vw, 72px);
+}
+
+.title {
+  max-width: 11em;
+}
+
+.compare {
+  display: grid;
+  border-top: 2px solid var(--ink);
+}
+
+.compareHead,
+.compareRow {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: clamp(20px, 4vw, 64px);
+}
+
+.compareHead {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line-strong);
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.compareRow {
+  padding: 22px 0;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.sees code {
+  display: inline-block;
+  color: var(--ink-3);
+  font-size: clamp(16px, 1.6vw, 20px);
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+}
+
+.records {
+  display: grid;
+  gap: 4px;
+}
+
+.code {
+  justify-self: start;
+  padding: 1px 7px;
+  border: 1px solid var(--ink);
+  border-radius: 5px;
+  background: var(--signal);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.records strong {
+  margin-top: 6px;
+  font-size: clamp(18px, 1.7vw, 22px);
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.records span {
+  color: var(--ink-2);
+  font-size: 14.5px;
+  line-height: 22px;
+}
+
+/* ---------- Principles ---------- */
+
+.principles {
+  display: grid;
+  margin-top: clamp(96px, 12vw, 168px) !important;
+}
+
+.principles li {
+  display: grid;
+  grid-template-columns: minmax(64px, 0.16fr) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 16px;
+  padding: clamp(16px, 2vw, 26px) 0;
+  border-top: 1px solid var(--line);
+}
+
+.principles li:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.number {
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: clamp(14px, 1.3vw, 17px);
+  font-variant-numeric: tabular-nums;
+}
+
+.principle {
+  font-size: clamp(30px, 4.6vw, 68px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+  transition: color 200ms var(--ease);
+}
+
+.principles:hover .principle {
+  color: var(--ink-3);
+}
+
+.principles li:hover .principle {
+  color: var(--ink);
+}
+
+@media (max-width: 719px) {
+  .compareHead {
+    display: none;
+  }
+
+  .compareRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .sees::before,
+  .records::before {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--ink-3);
+    font-size: 12px;
+  }
+
+  .sees::before {
+    content: "Client sees";
+  }
+
+  .records::before {
+    content: "Authometry records";
+  }
+
+  .principles li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+}
