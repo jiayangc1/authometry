@@ -648,6 +648,25 @@
   }
 }
 
+@media (max-width: 480px) {
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .facts > div {
+    grid-template-columns: 96px minmax(0, 1fr);
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 12px;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--line-soft) !important;
+  }
+
+  .facts > div:last-child {
+    border-bottom: 0 !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .detail {
     animation: none;

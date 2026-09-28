@@ -1,12 +1,13 @@
 "use client";
 
 import { ArrowRight, Check, CircleDashed, CircleX } from "lucide-react";
-import { useMotionValueEvent, useReducedMotion, useScroll } from "motion/react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import styles from "./black-box.module.css";
 import { scenario } from "./demo-data";
 import base from "./landing.module.css";
 import { Container, SectionLabel, cx } from "./primitives";
+import { useScrollProgress } from "./use-motion";
+import { usePrefersReducedMotion } from "./use-reduced-motion";
 
 const STAGES = 7;
 
@@ -17,30 +18,37 @@ const symptoms = [
   "A request is denied.",
 ];
 
+/** Stages advance slightly ahead of the scroll so the last one has room to be read. */
+const stageAt = (progress: number) =>
+  Math.min(STAGES - 1, Math.max(0, Math.floor(progress * STAGES * 1.08 - 0.25)));
+
 export function BlackBox() {
   const section = useRef<HTMLElement>(null);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const [mode, setMode] = useState<"static" | "scroll">("static");
   const [stage, setStage] = useState(STAGES - 1);
-  const { scrollYProgress } = useScroll({ target: section, offset: ["start start", "end end"] });
+  const progress = useRef(0);
 
   useEffect(() => {
     const query = window.matchMedia("(min-width: 960px) and (min-height: 700px)");
     const update = () => {
       const scroll = query.matches && !reduceMotion;
       setMode(scroll ? "scroll" : "static");
-      if (!scroll) setStage(STAGES - 1);
-      else setStage(Math.min(STAGES - 1, Math.floor(scrollYProgress.get() * STAGES)));
+      setStage(scroll ? stageAt(progress.current) : STAGES - 1);
     };
     update();
     query.addEventListener("change", update);
     return () => query.removeEventListener("change", update);
-  }, [reduceMotion, scrollYProgress]);
+  }, [reduceMotion]);
 
-  useMotionValueEvent(scrollYProgress, "change", (value) => {
-    if (mode !== "scroll") return;
-    setStage(Math.min(STAGES - 1, Math.max(0, Math.floor(value * STAGES * 1.08 - 0.25))));
-  });
+  const onProgress = useCallback(
+    (value: number) => {
+      progress.current = value;
+      if (mode === "scroll") setStage(stageAt(value));
+    },
+    [mode],
+  );
+  useScrollProgress(section, onProgress);
 
   const shown = (index: number) => stage >= index;
 

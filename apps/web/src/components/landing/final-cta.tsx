@@ -1,13 +1,14 @@
 "use client";
 
 import { ArrowUpRight } from "lucide-react";
-import { useInView, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { GITHUB_URL } from "./demo-data";
 import styles from "./final-cta.module.css";
 import base from "./landing.module.css";
 import { Container, cx } from "./primitives";
+import { useInView } from "./use-motion";
+import { usePrefersReducedMotion } from "./use-reduced-motion";
 
 type Phase = "idle" | "request" | "policy" | "allow" | "mark";
 
@@ -23,11 +24,14 @@ const order: Phase[] = ["idle", "request", "policy", "allow", "mark"];
 export function FinalCta() {
   const stage = useRef<HTMLDivElement>(null);
   const inView = useInView(stage, { once: true, amount: 0.6 });
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const [phase, setPhase] = useState<Phase>("mark");
 
   useEffect(() => {
-    if (reduceMotion) return;
+    if (reduceMotion) {
+      setPhase("mark");
+      return;
+    }
     if (!inView) {
       setPhase("idle");
       return;

@@ -218,7 +218,7 @@ export function CodeSamples() {
                 <span>1</span>Provision the client from your repository
               </p>
               <div className={styles.command}>
-                <pre>
+                <pre tabIndex={0}>
                   <code>
                     {provision.split("\n").map((line, index) => (
                       <span key={index}>

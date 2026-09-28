@@ -398,7 +398,7 @@ export function FlowExplorer() {
                       </dl>
                     )}
                     {message.body && (
-                      <pre className={styles.body}>
+                      <pre className={styles.body} tabIndex={0}>
                         <code>
                           {message.body.text.split("\n").map((line, number) => (
                             <span className={styles.codeLine} key={number}>

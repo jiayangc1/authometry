@@ -178,7 +178,7 @@
 
 .title {
   max-width: 9.5em;
-  font-size: clamp(52px, 9.4vw, 148px);
+  font-size: clamp(44px, 9.4vw, 148px);
 }
 
 .lead {

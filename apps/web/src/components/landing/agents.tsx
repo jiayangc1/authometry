@@ -219,7 +219,7 @@ export function Agents() {
                   </ol>
                   <div className={styles.claims}>
                     <p>Access token, bound to the agent’s key</p>
-                    <pre>
+                    <pre tabIndex={0}>
                       <code>
                         {tokenClaims.split("\n").map((line, index) => (
                           <span key={index}>

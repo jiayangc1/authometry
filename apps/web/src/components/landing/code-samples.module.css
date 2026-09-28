@@ -13,7 +13,9 @@
 
 .copy {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
+  min-width: 0;
 }
 
 .steps {
@@ -85,6 +87,7 @@
 
 .agent {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   padding-top: 18px;
   border-top: 1px solid var(--line);
@@ -106,6 +109,7 @@
 }
 
 .agentPrompt code {
+  min-width: 0;
   overflow: hidden;
   color: var(--ink-2);
   font-size: 12.5px;

@@ -154,8 +154,8 @@ export function DecisionInspector() {
 
         <div className={styles.outcome}>
           <div className={styles.condition}>
-            <p className={base.meta}>{scenario.policy.source}</p>
-            <pre>
+            <p className={styles.conditionPath}>{scenario.policy.source}</p>
+            <pre tabIndex={0}>
               <code>
                 <span className={base.tokKey}>match</span>
                 <span className={base.tokPunct}>:</span>

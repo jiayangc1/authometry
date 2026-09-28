@@ -9,13 +9,14 @@ import {
   Search,
   type LucideIcon,
 } from "lucide-react";
-import { useInView, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { navigation } from "@/config/navigation";
 import { allowedTrace, clockAt, scenario, type StepStatus, type TraceStepDemo } from "./demo-data";
 import base from "./landing.module.css";
 import { MarkTile, cx } from "./primitives";
 import styles from "./trace-window.module.css";
+import { useInView } from "./use-motion";
+import { usePrefersReducedMotion } from "./use-reduced-motion";
 
 const statusIcon: Record<StepStatus, LucideIcon> = {
   passed: Check,
@@ -39,19 +40,19 @@ const total = scenario.durationMs;
 export function TraceWindow() {
   const [selected, setSelected] = useState(4);
   const [playback, setPlayback] = useState<"static" | "armed" | "play">("static");
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const frame = useRef<HTMLDivElement>(null);
   const inView = useInView(frame, { once: true, amount: 0.25 });
   const rows = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
-    if (reduceMotion) return;
-    if (!inView) setPlayback("armed");
+    if (reduceMotion) setPlayback("static");
+    else if (!inView) setPlayback("armed");
   }, [inView, reduceMotion]);
 
   useEffect(() => {
-    if (inView) setPlayback((value) => (value === "armed" ? "play" : value));
-  }, [inView]);
+    if (inView && !reduceMotion) setPlayback((value) => (value === "armed" ? "play" : value));
+  }, [inView, reduceMotion]);
 
   function select(index: number, focus = false) {
     const next = Math.max(0, Math.min(allowedTrace.length - 1, index));

@@ -1,18 +1,13 @@
 "use client";
 
 import { Check, ChevronDown, RotateCcw } from "lucide-react";
-import {
-  animate,
-  useMotionValue,
-  useMotionValueEvent,
-  useReducedMotion,
-  type AnimationPlaybackControls,
-} from "motion/react";
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import styles from "./auth-flow.module.css";
 import { scenario } from "./demo-data";
 import base from "./landing.module.css";
 import { MarkTile, cx } from "./primitives";
+import { playKeyframes, type Easing } from "./use-motion";
+import { usePrefersReducedMotion } from "./use-reduced-motion";
 
 interface FlowNode {
   id: string;
@@ -50,7 +45,7 @@ const nodes: FlowNode[] = [
     id: "request",
     kind: "Request",
     value: "/oauth/authorize",
-    status: "S256, exact redirect",
+    status: "S256 challenge",
     at: 0.4,
     x: 340,
     y: 64,
@@ -178,9 +173,8 @@ function nodeState(index: number, phase: Phase): "pending" | "active" | "passed"
 }
 
 export function AuthFlow() {
-  const reduceMotion = useReducedMotion();
-  const progress = useMotionValue(0);
-  const controls = useRef<AnimationPlaybackControls | null>(null);
+  const reduceMotion = usePrefersReducedMotion();
+  const stop = useRef<(() => void) | null>(null);
   const [phase, setPhase] = useState<Phase>({
     index: 0,
     moving: false,
@@ -229,51 +223,40 @@ export function AuthFlow() {
     }
   }, []);
 
-  useMotionValueEvent(progress, "change", render);
-
   const play = useCallback(() => {
-    controls.current?.stop();
+    stop.current?.();
     phaseKey.current = "";
-    progress.jump(0);
     render(0);
     const values: number[] = [0];
     const durations: number[] = [];
-    const easing: Array<"linear" | [number, number, number, number]> = [];
+    const easings: Easing[] = [];
     hold.forEach((wait, index) => {
       if (wait > 0) {
         values.push(index);
         durations.push(wait);
-        easing.push("linear");
+        easings.push("linear");
       }
       if (index < travel.length) {
         values.push(index + 1);
         durations.push(travel[index]!);
-        easing.push([0.55, 0, 0.3, 1]);
+        easings.push([0.55, 0, 0.3, 1]);
       }
     });
-    const total = durations.reduce((sum, value) => sum + value, 0);
-    let elapsedMs = 0;
-    const times = [0, ...durations.map((value) => (elapsedMs += value) / total)];
-    controls.current = animate(progress, values, {
-      duration: total / 1000,
-      times,
-      ease: easing,
-    });
-  }, [progress, render]);
+    stop.current = playKeyframes(values, durations, easings, render);
+  }, [render]);
 
   useEffect(() => {
     if (reduceMotion) {
-      controls.current?.stop();
-      progress.jump(nodes.length - 1);
+      stop.current?.();
       render(nodes.length - 1);
       return;
     }
     const timer = window.setTimeout(play, 650);
     return () => {
       window.clearTimeout(timer);
-      controls.current?.stop();
+      stop.current?.();
     };
-  }, [play, progress, reduceMotion, render]);
+  }, [play, reduceMotion, render]);
 
   useEffect(() => {
     if (!pinned) return;
@@ -518,7 +501,7 @@ export function AuthFlow() {
               const state = nodeState(stop, phase);
               const isOpen = expanded === node.id;
               return (
-                <li data-state={state} key={node.id}>
+                <li data-emphasis={node.emphasis ?? false} data-state={state} key={node.id}>
                   <button
                     aria-expanded={isOpen}
                     className={styles.row}

@@ -1,12 +1,13 @@
 "use client";
 
 import { Pause, Play } from "lucide-react";
-import { useInView, useReducedMotion } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { scenario } from "./demo-data";
 import styles from "./event-stream.module.css";
 import base from "./landing.module.css";
 import { Container, SectionLabel, cx, highlightLine } from "./primitives";
+import { useInView } from "./use-motion";
+import { usePrefersReducedMotion } from "./use-reduced-motion";
 
 type Source = "trace" | "audit" | "security";
 type Channel = "Webhook" | "API" | "MCP";
@@ -111,7 +112,7 @@ export function EventStream() {
   const [selected, setSelected] = useState<StreamEvent>(initial[0]!);
   const [channel, setChannel] = useState<Channel>("API");
   const [paused, setPaused] = useState(false);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const panel = useRef<HTMLDivElement>(null);
   const inView = useInView(panel, { amount: 0.3 });
   const counter = useRef(initial.length);

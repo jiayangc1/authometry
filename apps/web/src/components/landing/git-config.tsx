@@ -247,7 +247,7 @@ export function GitConfig() {
               ))}
             </div>
           </div>
-          <pre className={styles.terminalBody} key={activePipeline.id}>
+          <pre className={styles.terminalBody} key={activePipeline.id} tabIndex={0}>
             <code>
               {activePipeline.steps.map((step) => (
                 <span key={step.command}>

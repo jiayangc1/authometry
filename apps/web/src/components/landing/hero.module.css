@@ -1,11 +1,15 @@
 .hero {
+  --display-size: clamp(44px, 11.2vw, 172px);
   position: relative;
   padding-top: clamp(40px, 6vw, 88px);
   padding-bottom: clamp(56px, 7vw, 96px);
 }
 
-.top {
-  --display-size: clamp(60px, 11.2vw, 172px);
+/* On narrow screens the first line sets the size: it should nearly fill the column */
+@media (max-width: 640px) {
+  .hero {
+    --display-size: calc((100vw - 40px) * 0.152);
+  }
 }
 
 .headline {
@@ -78,7 +82,8 @@
     margin-top: 0;
   }
 
+  /* The aside hangs below the headline; clear it by however much it overhangs */
   .flow {
-    margin-top: clamp(120px, 10vw, 150px);
+    margin-top: max(96px, calc(290px - var(--display-size) * 0.74));
   }
 }

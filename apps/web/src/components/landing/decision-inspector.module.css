@@ -285,8 +285,11 @@
   color: var(--night-text);
 }
 
-.condition .meta {
+.conditionPath {
   color: var(--night-dim);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 16px;
 }
 
 .condition pre {
