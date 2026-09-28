@@ -1,0 +1,73 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition:
+    color 140ms var(--ease),
+    background-color 140ms var(--ease),
+    border-color 140ms var(--ease);
+}
+
+.button:hover {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.dark {
+  color: var(--night-dim);
+}
+
+.dark:hover {
+  border-color: var(--night-line);
+  background: var(--night-3);
+  color: var(--night-text);
+}
+
+.copy,
+.check {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  transition:
+    opacity 160ms var(--ease),
+    transform 220ms var(--ease);
+}
+
+.check {
+  color: var(--allow);
+  opacity: 0;
+  transform: scale(0.6);
+}
+
+.dark .check {
+  color: var(--signal);
+}
+
+.button[data-copied="true"] .copy {
+  opacity: 0;
+  transform: scale(0.6);
+}
+
+.button[data-copied="true"] .check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}

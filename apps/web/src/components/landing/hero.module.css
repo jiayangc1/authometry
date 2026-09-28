@@ -1,0 +1,89 @@
+.hero {
+  --display-size: clamp(44px, 11.2vw, 172px);
+  position: relative;
+  padding-top: clamp(40px, 6vw, 88px);
+  padding-bottom: clamp(56px, 7vw, 96px);
+}
+
+/* On narrow screens the first line sets the size: it should nearly fill the column */
+@media (max-width: 640px) {
+  .hero {
+    --display-size: calc((100vw - 40px) * 0.152);
+  }
+}
+
+.headline {
+  position: relative;
+}
+
+.title {
+  display: grid;
+  font-size: var(--display-size);
+}
+
+.headline {
+  margin-top: clamp(20px, 2.4vw, 32px);
+}
+
+.title span {
+  display: block;
+}
+
+.aside {
+  display: grid;
+  gap: 22px;
+  max-width: 460px;
+  margin-top: 36px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.install {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 0 5px 0 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+}
+
+.install code {
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.install code span {
+  color: var(--ink-3);
+}
+
+.flow {
+  margin-top: clamp(56px, 7vw, 88px);
+}
+
+/* The supporting copy settles into the space the second line leaves open */
+@media (min-width: 1024px) {
+  .aside {
+    position: absolute;
+    top: calc(var(--display-size) * 0.98);
+    right: 0;
+    width: min(440px, 36%);
+    margin-top: 0;
+  }
+
+  /* The aside hangs below the headline; clear it by however much it overhangs */
+  .flow {
+    margin-top: max(96px, calc(290px - var(--display-size) * 0.74));
+  }
+}

@@ -30,6 +30,7 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
+    "@authometry/config": "workspace:*",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",

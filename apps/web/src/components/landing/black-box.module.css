@@ -1,0 +1,362 @@
+.section {
+  position: relative;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.section[data-mode="scroll"] {
+  height: 330vh;
+}
+
+.sticky {
+  padding-block: clamp(88px, 11vw, 150px);
+}
+
+.section[data-mode="scroll"] .sticky {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  height: 100vh;
+  padding-block: 72px 24px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  align-items: center;
+  gap: clamp(40px, 6vw, 104px);
+}
+
+.copy {
+  display: grid;
+  gap: 28px;
+}
+
+.title {
+  max-width: 7.5em;
+}
+
+.symptoms {
+  display: grid;
+  gap: 2px;
+  color: var(--ink);
+  font-size: clamp(19px, 1.7vw, 23px);
+  line-height: 1.45;
+  letter-spacing: -0.02em;
+}
+
+.symptoms li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.symptoms li::before {
+  width: 14px;
+  height: 1px;
+  background: var(--line-strong);
+  content: "";
+}
+
+/* ---------- The expanding explanation ---------- */
+
+.stack {
+  --stage: 6;
+  position: relative;
+  padding-left: 30px;
+}
+
+.gauge {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 10px;
+  border-left: 1px solid var(--line-strong);
+}
+
+.gauge i {
+  display: block;
+  width: 7px;
+  height: 1px;
+  background: var(--line-strong);
+  transition:
+    width 240ms var(--ease),
+    background-color 240ms var(--ease);
+}
+
+.gauge i[data-on="true"] {
+  width: 10px;
+  height: 2px;
+  background: var(--ink);
+}
+
+.gauge::after {
+  position: absolute;
+  top: calc(var(--stage) / 6 * 100%);
+  left: -5px;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+  background: var(--signal);
+  content: "";
+  transform: translateY(-50%);
+  transition: top 420ms var(--ease);
+}
+
+.error {
+  position: relative;
+  padding: 18px 20px 16px;
+  border-radius: 12px;
+  background: var(--night);
+  color: var(--night-text);
+  transition:
+    border-radius 300ms var(--ease),
+    box-shadow 300ms var(--ease);
+}
+
+.error[data-open="true"] {
+  border-radius: 12px 12px 4px 4px;
+}
+
+.errorLine,
+.errorLocation {
+  color: var(--night-muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.errorLine span {
+  color: var(--night-dim);
+}
+
+.errorLocation b {
+  color: var(--n-deny);
+  font-weight: 400;
+}
+
+.errorCode {
+  margin-top: 14px !important;
+  color: var(--night-text);
+  font-family: var(--mono);
+  font-size: clamp(34px, 4vw, 52px);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.errorNote {
+  margin-top: 12px !important;
+  color: var(--night-dim);
+  font-size: 12.5px;
+}
+
+.errorNote code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--signal);
+  color: var(--night);
+  font-size: 12px;
+}
+
+.layers {
+  position: relative;
+  display: grid;
+  margin-top: 6px !important;
+}
+
+.layer {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr);
+  gap: 16px;
+  padding: 11px 16px;
+  border: 1px solid var(--line);
+  border-top: 0;
+  background: var(--surface);
+  font-size: 14px;
+  line-height: 21px;
+  transition:
+    opacity 360ms var(--ease),
+    transform 420ms var(--ease),
+    filter 360ms var(--ease);
+}
+
+.layer:first-child {
+  border-top: 1px solid var(--line);
+  border-radius: 4px 4px 0 0;
+}
+
+.layer:last-child {
+  border-radius: 0 0 12px 12px;
+}
+
+.section[data-mode="scroll"] .layer[data-shown="false"] {
+  opacity: 0;
+  filter: blur(3px);
+  transform: translateY(-8px);
+}
+
+.layerLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding-top: 1px;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.layerLabel svg {
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+  flex: none;
+}
+
+.layer[data-status="passed"] .layerLabel svg {
+  color: var(--allow);
+}
+
+.layer[data-status="failed"] .layerLabel,
+.layer[data-status="failed"] .layerLabel svg {
+  color: var(--deny);
+}
+
+.layer[data-status="failed"] {
+  background: #fdf8f6;
+}
+
+.layer[data-status="fix"] {
+  background: var(--surface-2);
+}
+
+.layerBody {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.layerBody code {
+  font-size: 12.5px;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.kv {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.kv span {
+  color: var(--ink-3);
+  font-family: var(--mono);
+}
+
+.kv mark {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--signal);
+  color: var(--ink);
+}
+
+.dim {
+  color: var(--ink-3);
+}
+
+.bad {
+  padding: 1px 5px;
+  border: 1px solid var(--deny-line);
+  border-radius: 4px;
+  background: var(--deny-soft);
+  color: var(--deny);
+}
+
+.skipped {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.skipped span {
+  text-decoration: line-through;
+  text-decoration-color: var(--line-strong);
+}
+
+.explainTitle {
+  font-weight: 600;
+}
+
+.compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.compare > div {
+  display: grid;
+  gap: 2px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.compare span {
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin-top: 6px !important;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.action svg {
+  width: 13px;
+  height: 13px;
+}
+
+@media (max-width: 959px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .layer {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    padding: 11px 13px;
+  }
+
+  .stack {
+    padding-left: 20px;
+  }
+
+  .compare {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
