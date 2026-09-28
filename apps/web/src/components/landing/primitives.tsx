@@ -64,7 +64,7 @@ export function MarkTile({
   );
 }
 
-export type Language = "yaml" | "ts" | "tsx" | "js" | "go" | "swift" | "bash" | "json" | "http";
+export type Language = "yaml" | "ts" | "tsx" | "js" | "go" | "python" | "bash" | "json" | "http";
 
 const keywords: Record<Language, string[]> = {
   yaml: ["true", "false", "null"],
@@ -100,7 +100,21 @@ const keywords: Record<Language, string[]> = {
   ],
   js: ["import", "from", "export", "const", "let", "await", "async", "function", "return", "new"],
   go: ["package", "import", "func", "return", "if", "err", "nil", "var", ":=", "defer", "go"],
-  swift: ["import", "let", "var", "func", "guard", "else", "return", "self", "nil", "in", "try"],
+  python: [
+    "def",
+    "return",
+    "import",
+    "from",
+    "as",
+    "if",
+    "else",
+    "None",
+    "True",
+    "False",
+    "for",
+    "in",
+    "with",
+  ],
   bash: ["curl", "export", "npx", "brew"],
   json: ["true", "false", "null"],
   http: ["GET", "POST", "HTTP/1.1"],
@@ -185,7 +199,7 @@ export function highlightLine(line: string, language: Language): ReactNode[] {
     return out;
   }
 
-  const commentPrefix = language === "bash" ? "#" : "//";
+  const commentPrefix = language === "bash" || language === "python" ? "#" : "//";
   const pattern =
     /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)|(\/\/.*$|#(?![\w{]).*$)|(\b\d+(?:\.\d+)?\b)|(\b[A-Za-z_][\w]*\b)(?=\s*\()|([A-Za-z_][\w-]*)(?=:\s)|(\b[A-Z][A-Za-z0-9_]*\b)|(\b[A-Za-z_]+\b|:=)|([{}()[\];,.=<>+|&!?-])/g;
   let last = 0;
