@@ -1,0 +1,562 @@
+/*
+ * Authometry marketing foundation.
+ * Paper and ink carry the page; the lime signal marks the one thing being measured.
+ * Status colors only appear inside product visuals.
+ */
+.root {
+  --paper: #f4f4f0;
+  --paper-2: #ecece6;
+  --surface: #ffffff;
+  --surface-2: #fafaf7;
+  --ink: #12130f;
+  --ink-2: #4c4d46;
+  --ink-3: #686960;
+  --line: #dcdcd4;
+  --line-soft: #e7e7e1;
+  --line-strong: #bebeb5;
+  --signal: #ccf24a;
+  --signal-deep: #b3dc22;
+  --allow: #17703a;
+  --allow-soft: #e3f1e5;
+  --allow-line: #bcdcc4;
+  --deny: #a8332a;
+  --deny-soft: #f9e6e1;
+  --deny-line: #eec3ba;
+  --warn: #8a5600;
+  --warn-soft: #fbefd6;
+  --warn-line: #efd29a;
+  --info: #2455c3;
+  --info-soft: #e7edfb;
+  --info-line: #c3d3f5;
+  --night: #121310;
+  --night-2: #1a1b17;
+  --night-3: #23251f;
+  --night-line: #30322b;
+  --night-text: #ecede6;
+  --night-muted: #a2a499;
+  --night-dim: #808278;
+  --n-allow: #7fd893;
+  --n-deny: #ff8c7c;
+  --n-warn: #f3bb52;
+  --n-info: #93b4ff;
+  --focus-ring: var(--ink);
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 14px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --container: 1320px;
+  --gutter: clamp(20px, 4vw, 48px);
+  --sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  color-scheme: light;
+  min-height: 100dvh;
+  overflow-x: clip;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 26px;
+  font-feature-settings: "ss01" on;
+}
+
+:global(html):has(.root) {
+  color-scheme: light;
+  background: #f4f4f0;
+  scroll-padding-top: 88px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :global(html):has(.root) {
+    scroll-behavior: smooth;
+  }
+}
+
+.root ::selection {
+  background: var(--signal);
+  color: var(--ink);
+}
+
+.root :focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Resets stay at zero specificity so component classes always win */
+:where(.root) :where(h1, h2, h3, h4, p, figure, ol, ul, dl, dd, pre) {
+  margin: 0;
+}
+
+:where(.root) :where(ol, ul) {
+  padding: 0;
+  list-style: none;
+}
+
+:where(.root) :where(a) {
+  color: inherit;
+  text-decoration: none;
+}
+
+:where(.root) :where(button) {
+  font: inherit;
+  color: inherit;
+}
+
+:where(.root) :where(code, kbd, pre, samp) {
+  font-family: var(--mono);
+}
+
+.night {
+  --focus-ring: var(--signal);
+  background: var(--night);
+  color: var(--night-text);
+}
+
+.night ::selection {
+  background: var(--signal);
+  color: var(--night);
+}
+
+/* ---------- Layout ---------- */
+
+.container {
+  width: 100%;
+  max-width: calc(var(--container) + var(--gutter) * 2);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.section {
+  position: relative;
+  padding-block: clamp(88px, 12vw, 168px);
+}
+
+.sectionTight {
+  position: relative;
+  padding-block: clamp(72px, 9vw, 120px);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Type ---------- */
+
+.display {
+  font-size: clamp(60px, 11.2vw, 172px);
+  font-weight: 500;
+  line-height: 0.86;
+  letter-spacing: -0.058em;
+  text-wrap: balance;
+}
+
+.h2 {
+  font-size: clamp(40px, 5.8vw, 86px);
+  font-weight: 500;
+  line-height: 0.95;
+  letter-spacing: -0.048em;
+  text-wrap: balance;
+}
+
+.h2Muted {
+  color: var(--ink-3);
+}
+
+.night .h2Muted {
+  color: var(--night-dim);
+}
+
+.h3 {
+  font-size: clamp(21px, 1.9vw, 26px);
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.022em;
+}
+
+.lead {
+  max-width: 38em;
+  color: var(--ink-2);
+  font-size: clamp(17px, 1.35vw, 19px);
+  line-height: 1.6;
+  letter-spacing: -0.006em;
+  text-wrap: pretty;
+}
+
+.night .lead {
+  color: var(--night-muted);
+}
+
+.body {
+  color: var(--ink-2);
+  font-size: 15.5px;
+  line-height: 25px;
+  text-wrap: pretty;
+}
+
+.night .body {
+  color: var(--night-muted);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.meta {
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.night .meta {
+  color: var(--night-dim);
+}
+
+.caption {
+  margin-top: 14px;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.night .caption {
+  color: var(--night-dim);
+}
+
+/* ---------- Section label: measurement ticks crossed by one event ---------- */
+
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 16px;
+}
+
+.night .label {
+  color: var(--night-dim);
+}
+
+.ruler {
+  position: relative;
+  display: inline-block;
+  width: 58px;
+  height: 11px;
+  flex: none;
+  color: var(--line-strong);
+  background:
+    repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 8px) left bottom / 100% 5px
+      no-repeat,
+    linear-gradient(currentColor, currentColor) left bottom / 100% 1px no-repeat;
+}
+
+.ruler::after {
+  position: absolute;
+  bottom: -3px;
+  left: 64%;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  background: var(--signal);
+  content: "";
+}
+
+.night .ruler {
+  color: var(--night-line);
+}
+
+.night .ruler::after {
+  border-color: var(--signal);
+}
+
+/* ---------- Buttons ---------- */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 160ms var(--ease),
+    border-color 160ms var(--ease),
+    color 160ms var(--ease),
+    transform 120ms var(--ease);
+}
+
+.button:active {
+  transform: scale(0.98);
+}
+
+.button svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.primary:hover {
+  background: #2a2b26;
+}
+
+/* The measurement point: a small signal square that grows on intent */
+.primary::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--signal);
+  content: "";
+  transition: transform 180ms var(--ease);
+}
+
+.primary:hover::before {
+  transform: scale(1.35);
+}
+
+.secondary {
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--ink);
+}
+
+.secondary:hover {
+  border-color: var(--ink-3);
+  background: var(--surface);
+}
+
+.night .primary {
+  background: var(--signal);
+  color: var(--night);
+}
+
+.night .primary::before {
+  background: var(--night);
+}
+
+.night .primary:hover {
+  background: #daf776;
+}
+
+.night .secondary {
+  border-color: var(--night-line);
+  color: var(--night-text);
+}
+
+.night .secondary:hover {
+  border-color: var(--night-dim);
+  background: var(--night-2);
+}
+
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--line-strong);
+  color: var(--ink);
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 22px;
+  transition: border-color 160ms var(--ease);
+}
+
+.textLink:hover {
+  border-color: var(--ink);
+}
+
+.textLink svg {
+  width: 14px;
+  height: 14px;
+}
+
+.night .textLink {
+  border-color: var(--night-line);
+  color: var(--night-text);
+}
+
+.night .textLink:hover {
+  border-color: var(--signal);
+}
+
+/* ---------- Instrument surfaces (recreated product UI) ---------- */
+
+.window {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow:
+    0 1px 0 rgb(18 19 15 / 0.03),
+    0 30px 60px -36px rgb(18 19 15 / 0.22);
+}
+
+.windowBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 16px;
+}
+
+.windowBar strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.crumbSep {
+  color: var(--line-strong);
+}
+
+.darkWindow {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--night-line);
+  border-radius: var(--radius-l);
+  background: var(--night);
+  color: var(--night-text);
+}
+
+.darkWindow .windowBar {
+  border-color: var(--night-line);
+  color: var(--night-dim);
+}
+
+.darkWindow .windowBar strong {
+  color: var(--night-text);
+}
+
+/* ---------- Status chips ---------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.chip svg {
+  width: 12px;
+  height: 12px;
+}
+
+.chipAllow {
+  border-color: var(--allow-line);
+  background: var(--allow-soft);
+  color: var(--allow);
+}
+
+.chipDeny {
+  border-color: var(--deny-line);
+  background: var(--deny-soft);
+  color: var(--deny);
+}
+
+.chipWarn {
+  border-color: var(--warn-line);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.chipInfo {
+  border-color: var(--info-line);
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.chipSignal {
+  border-color: var(--ink);
+  background: var(--signal);
+  color: var(--ink);
+}
+
+.scope {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+/* ---------- Syntax colors (shared by every code surface) ---------- */
+
+.tokKeyword {
+  color: #ffa28b;
+}
+
+.tokString {
+  color: #d4f75a;
+}
+
+.tokNumber {
+  color: #f3bb52;
+}
+
+.tokComment {
+  color: #8a8c82;
+  font-style: italic;
+}
+
+.tokKey {
+  color: #93b4ff;
+}
+
+.tokPunct {
+  color: #8d8f85;
+}
+
+.tokFunction {
+  color: #ecede6;
+  font-weight: 500;
+}
+
+.tokType {
+  color: #7fd8c4;
+}

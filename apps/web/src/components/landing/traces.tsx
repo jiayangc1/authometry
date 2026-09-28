@@ -1,0 +1,45 @@
+import base from "./landing.module.css";
+import { Container, SectionLabel, cx } from "./primitives";
+import { TraceWindow } from "./trace-window";
+import styles from "./traces.module.css";
+
+const properties = [
+  ["Ordered", "Every check is recorded in the order it ran, with its offset and duration."],
+  ["Explained", "A denial carries what was observed, what was expected, and how to fix it."],
+  [
+    "Redacted",
+    "Codes, tokens, secrets, cookies, and assertions are replaced before anything is stored.",
+  ],
+] as const;
+
+export function Traces() {
+  return (
+    <section aria-labelledby="traces-title" className={styles.section} id="traces">
+      <Container>
+        <div className={styles.head}>
+          <div>
+            <SectionLabel>authorization.traces</SectionLabel>
+            <h2 className={cx(base.h2, styles.title)} id="traces-title">
+              Every decision leaves a trace.
+            </h2>
+          </div>
+          <div className={styles.copy}>
+            <p className={base.lead}>
+              Authometry records each authorization and token request as it runs: the checks it
+              made, what each one saw, how long it took, and the decision it reached.
+            </p>
+            <dl className={styles.properties}>
+              {properties.map(([term, detail]) => (
+                <div key={term}>
+                  <dt>{term}</dt>
+                  <dd>{detail}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </div>
+        <TraceWindow />
+      </Container>
+    </section>
+  );
+}

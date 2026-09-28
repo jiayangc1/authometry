@@ -1,0 +1,190 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid transparent;
+  transition:
+    background-color 240ms var(--ease),
+    border-color 240ms var(--ease),
+    backdrop-filter 240ms var(--ease);
+}
+
+.header[data-scrolled="true"],
+.header[data-open="true"] {
+  border-bottom-color: var(--line);
+  background: rgb(244 244 240 / 0.86);
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  height: 68px;
+  transition: height 240ms var(--ease);
+}
+
+.header[data-scrolled="true"] .nav {
+  height: 58px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.links a {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 7px;
+  color: var(--ink-2);
+  font-size: 14px;
+  transition:
+    color 140ms var(--ease),
+    background-color 140ms var(--ease);
+}
+
+.links a:hover {
+  background: rgb(18 19 15 / 0.05);
+  color: var(--ink);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.github,
+.signIn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 7px;
+  color: var(--ink-2);
+  font-size: 14px;
+  transition:
+    color 140ms var(--ease),
+    background-color 140ms var(--ease);
+}
+
+.github:hover,
+.signIn:hover {
+  background: rgb(18 19 15 / 0.05);
+  color: var(--ink);
+}
+
+.github svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cta {
+  min-height: 36px;
+  margin-left: 6px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.menuButton {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.menuButton svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sheet {
+  border-top: 1px solid var(--line);
+}
+
+.sheet[hidden] {
+  display: none;
+}
+
+.sheet ul {
+  padding-block: 8px 20px;
+}
+
+.sheet li a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 52px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+
+.sheet li a svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-3);
+}
+
+.sheet .sheetCta {
+  padding-top: 18px;
+}
+
+.sheet .sheetCta a {
+  display: inline-flex;
+  width: 100%;
+  min-height: 48px;
+  border-bottom: 0;
+  font-size: 15px;
+}
+
+@media (max-width: 1099px) {
+  .github span:not([class]) {
+    display: none;
+  }
+}
+
+@media (max-width: 959px) {
+  .links,
+  .github,
+  .signIn {
+    display: none;
+  }
+
+  .menuButton {
+    display: inline-flex;
+  }
+
+  .cta {
+    display: none;
+  }
+}
+
+@media (min-width: 960px) {
+  .sheet {
+    display: none;
+  }
+}

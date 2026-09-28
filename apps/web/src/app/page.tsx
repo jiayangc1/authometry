@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { LandingPage } from "./landing-page";
+import { LandingPage } from "@/components/landing/landing-page";
 
 export const metadata: Metadata = {
   title: "OAuth and OpenID Connect infrastructure",
