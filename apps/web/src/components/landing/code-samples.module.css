@@ -263,3 +263,7 @@
     animation: none;
   }
 }
+
+.title {
+  max-width: 13em;
+}

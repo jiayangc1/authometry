@@ -170,11 +170,29 @@
   text-wrap: balance;
 }
 
+/* Follow-up headings inside a chapter: clearly subordinate to the chapter's opening claim */
+.h2Compact {
+  font-size: clamp(30px, 3.4vw, 50px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
 .h2Muted {
   color: var(--ink-3);
 }
 
-.night .h2Muted {
+.night /* Follow-up headings inside a chapter: clearly subordinate to the chapter's opening claim */
+.h2Compact {
+  font-size: clamp(30px, 3.4vw, 50px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+.h2Muted {
   color: var(--night-dim);
 }
 

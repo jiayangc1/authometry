@@ -63,7 +63,7 @@ export function DecisionInspector() {
       <Container>
         <div className={styles.head}>
           <SectionLabel>policy.decisions</SectionLabel>
-          <h2 className={cx(base.h2, styles.title)} id="decisions-title">
+          <h2 className={cx(base.h2Compact, styles.title)} id="decisions-title">
             Compare two decisions.
             <span className={base.h2Muted}> See what changed.</span>
           </h2>

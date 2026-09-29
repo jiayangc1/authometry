@@ -207,7 +207,7 @@ export function CodeSamples() {
       <Container className={styles.grid}>
         <div className={styles.copy}>
           <ChapterMark number={3} />
-          <h2 className={base.h2} id="developers-title">
+          <h2 className={cx(base.h2Compact, styles.title)} id="developers-title">
             Integrate with the library you already use.
           </h2>
           <p className={base.lead}>
