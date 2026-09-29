@@ -267,3 +267,14 @@
 .title {
   max-width: 13em;
 }
+
+.pathNote {
+  margin-bottom: -8px;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.guide {
+  justify-self: start;
+}

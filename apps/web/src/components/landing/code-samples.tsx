@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { useId, useState, type KeyboardEvent } from "react";
 import styles from "./code-samples.module.css";
 import { CopyButton } from "./copy-button";
@@ -215,6 +217,7 @@ export function CodeSamples() {
             shows up as a trace — there is no Authometry SDK to learn.
           </p>
 
+          <p className={styles.pathNote}>The quickstart, in brief:</p>
           <ol className={styles.steps}>
             <li>
               <p className={styles.stepTitle}>
@@ -246,8 +249,13 @@ export function CodeSamples() {
             </li>
           </ol>
 
+          <Link className={cx(base.textLink, styles.guide)} href="/docs/getting-started">
+            Follow the setup guide
+            <ArrowRight aria-hidden="true" />
+          </Link>
+
           <div className={styles.agent}>
-            <p>Or hand the whole integration to a coding agent</p>
+            <p>Alternative: hand the same steps to a coding agent</p>
             <div className={styles.agentPrompt}>
               <code>{agentPrompt}</code>
               <CopyButton label="Copy agent prompt" value={agentPrompt} />
