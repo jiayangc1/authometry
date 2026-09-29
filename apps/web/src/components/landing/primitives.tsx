@@ -32,6 +32,17 @@ export function SectionLabel({
   );
 }
 
+/** Marks a recreated product surface so its names and timings are not mistaken for real data. */
+export function DemoBadge({
+  children = "Interactive example · demo data",
+  className,
+}: {
+  children?: ReactNode;
+  className?: string | undefined;
+}) {
+  return <p className={cx(styles.demoBadge, className)}>{children}</p>;
+}
+
 /** The existing gauge mark, set in an ink tile with the signal accent. */
 export function MarkTile({
   size = 28,

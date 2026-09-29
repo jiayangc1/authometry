@@ -70,3 +70,51 @@
 .flow {
   margin-top: clamp(36px, 4.4vw, 56px);
 }
+
+/* The mental model sits directly above the demo it explains */
+.model {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 28px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.modelLead {
+  flex: 1 1 320px;
+  max-width: 44ch;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: -0.01em;
+}
+
+.modelSteps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.modelSteps li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.modelSteps span {
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.modelBadge {
+  margin-left: auto;
+}

@@ -5,9 +5,15 @@ import { CopyButton } from "./copy-button";
 import { GITHUB_URL } from "./demo-data";
 import styles from "./hero.module.css";
 import base from "./landing.module.css";
-import { Container, SectionLabel, cx } from "./primitives";
+import { Container, DemoBadge, SectionLabel, cx } from "./primitives";
 
 const installCommand = "npx authometry@latest init";
+
+const model = [
+  ["In", "an authorization request"],
+  ["Checked", "client, identity, policy, consent"],
+  ["Out", "a token and its trace"],
+] as const;
 
 export function Hero() {
   return (
@@ -51,6 +57,21 @@ export function Hero() {
           </div>
         </div>
         <div className={styles.flow}>
+          <div className={styles.model}>
+            <p className={styles.modelLead}>
+              Authometry is the authorization server between your app and its users. Each request
+              leaves a trace of every check it ran.
+            </p>
+            <ol aria-label="What happens in one request" className={styles.modelSteps}>
+              {model.map(([term, detail]) => (
+                <li key={term}>
+                  <span>{term}</span>
+                  {detail}
+                </li>
+              ))}
+            </ol>
+            <DemoBadge className={styles.modelBadge} />
+          </div>
           <AuthFlow />
         </div>
       </Container>
