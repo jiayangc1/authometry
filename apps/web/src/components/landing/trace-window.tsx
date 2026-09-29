@@ -6,11 +6,9 @@ import {
   CircleDashed,
   CircleX,
   Download,
-  Search,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { navigation } from "@/config/navigation";
 import { allowedTrace, clockAt, scenario, type StepStatus, type TraceStepDemo } from "./demo-data";
 import base from "./landing.module.css";
 import { MarkTile, cx } from "./primitives";
@@ -24,14 +22,11 @@ const statusIcon: Record<StepStatus, LucideIcon> = {
   skipped: CircleDashed,
 };
 
+/** Only the facts a reader needs to follow the trace; the real view shows more. */
 const facts: Array<[string, string, boolean?]> = [
   ["Application", scenario.application.name],
-  ["Client ID", scenario.application.clientId, true],
   ["User", scenario.user.email],
-  ["Grant", "Authorization Code + PKCE", true],
-  ["Endpoint", "GET /oauth/authorize", true],
-  ["Environment", "Production"],
-  ["Started", `Sep 28, 2026 ${scenario.startedAt}`, true],
+  ["Grant", "Authorization Code + PKCE"],
   ["Duration", `${scenario.durationMs} ms`, true],
 ];
 
@@ -90,33 +85,12 @@ export function TraceWindow() {
             Production
             <ChevronsUpDown aria-hidden="true" />
           </span>
-          <span className={styles.search}>
-            <Search aria-hidden="true" />
-            Search
-            <kbd>⌘K</kbd>
-          </span>
           <span aria-hidden="true" className={styles.avatar}>
             MO
           </span>
         </header>
 
         <div className={styles.body}>
-          <nav aria-label="Dashboard preview" className={styles.sidebar}>
-            {navigation.map((group) => (
-              <div key={group.label}>
-                <p>{group.label}</p>
-                <ul>
-                  {group.items.map((item) => (
-                    <li data-active={item.href === "/traces"} key={item.href}>
-                      <item.icon aria-hidden="true" />
-                      {item.label}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </nav>
-
           <div className={styles.main}>
             <p className={styles.crumbs}>
               Traces <span>/</span> <code>{scenario.requestId}</code>
