@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 /**
  * The few motion primitives the landing page needs, without an animation library:
- * visibility and a keyframed tween driven by requestAnimationFrame.
+ * visibility, scroll progress, and a keyframed tween driven by requestAnimationFrame.
  */
 
 export function useInView(
@@ -29,6 +29,41 @@ export function useInView(
   }, [amount, once, target]);
 
   return inView;
+}
+
+/** Progress from the target's top meeting the viewport top (0) to its bottom meeting the viewport bottom (1). */
+export function useScrollProgress(
+  target: RefObject<Element | null>,
+  onProgress: (progress: number) => void,
+): void {
+  const callback = useRef(onProgress);
+  useEffect(() => {
+    callback.current = onProgress;
+  }, [onProgress]);
+
+  useEffect(() => {
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const element = target.current;
+      if (!element) return;
+      const rect = element.getBoundingClientRect();
+      const distance = rect.height - window.innerHeight;
+      const progress = distance > 0 ? -rect.top / distance : rect.top <= 0 ? 1 : 0;
+      callback.current(Math.min(1, Math.max(0, progress)));
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(measure);
+    };
+    measure();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+    };
+  }, [target]);
 }
 
 export type Easing = "linear" | [number, number, number, number];
