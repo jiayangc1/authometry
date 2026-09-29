@@ -39,13 +39,13 @@ export function Hero() {
                   <ArrowUpRight aria-hidden="true" />
                   <span className={base.srOnly}>(opens in a new tab)</span>
                 </a>
-              </div>
-              <div className={styles.install}>
-                <code>
-                  <span aria-hidden="true">$ </span>
-                  {installCommand}
-                </code>
-                <CopyButton label="Copy install command" value={installCommand} />
+                <div className={styles.install}>
+                  <code>
+                    <span aria-hidden="true">$ </span>
+                    {installCommand}
+                  </code>
+                  <CopyButton label="Copy install command" value={installCommand} />
+                </div>
               </div>
             </div>
           </div>
