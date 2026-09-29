@@ -15,11 +15,12 @@ const columns: Array<{ title: string; links: FooterLink[] }> = [
   {
     title: "Product",
     links: [
-      { label: "Authorization traces", href: "#traces" },
-      { label: "Policy decisions", href: "#decisions" },
-      { label: "Protocol flow", href: "/platform#flow" },
-      { label: "Configuration as code", href: "/platform#configuration" },
-      { label: "Events", href: "/platform#events" },
+      { label: "How it works", href: "/#product" },
+      { label: "Authorization traces", href: "/#traces" },
+      { label: "Debugging denials", href: "/#denials" },
+      { label: "Platform reference", href: "/platform" },
+      { label: "Standards", href: "/platform#standards" },
+      { label: "Agents and MCP", href: "/platform#agents" },
     ],
   },
   {
@@ -27,6 +28,7 @@ const columns: Array<{ title: string; links: FooterLink[] }> = [
     links: [
       { label: "Documentation", href: "/docs" },
       { label: "Quickstart", href: "/docs/getting-started" },
+      { label: "Integration", href: "/#integrate" },
       { label: "Manifests and CLI", href: "/docs/configuration-as-code" },
       { label: "MCP server", href: "/docs/mcp" },
       { label: "Webhooks", href: "/docs/webhooks" },
@@ -38,6 +40,7 @@ const columns: Array<{ title: string; links: FooterLink[] }> = [
     links: [
       { label: "Source", href: GITHUB_URL, external: true },
       { label: "Contributing", href: githubDoc("CONTRIBUTING.md"), external: true },
+      { label: "Security controls", href: "/platform#security" },
       { label: "Security model", href: githubDoc("docs/security.md"), external: true },
       { label: "CLI on npm", href: "https://www.npmjs.com/package/authometry", external: true },
       { label: "AGPL-3.0 license", href: githubDoc("LICENSE"), external: true },
@@ -79,7 +82,7 @@ export function SiteFooter() {
                           <ArrowUpRight aria-hidden="true" />
                           <span className={base.srOnly}>(opens in a new tab)</span>
                         </a>
-                      ) : link.href.startsWith("#") ? (
+                      ) : link.href.includes("#") ? (
                         <a href={link.href}>{link.label}</a>
                       ) : (
                         <Link href={link.href}>{link.label}</Link>

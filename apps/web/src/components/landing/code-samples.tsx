@@ -202,7 +202,7 @@ export function CodeSamples() {
     <section
       aria-labelledby="developers-title"
       className={cx(base.chapterStart, styles.section)}
-      id="developers"
+      id="integrate"
     >
       <Container className={styles.grid}>
         <div className={styles.copy}>

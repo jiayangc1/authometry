@@ -56,7 +56,7 @@ export function Hero() {
             </div>
           </div>
         </div>
-        <div className={styles.flow}>
+        <div className={styles.flow} id="product">
           <div className={styles.model}>
             <p className={styles.modelLead}>
               Authometry is the authorization server between your app and its users. Each request

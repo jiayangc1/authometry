@@ -8,10 +8,11 @@ import base from "./landing.module.css";
 import { MarkTile, cx } from "./primitives";
 import styles from "./site-nav.module.css";
 
+/** The four things visitors come for; root-relative so they work from /platform too. */
 const links = [
-  { label: "Product", href: "#traces" },
-  { label: "Developers", href: "#developers" },
-  { label: "Platform", href: "/platform" },
+  { label: "Product", href: "/#product" },
+  { label: "Integrate", href: "/#integrate" },
+  { label: "Security", href: "/platform#security" },
   { label: "Docs", href: "/docs" },
 ] as const;
 
@@ -52,7 +53,7 @@ export function SiteNav() {
         <ul className={styles.links}>
           {links.map((link) => (
             <li key={link.href}>
-              {link.href.startsWith("#") ? (
+              {link.href.includes("#") ? (
                 <a href={link.href}>{link.label}</a>
               ) : (
                 <Link href={link.href}>{link.label}</Link>
@@ -88,7 +89,7 @@ export function SiteNav() {
         <ul className={base.container}>
           {links.map((link) => (
             <li key={link.href}>
-              {link.href.startsWith("#") ? (
+              {link.href.includes("#") ? (
                 <a href={link.href} onClick={() => setOpen(false)}>
                   {link.label}
                 </a>
