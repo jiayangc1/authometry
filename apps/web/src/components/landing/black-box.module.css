@@ -1,7 +1,6 @@
 .section {
   position: relative;
   border-top: 1px solid var(--line);
-  background: var(--paper);
 }
 
 .section[data-mode="scroll"] {

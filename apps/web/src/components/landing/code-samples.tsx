@@ -4,7 +4,7 @@ import { useId, useState, type KeyboardEvent } from "react";
 import styles from "./code-samples.module.css";
 import { CopyButton } from "./copy-button";
 import base from "./landing.module.css";
-import { Container, SectionLabel, cx, highlightLine, type Language } from "./primitives";
+import { ChapterMark, Container, cx, highlightLine, type Language } from "./primitives";
 import { StandardsSummary } from "./standards-summary";
 
 interface Sample {
@@ -199,10 +199,14 @@ export function CodeSamples() {
   }
 
   return (
-    <section aria-labelledby="developers-title" className={styles.section} id="developers">
+    <section
+      aria-labelledby="developers-title"
+      className={cx(base.chapterStart, styles.section)}
+      id="developers"
+    >
       <Container className={styles.grid}>
         <div className={styles.copy}>
-          <SectionLabel>integration</SectionLabel>
+          <ChapterMark number={3} />
           <h2 className={base.h2} id="developers-title">
             Integrate with the library you already use.
           </h2>

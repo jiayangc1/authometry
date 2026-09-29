@@ -598,3 +598,46 @@
 .night .demoBadge::before {
   border-color: var(--signal);
 }
+
+/* ---------- Chapter marker: the three-part story ---------- */
+
+.chapter {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -0.005em;
+}
+
+.chapterNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--signal);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chapterTotal {
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+/* Chapter regions: a firm rule where a chapter starts, a tonal shift for the middle one */
+.chapterStart {
+  border-top: 1px solid var(--line-strong) !important;
+}
+
+.tone {
+  background: var(--paper-2);
+}

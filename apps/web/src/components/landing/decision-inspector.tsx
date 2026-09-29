@@ -55,7 +55,11 @@ export function DecisionInspector() {
   const visible = rows.filter((row) => !onlyDifferences || row.differs || row.consequence);
 
   return (
-    <section aria-labelledby="decisions-title" className={styles.section} id="decisions">
+    <section
+      aria-labelledby="decisions-title"
+      className={cx(base.tone, styles.section)}
+      id="decisions"
+    >
       <Container>
         <div className={styles.head}>
           <SectionLabel>policy.decisions</SectionLabel>

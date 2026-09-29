@@ -1,7 +1,6 @@
 .section {
   position: relative;
-  padding-block: clamp(96px, 12vw, 168px);
-  border-top: 1px solid var(--line);
+  padding-block: clamp(48px, 6vw, 96px) clamp(96px, 12vw, 168px);
 }
 
 .head {

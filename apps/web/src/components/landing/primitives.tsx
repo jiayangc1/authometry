@@ -32,6 +32,30 @@ export function SectionLabel({
   );
 }
 
+export const chapters = ["See the decision", "Understand the denial", "Integrate it"] as const;
+
+/** Opens one of the page's three chapters: a numbered marker instead of a resource label. */
+export function ChapterMark({
+  number,
+  className,
+}: {
+  number: 1 | 2 | 3;
+  className?: string | undefined;
+}) {
+  return (
+    <p className={cx(styles.chapter, className)}>
+      <span className={styles.chapterNumber}>
+        <span className={styles.srOnly}>Chapter </span>
+        {String(number).padStart(2, "0")}
+      </span>
+      <span>{chapters[number - 1]}</span>
+      <span aria-hidden="true" className={styles.chapterTotal}>
+        / {String(chapters.length).padStart(2, "0")}
+      </span>
+    </p>
+  );
+}
+
 /** Marks a recreated product surface so its names and timings are not mistaken for real data. */
 export function DemoBadge({
   children = "Interactive example · demo data",

@@ -1,5 +1,5 @@
 import base from "./landing.module.css";
-import { Container, SectionLabel, cx } from "./primitives";
+import { ChapterMark, Container, cx } from "./primitives";
 import { TraceWindow } from "./trace-window";
 import styles from "./traces.module.css";
 
@@ -14,11 +14,15 @@ const properties = [
 
 export function Traces() {
   return (
-    <section aria-labelledby="traces-title" className={styles.section} id="traces">
+    <section
+      aria-labelledby="traces-title"
+      className={cx(base.chapterStart, styles.section)}
+      id="traces"
+    >
       <Container>
         <div className={styles.head}>
           <div>
-            <SectionLabel>authorization.traces</SectionLabel>
+            <ChapterMark number={1} />
             <h2 className={cx(base.h2, styles.title)} id="traces-title">
               Every decision leaves a trace.
             </h2>

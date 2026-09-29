@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import styles from "./black-box.module.css";
 import { scenario } from "./demo-data";
 import base from "./landing.module.css";
-import { Container, SectionLabel, cx } from "./primitives";
+import { ChapterMark, Container, cx } from "./primitives";
 import { useScrollProgress } from "./use-motion";
 import { usePrefersReducedMotion } from "./use-reduced-motion";
 
@@ -55,14 +55,15 @@ export function BlackBox() {
   return (
     <section
       aria-labelledby="black-box-title"
-      className={styles.section}
+      className={cx(base.chapterStart, base.tone, styles.section)}
       data-mode={mode}
+      id="denials"
       ref={section}
     >
       <div className={styles.sticky}>
         <Container className={styles.grid}>
           <div className={styles.copy}>
-            <SectionLabel>explanations</SectionLabel>
+            <ChapterMark number={2} />
             <h2 className={cx(base.h2, styles.title)} id="black-box-title">
               Debug a denial in one read.
             </h2>

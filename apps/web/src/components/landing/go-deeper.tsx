@@ -40,7 +40,7 @@ const topics: Array<{ title: string; detail: string; href: string }> = [
 /** One compact index in place of the reference chapters that now live on /platform. */
 export function GoDeeper() {
   return (
-    <section aria-labelledby="deeper-title" className={styles.section} id="deeper">
+    <section aria-labelledby="deeper-title" className={cx(base.night, styles.section)} id="deeper">
       <Container>
         <div className={styles.head}>
           <SectionLabel>platform.reference</SectionLabel>

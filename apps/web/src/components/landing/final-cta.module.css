@@ -2,7 +2,6 @@
   position: relative;
   padding-block: clamp(104px, 13vw, 184px);
   overflow: hidden;
-  border-top: 1px solid var(--line);
 }
 
 .inner {
