@@ -2,18 +2,20 @@
  * Authometry marketing foundation.
  * Paper and ink carry the page; the lime signal marks the one thing being measured.
  * Status colors only appear inside product visuals.
+ * The paper sits a clear step below white so product surfaces read as their own region;
+ * pure white is reserved for those surfaces.
  */
 .root {
-  --paper: #f4f4f0;
-  --paper-2: #ecece6;
+  --paper: #ebeae3;
+  --paper-2: #e1e0d7;
   --surface: #ffffff;
-  --surface-2: #fafaf7;
+  --surface-2: #f6f6f2;
   --ink: #12130f;
   --ink-2: #4c4d46;
-  --ink-3: #686960;
-  --line: #dcdcd4;
-  --line-soft: #e7e7e1;
-  --line-strong: #bebeb5;
+  --ink-3: #5d5e55;
+  --line: #cfcec4;
+  --line-soft: #e3e2da;
+  --line-strong: #aeada2;
   --signal: #ccf24a;
   --signal-deep: #b3dc22;
   --allow: #17703a;
@@ -63,7 +65,7 @@
 
 :global(html):has(.root) {
   color-scheme: light;
-  background: #f4f4f0;
+  background: #ebeae3;
   scroll-padding-top: 88px;
 }
 
@@ -410,12 +412,12 @@
 .window {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-l);
   background: var(--surface);
   box-shadow:
-    0 1px 0 rgb(18 19 15 / 0.03),
-    0 30px 60px -36px rgb(18 19 15 / 0.22);
+    0 1px 2px rgb(18 19 15 / 0.06),
+    0 30px 60px -32px rgb(18 19 15 / 0.3);
 }
 
 .windowBar {

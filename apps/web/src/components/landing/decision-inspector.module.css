@@ -18,7 +18,7 @@
 .board {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-l);
   background: var(--surface);
 }
