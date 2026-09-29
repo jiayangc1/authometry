@@ -15,7 +15,7 @@ import { useId, useState } from "react";
 import styles from "./agents.module.css";
 import { scenario } from "./demo-data";
 import base from "./landing.module.css";
-import { Container, SectionLabel, cx, highlightLine } from "./primitives";
+import { Container, DemoBadge, SectionLabel, cx, highlightLine } from "./primitives";
 
 const actors: Array<{ icon: LucideIcon; name: string; grant: string; detail: string }> = [
   {
@@ -93,6 +93,7 @@ export function Agents() {
           </p>
         </div>
 
+        <DemoBadge className={base.demoBadgeAbove} />
         <div className={styles.layout}>
           <div className={styles.routes}>
             <ul className={styles.actors}>

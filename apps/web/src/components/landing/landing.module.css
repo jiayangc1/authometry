@@ -613,6 +613,11 @@
   color: var(--night-muted);
 }
 
+/* Sits directly above a recreated surface that has no question box */
+.demoBadgeAbove {
+  margin-bottom: 12px;
+}
+
 .night .demoBadge::before {
   border-color: var(--signal);
 }
@@ -662,11 +667,16 @@
 
 /* ---------- Demo question: what the visual answers ---------- */
 
+.questionWrap {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
 .question {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1px;
-  margin-bottom: 16px;
   overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-m);

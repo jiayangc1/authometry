@@ -67,17 +67,20 @@ export function DemoQuestion({
   className?: string | undefined;
 }) {
   return (
-    <div className={cx(styles.question, className)}>
-      <p>
-        <span className={styles.questionTag}>Q</span>
-        {question}
-      </p>
-      <p>
-        <span className={styles.questionTag} data-answer="true">
-          A
-        </span>
-        {answer}
-      </p>
+    <div className={cx(styles.questionWrap, className)}>
+      <DemoBadge />
+      <div className={styles.question}>
+        <p>
+          <span className={styles.questionTag}>Q</span>
+          {question}
+        </p>
+        <p>
+          <span className={styles.questionTag} data-answer="true">
+            A
+          </span>
+          {answer}
+        </p>
+      </div>
     </div>
   );
 }
