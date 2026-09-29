@@ -11,7 +11,7 @@ import styles from "./site-nav.module.css";
 const links = [
   { label: "Product", href: "#traces" },
   { label: "Developers", href: "#developers" },
-  { label: "Open source", href: "#open-source" },
+  { label: "Platform", href: "/platform" },
   { label: "Docs", href: "/docs" },
 ] as const;
 

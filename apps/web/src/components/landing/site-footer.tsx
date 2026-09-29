@@ -17,9 +17,9 @@ const columns: Array<{ title: string; links: FooterLink[] }> = [
     links: [
       { label: "Authorization traces", href: "#traces" },
       { label: "Policy decisions", href: "#decisions" },
-      { label: "Protocol flow", href: "#flow" },
-      { label: "Configuration as code", href: "#configuration" },
-      { label: "Events", href: "#events" },
+      { label: "Protocol flow", href: "/platform#flow" },
+      { label: "Configuration as code", href: "/platform#configuration" },
+      { label: "Events", href: "/platform#events" },
     ],
   },
   {

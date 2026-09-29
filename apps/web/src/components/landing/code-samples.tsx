@@ -5,6 +5,7 @@ import styles from "./code-samples.module.css";
 import { CopyButton } from "./copy-button";
 import base from "./landing.module.css";
 import { Container, SectionLabel, cx, highlightLine, type Language } from "./primitives";
+import { StandardsSummary } from "./standards-summary";
 
 interface Sample {
   id: string;
@@ -304,6 +305,9 @@ export function CodeSamples() {
             documented by each project.
           </p>
         </div>
+      </Container>
+      <Container>
+        <StandardsSummary />
       </Container>
     </section>
   );
