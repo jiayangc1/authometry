@@ -10,6 +10,12 @@ import { Container, cx } from "./primitives";
 import { useInView } from "./use-motion";
 import { usePrefersReducedMotion } from "./use-reduced-motion";
 
+const recap = [
+  "See every authorization decision",
+  "Debug denials from the trace",
+  "Keep your OIDC library",
+];
+
 type Phase = "idle" | "request" | "policy" | "allow" | "mark";
 
 const sequence: Array<[Phase, number]> = [
@@ -89,11 +95,13 @@ export function FinalCta() {
         </div>
 
         <h2 className={cx(base.display, styles.title)} id="cta-title">
-          Make auth understandable.
+          Trace your first request.
         </h2>
-        <p className={cx(base.lead, styles.lead)}>
-          Run authentication infrastructure you can inspect, configure, trace, and explain.
-        </p>
+        <ul aria-label="What you get" className={styles.recap}>
+          {recap.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
         <div className={styles.actions}>
           <Link className={cx(base.button, base.primary)} href="/docs/getting-started">
             Start building

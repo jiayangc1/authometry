@@ -178,12 +178,33 @@
 
 .title {
   max-width: 9.5em;
-  font-size: clamp(44px, 9.4vw, 148px);
+  font-size: clamp(40px, 7vw, 108px);
 }
 
-.lead {
+.recap {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 24px;
   margin-top: clamp(22px, 3vw, 32px) !important;
-  text-align: center;
+  color: var(--ink-2);
+  font-size: clamp(16px, 1.3vw, 18px);
+  line-height: 26px;
+}
+
+.recap li {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.recap li::before {
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  background: var(--signal);
+  content: "";
 }
 
 .actions {

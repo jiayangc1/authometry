@@ -25,8 +25,9 @@ export function Traces() {
           </div>
           <div className={styles.copy}>
             <p className={base.lead}>
-              Authometry records each authorization and token request as it runs: the checks it
-              made, what each one saw, how long it took, and the decision it reached.
+              When a sign-in misbehaves, you shouldn’t have to guess. Authometry records every
+              authorization and token request as it runs — each check, what it saw, how long it
+              took, and the decision it reached.
             </p>
             <dl className={styles.properties}>
               {properties.map(([term, detail]) => (

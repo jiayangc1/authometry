@@ -64,7 +64,7 @@ export function BlackBox() {
           <div className={styles.copy}>
             <SectionLabel>explanations</SectionLabel>
             <h2 className={cx(base.h2, styles.title)} id="black-box-title">
-              Auth shouldn’t be a black box.
+              Debug a denial in one read.
             </h2>
             <ul className={styles.symptoms}>
               {symptoms.map((symptom) => (
@@ -72,8 +72,8 @@ export function BlackBox() {
               ))}
             </ul>
             <p className={base.lead}>
-              Most identity infrastructure tells you what happened. Authometry records why — and
-              what to change.
+              The client only gets a terse error code. The trace shows which check failed, what it
+              expected, and what to change.
             </p>
           </div>
 

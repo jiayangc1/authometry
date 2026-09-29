@@ -204,13 +204,11 @@ export function CodeSamples() {
         <div className={styles.copy}>
           <SectionLabel>integration</SectionLabel>
           <h2 className={base.h2} id="developers-title">
-            Your app.
-            <br />
-            Standard protocols.
+            Integrate with the library you already use.
           </h2>
           <p className={base.lead}>
-            There is no Authometry SDK to learn. Point any OpenID Connect library at your issuer —
-            the CLI creates the client and writes its credentials where your app reads them.
+            Keep your OpenID Connect library and point it at your issuer. Every request it makes
+            shows up as a trace — there is no Authometry SDK to learn.
           </p>
 
           <ol className={styles.steps}>

@@ -60,8 +60,8 @@ export function DecisionInspector() {
         <div className={styles.head}>
           <SectionLabel>policy.decisions</SectionLabel>
           <h2 className={cx(base.h2, styles.title)} id="decisions-title">
-            Know why it was allowed.
-            <span className={base.h2Muted}> And why it wasn’t.</span>
+            Compare two decisions.
+            <span className={base.h2Muted}> See what changed.</span>
           </h2>
           <p className={base.lead}>
             Same person, same application, same scopes, ninety minutes apart. Authometry keeps both
