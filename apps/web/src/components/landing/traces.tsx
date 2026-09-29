@@ -1,5 +1,6 @@
 import base from "./landing.module.css";
-import { ChapterMark, Container, cx } from "./primitives";
+import { scenario } from "./demo-data";
+import { ChapterMark, Container, DemoQuestion, cx } from "./primitives";
 import { TraceWindow } from "./trace-window";
 import styles from "./traces.module.css";
 
@@ -43,6 +44,15 @@ export function Traces() {
             </dl>
           </div>
         </div>
+        <DemoQuestion
+          answer={
+            <>
+              Every check passed — the session was valid and stored consent covered{" "}
+              {scenario.scopes.join(", ")}.
+            </>
+          }
+          question={`Why was ${scenario.user.name} let into ${scenario.application.name}?`}
+        />
         <TraceWindow />
       </Container>
     </section>

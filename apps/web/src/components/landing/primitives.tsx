@@ -56,6 +56,32 @@ export function ChapterMark({
   );
 }
 
+/** States the question a demo answers and its answer, so the takeaway needs no interaction. */
+export function DemoQuestion({
+  question,
+  answer,
+  className,
+}: {
+  question: ReactNode;
+  answer: ReactNode;
+  className?: string | undefined;
+}) {
+  return (
+    <div className={cx(styles.question, className)}>
+      <p>
+        <span className={styles.questionTag}>Q</span>
+        {question}
+      </p>
+      <p>
+        <span className={styles.questionTag} data-answer="true">
+          A
+        </span>
+        {answer}
+      </p>
+    </div>
+  );
+}
+
 /** Marks a recreated product surface so its names and timings are not mistaken for real data. */
 export function DemoBadge({
   children = "Interactive example · demo data",

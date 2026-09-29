@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import styles from "./black-box.module.css";
 import { scenario } from "./demo-data";
 import base from "./landing.module.css";
-import { ChapterMark, Container, cx } from "./primitives";
+import { ChapterMark, Container, DemoQuestion, cx } from "./primitives";
 import { useScrollProgress } from "./use-motion";
 import { usePrefersReducedMotion } from "./use-reduced-motion";
 
@@ -78,91 +78,98 @@ export function BlackBox() {
             </p>
           </div>
 
-          <div
-            aria-label="An invalid_scope error, expanded into its recorded explanation"
-            className={styles.stack}
-            role="group"
-            style={{ "--stage": stage } as CSSProperties}
-          >
-            <div aria-hidden="true" className={styles.gauge}>
-              {Array.from({ length: STAGES }, (_, index) => (
-                <i data-on={shown(index)} key={index} />
-              ))}
-            </div>
+          <div className={styles.demo}>
+            <DemoQuestion
+              answer={<>media:write isn’t assigned to {scenario.application.name}.</>}
+              question="Why did the app get invalid_scope?"
+            />
+            <div
+              aria-label="An invalid_scope error, expanded into its recorded explanation"
+              className={styles.stack}
+              role="group"
+              style={{ "--stage": stage } as CSSProperties}
+            >
+              <div aria-hidden="true" className={styles.gauge}>
+                {Array.from({ length: STAGES }, (_, index) => (
+                  <i data-on={shown(index)} key={index} />
+                ))}
+              </div>
 
-            <div className={styles.error} data-open={stage > 0}>
-              <p className={styles.errorLine}>
-                <span>HTTP/1.1</span> 302 Found
-              </p>
-              <p className={styles.errorLocation}>
-                Location: {scenario.application.redirectUri}?<b>error=invalid_scope</b>&amp;state=…
-              </p>
-              <p className={styles.errorCode}>invalid_scope</p>
-              <p className={styles.errorNote}>
-                {stage > 0 ? (
-                  <>
-                    Trace <code>{scenario.scopeRequestId}</code>
-                  </>
-                ) : (
-                  "All the client sees."
-                )}
-              </p>
-            </div>
+              <div className={styles.error} data-open={stage > 0}>
+                <p className={styles.errorLine}>
+                  <span>HTTP/1.1</span> 302 Found
+                </p>
+                <p className={styles.errorLocation}>
+                  Location: {scenario.application.redirectUri}?<b>error=invalid_scope</b>
+                  &amp;state=…
+                </p>
+                <p className={styles.errorCode}>invalid_scope</p>
+                <p className={styles.errorNote}>
+                  {stage > 0 ? (
+                    <>
+                      Trace <code>{scenario.scopeRequestId}</code>
+                    </>
+                  ) : (
+                    "All the client sees."
+                  )}
+                </p>
+              </div>
 
-            <ol className={styles.layers}>
-              <Layer index={1} label="Request" shown={shown(1)}>
-                <p className={styles.mono}>GET /oauth/authorize</p>
-                <p className={styles.kv}>
-                  <span>scope</span>
-                  <code>
-                    openid profile <mark>media:write</mark>
-                  </code>
-                </p>
-              </Layer>
-              <Layer index={2} label="Application" shown={shown(2)} status="passed">
-                <p>
-                  Client verified <span className={styles.dim}>itsagram-web</span>
-                </p>
-                <p>
-                  Redirect URI matched <span className={styles.dim}>exact</span>
-                </p>
-              </Layer>
-              <Layer index={3} label="Scopes" shown={shown(3)} status="failed">
-                <p>
-                  Scope denied <code className={styles.bad}>media:write</code>
-                </p>
-                <p className={styles.dim}>The client requested scopes it is not assigned.</p>
-              </Layer>
-              <Layer index={4} label="Not run" shown={shown(4)} status="skipped">
-                <p className={styles.skipped}>
-                  <span>User authenticated</span>
-                  <span>Consent evaluated</span>
-                  <span>Authorization code issued</span>
-                </p>
-              </Layer>
-              <Layer index={5} label="Decision" shown={shown(5)} status="failed">
-                <p className={styles.explainTitle}>A requested scope is not assigned</p>
-                <p>media:write is not assigned to {scenario.application.name}.</p>
-                <div className={styles.compare}>
-                  <div>
-                    <span>Observed</span>
-                    <code>media:write</code>
+              <ol className={styles.layers}>
+                <Layer index={1} label="Request" shown={shown(1)}>
+                  <p className={styles.mono}>GET /oauth/authorize</p>
+                  <p className={styles.kv}>
+                    <span>scope</span>
+                    <code>
+                      openid profile <mark>media:write</mark>
+                    </code>
+                  </p>
+                </Layer>
+                <Layer index={2} label="Application" shown={shown(2)} status="passed">
+                  <p>
+                    Client verified <span className={styles.dim}>itsagram-web</span>
+                  </p>
+                  <p>
+                    Redirect URI matched <span className={styles.dim}>exact</span>
+                  </p>
+                </Layer>
+                <Layer index={3} label="Scopes" shown={shown(3)} status="failed">
+                  <p>
+                    Scope denied <code className={styles.bad}>media:write</code>
+                  </p>
+                  <p className={styles.dim}>The client requested scopes it is not assigned.</p>
+                </Layer>
+                <Layer index={4} label="Not run" shown={shown(4)} status="skipped">
+                  <p className={styles.skipped}>
+                    <span>User authenticated</span>
+                    <span>Consent evaluated</span>
+                    <span>Authorization code issued</span>
+                  </p>
+                </Layer>
+                <Layer index={5} label="Decision" shown={shown(5)} status="failed">
+                  <p className={styles.explainTitle}>A requested scope is not assigned</p>
+                  <p>media:write is not assigned to {scenario.application.name}.</p>
+                  <div className={styles.compare}>
+                    <div>
+                      <span>Observed</span>
+                      <code>media:write</code>
+                    </div>
+                    <div>
+                      <span>Expected</span>
+                      <code>openid profile media:read</code>
+                    </div>
                   </div>
-                  <div>
-                    <span>Expected</span>
-                    <code>openid profile media:read</code>
-                  </div>
-                </div>
-              </Layer>
-              <Layer index={6} label="How to fix it" shown={shown(6)} status="fix">
-                <p>
-                  Assign the scope to the application or remove it from the authorization request.
-                </p>
-                <p className={styles.action}>
-                  Manage application scopes <ArrowRight aria-hidden="true" />
-                </p>
-              </Layer>
-            </ol>
+                </Layer>
+                <Layer index={6} label="How to fix it" shown={shown(6)} status="fix">
+                  <p>
+                    Assign the scope to the application or remove it from the authorization request.
+                  </p>
+                  <p className={styles.action}>
+                    Manage application scopes <ArrowRight aria-hidden="true" />
+                  </p>
+                </Layer>
+              </ol>
+            </div>
           </div>
         </Container>
       </div>

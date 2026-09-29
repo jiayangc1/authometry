@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import styles from "./decision-inspector.module.css";
 import { scenario } from "./demo-data";
 import base from "./landing.module.css";
-import { Container, SectionLabel, cx } from "./primitives";
+import { Container, DemoQuestion, SectionLabel, cx } from "./primitives";
 
 interface Row {
   label: string;
@@ -74,6 +74,15 @@ export function DecisionInspector() {
           </p>
         </div>
 
+        <DemoQuestion
+          answer={
+            <>
+              {scenario.policy.value} was removed from user.groups, so {scenario.policy.name} no
+              longer matched.
+            </>
+          }
+          question="Same person, same app — why was the second request denied?"
+        />
         <div className={styles.board}>
           <div className={styles.toolbar}>
             <p>
