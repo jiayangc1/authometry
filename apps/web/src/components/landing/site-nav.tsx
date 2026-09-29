@@ -71,7 +71,7 @@ export function SiteNav() {
             Sign in
           </Link>
           <Link className={cx(base.button, base.primary, styles.cta)} href="/docs/getting-started">
-            Start building
+            Get started
           </Link>
           <button
             aria-controls={menuId}
@@ -113,7 +113,7 @@ export function SiteNav() {
           </li>
           <li className={styles.sheetCta}>
             <Link className={cx(base.button, base.primary)} href="/docs/getting-started">
-              Start building
+              Get started
             </Link>
           </li>
         </ul>

@@ -104,7 +104,7 @@ export function FinalCta() {
         </ul>
         <div className={styles.actions}>
           <Link className={cx(base.button, base.primary)} href="/docs/getting-started">
-            Start building
+            Get started with Authometry
           </Link>
           <a
             className={cx(base.button, base.secondary)}
@@ -112,7 +112,7 @@ export function FinalCta() {
             rel="noreferrer"
             target="_blank"
           >
-            View on GitHub
+            Read the source
             <ArrowUpRight aria-hidden="true" />
             <span className={base.srOnly}>(opens in a new tab)</span>
           </a>
