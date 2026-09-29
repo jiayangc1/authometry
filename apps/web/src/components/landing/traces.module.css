@@ -1,6 +1,6 @@
 .section {
   position: relative;
-  padding-block: clamp(40px, 5vw, 72px) clamp(96px, 12vw, 168px);
+  padding-block: clamp(64px, 8vw, 112px) clamp(96px, 12vw, 168px);
 }
 
 .head {

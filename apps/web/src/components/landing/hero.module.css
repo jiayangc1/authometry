@@ -1,7 +1,7 @@
 .hero {
-  --display-size: clamp(44px, 11.2vw, 172px);
+  --display-size: clamp(44px, 7.2vw, 108px);
   position: relative;
-  padding-top: clamp(40px, 6vw, 88px);
+  padding-top: clamp(32px, 4vw, 56px);
   padding-bottom: clamp(56px, 7vw, 96px);
 }
 
@@ -13,7 +13,9 @@
 }
 
 .headline {
-  position: relative;
+  display: grid;
+  gap: 22px;
+  margin-top: clamp(16px, 2vw, 24px);
 }
 
 .title {
@@ -21,69 +23,101 @@
   font-size: var(--display-size);
 }
 
-.headline {
-  margin-top: clamp(20px, 2.4vw, 32px);
-}
-
 .title span {
   display: block;
 }
 
+/* One reading path: headline, then what it means, then what to do */
 .aside {
   display: grid;
-  gap: 22px;
-  max-width: 460px;
-  margin-top: 36px;
+  gap: 20px;
+  max-width: 640px;
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
 }
 
-.install {
+/* The default starting path, shown as the steps behind the primary action */
+.path {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.path li {
   display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: fit-content;
-  max-width: 100%;
-  min-height: 40px;
-  padding: 0 5px 0 14px;
-  border: 1px dashed var(--line-strong);
-  border-radius: 8px;
+  gap: 8px;
 }
 
-.install code {
-  overflow: hidden;
-  color: var(--ink-2);
-  font-size: 13px;
-  line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.install code span {
-  color: var(--ink-3);
+.path span {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1;
 }
 
 .flow {
-  margin-top: clamp(56px, 7vw, 88px);
+  margin-top: clamp(36px, 4.4vw, 56px);
 }
 
-/* The supporting copy settles into the space the second line leaves open */
-@media (min-width: 1024px) {
-  .aside {
-    position: absolute;
-    top: calc(var(--display-size) * 0.98);
-    right: 0;
-    width: min(440px, 36%);
-    margin-top: 0;
-  }
+/* The mental model sits directly above the demo it explains */
+.model {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 28px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
 
-  /* The aside hangs below the headline; clear it by however much it overhangs */
-  .flow {
-    margin-top: max(96px, calc(290px - var(--display-size) * 0.74));
-  }
+.modelLead {
+  flex: 1 1 320px;
+  max-width: 44ch;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: -0.01em;
+}
+
+.modelSteps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.modelSteps li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.modelSteps span {
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.modelBadge {
+  margin-left: auto;
 }

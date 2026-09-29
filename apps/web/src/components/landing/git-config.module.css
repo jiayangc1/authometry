@@ -194,7 +194,7 @@
 
 .tab[aria-selected="true"] {
   background: var(--night);
-  box-shadow: inset 0 2px 0 var(--signal);
+  box-shadow: inset 0 -2px 0 var(--signal);
   color: var(--night-text);
 }
 
@@ -529,7 +529,9 @@
 .segments button[aria-pressed="true"] {
   background: var(--night-3);
   color: var(--night-text);
-  box-shadow: inset 0 0 0 1px var(--night-line);
+  box-shadow:
+    inset 0 0 0 1px var(--night-line),
+    inset 0 -2px 0 var(--signal);
 }
 
 .terminalBody {

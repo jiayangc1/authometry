@@ -1,10 +1,13 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { useId, useState, type KeyboardEvent } from "react";
 import styles from "./code-samples.module.css";
 import { CopyButton } from "./copy-button";
 import base from "./landing.module.css";
-import { Container, SectionLabel, cx, highlightLine, type Language } from "./primitives";
+import { ChapterMark, Container, cx, highlightLine, type Language } from "./primitives";
+import { StandardsSummary } from "./standards-summary";
 
 interface Sample {
   id: string;
@@ -198,20 +201,23 @@ export function CodeSamples() {
   }
 
   return (
-    <section aria-labelledby="developers-title" className={styles.section} id="developers">
+    <section
+      aria-labelledby="developers-title"
+      className={cx(base.chapterStart, styles.section)}
+      id="integrate"
+    >
       <Container className={styles.grid}>
         <div className={styles.copy}>
-          <SectionLabel>integration</SectionLabel>
-          <h2 className={base.h2} id="developers-title">
-            Your app.
-            <br />
-            Standard protocols.
+          <ChapterMark number={3} />
+          <h2 className={cx(base.h2Compact, styles.title)} id="developers-title">
+            Integrate with the library you already use.
           </h2>
           <p className={base.lead}>
-            There is no Authometry SDK to learn. Point any OpenID Connect library at your issuer —
-            the CLI creates the client and writes its credentials where your app reads them.
+            Keep your OpenID Connect library and point it at your issuer. Every request it makes
+            shows up as a trace — there is no Authometry SDK to learn.
           </p>
 
+          <p className={styles.pathNote}>The quickstart, in brief:</p>
           <ol className={styles.steps}>
             <li>
               <p className={styles.stepTitle}>
@@ -243,8 +249,13 @@ export function CodeSamples() {
             </li>
           </ol>
 
+          <Link className={cx(base.textLink, styles.guide)} href="/docs/getting-started">
+            Follow the setup guide
+            <ArrowRight aria-hidden="true" />
+          </Link>
+
           <div className={styles.agent}>
-            <p>Or hand the whole integration to a coding agent</p>
+            <p>Alternative: hand the same steps to a coding agent</p>
             <div className={styles.agentPrompt}>
               <code>{agentPrompt}</code>
               <CopyButton label="Copy agent prompt" value={agentPrompt} />
@@ -304,6 +315,9 @@ export function CodeSamples() {
             documented by each project.
           </p>
         </div>
+      </Container>
+      <Container>
+        <StandardsSummary />
       </Container>
     </section>
   );

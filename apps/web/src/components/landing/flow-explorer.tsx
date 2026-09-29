@@ -5,7 +5,7 @@ import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { scenario } from "./demo-data";
 import styles from "./flow-explorer.module.css";
 import base from "./landing.module.css";
-import { Container, SectionLabel, cx, highlightLine, type Language } from "./primitives";
+import { Container, DemoBadge, SectionLabel, cx, highlightLine, type Language } from "./primitives";
 
 interface Message {
   direction: string;
@@ -317,6 +317,7 @@ export function FlowExplorer() {
           </p>
         </div>
 
+        <DemoBadge className={base.demoBadgeAbove} />
         <div className={styles.explorer}>
           <div
             aria-label="Authorization Code flow stages"

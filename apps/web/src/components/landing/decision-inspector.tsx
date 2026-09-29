@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import styles from "./decision-inspector.module.css";
 import { scenario } from "./demo-data";
 import base from "./landing.module.css";
-import { Container, SectionLabel, cx } from "./primitives";
+import { Container, DemoQuestion, SectionLabel, cx } from "./primitives";
 
 interface Row {
   label: string;
@@ -55,13 +55,17 @@ export function DecisionInspector() {
   const visible = rows.filter((row) => !onlyDifferences || row.differs || row.consequence);
 
   return (
-    <section aria-labelledby="decisions-title" className={styles.section} id="decisions">
+    <section
+      aria-labelledby="decisions-title"
+      className={cx(base.tone, styles.section)}
+      id="decisions"
+    >
       <Container>
         <div className={styles.head}>
           <SectionLabel>policy.decisions</SectionLabel>
-          <h2 className={cx(base.h2, styles.title)} id="decisions-title">
-            Know why it was allowed.
-            <span className={base.h2Muted}> And why it wasn’t.</span>
+          <h2 className={cx(base.h2Compact, styles.title)} id="decisions-title">
+            Compare two decisions.
+            <span className={base.h2Muted}> See what changed.</span>
           </h2>
           <p className={base.lead}>
             Same person, same application, same scopes, ninety minutes apart. Authometry keeps both
@@ -70,6 +74,15 @@ export function DecisionInspector() {
           </p>
         </div>
 
+        <DemoQuestion
+          answer={
+            <>
+              {scenario.policy.value} was removed from user.groups, so {scenario.policy.name} no
+              longer matched.
+            </>
+          }
+          question="Same person, same app — why was the second request denied?"
+        />
         <div className={styles.board}>
           <div className={styles.toolbar}>
             <p>

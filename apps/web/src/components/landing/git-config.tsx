@@ -14,7 +14,7 @@ import { useId, useState, type KeyboardEvent, type ReactNode } from "react";
 import styles from "./git-config.module.css";
 import { diffStat, manifestFiles, pipelines, type ManifestFile } from "./git-config-data";
 import base from "./landing.module.css";
-import { Container, SectionLabel, cx, highlightLine } from "./primitives";
+import { Container, DemoBadge, SectionLabel, cx, highlightLine } from "./primitives";
 
 const kindIcon: Record<ManifestFile["kind"], LucideIcon> = {
   Application: AppWindow,
@@ -80,6 +80,7 @@ export function GitConfig() {
           </div>
         </div>
 
+        <DemoBadge className={base.demoBadgeAbove} />
         <div className={styles.workspace}>
           <div className={cx(base.darkWindow, styles.editor)}>
             <div className={styles.pr}>

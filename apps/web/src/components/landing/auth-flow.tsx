@@ -185,6 +185,7 @@ export function AuthFlow() {
   const [hovered, setHovered] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [explored, setExplored] = useState(false);
   const particle = useRef<SVGCircleElement>(null);
   const trails = useRef<Array<SVGLineElement | null>>([]);
   const ruler = useRef<HTMLDivElement>(null);
@@ -266,6 +267,10 @@ export function AuthFlow() {
   }, [pinned]);
 
   const open = pinned ?? hovered;
+  const inspect = (id: string) => {
+    setHovered(id);
+    setExplored(true);
+  };
   const decision = !phase.started
     ? "Waiting"
     : phase.index >= 5 || phase.done
@@ -346,8 +351,8 @@ export function AuthFlow() {
                   data-state={state}
                   onBlur={() => setHovered((value) => (value === node.id ? null : value))}
                   onClick={() => setPinned((value) => (value === node.id ? null : node.id))}
-                  onFocus={() => setHovered(node.id)}
-                  onPointerEnter={(event) => event.pointerType === "mouse" && setHovered(node.id)}
+                  onFocus={() => inspect(node.id)}
+                  onPointerEnter={(event) => event.pointerType === "mouse" && inspect(node.id)}
                   onPointerLeave={(event) =>
                     event.pointerType === "mouse" &&
                     setHovered((value) => (value === node.id ? null : value))
@@ -367,6 +372,11 @@ export function AuthFlow() {
                     <span>{state === "pending" ? "pending" : node.status}</span>
                   </span>
                 </button>
+                {index === 0 && !explored && (
+                  <span aria-hidden="true" className={styles.cue}>
+                    Click a step to inspect its trace
+                  </span>
+                )}
                 {show && (
                   <div className={styles.popover} id={`${captionId}-${node.id}`} role="tooltip">
                     <p className={styles.popoverTitle}>
@@ -419,7 +429,7 @@ export function AuthFlow() {
           </dl>
 
           <div className={styles.controls}>
-            <p>Select any step to read what Authometry recorded.</p>
+            <p>Click, or tab to, any step to inspect what Authometry recorded.</p>
             {!reduceMotion && (
               <button className={styles.replay} onClick={play} type="button">
                 <RotateCcw aria-hidden="true" />
@@ -494,6 +504,7 @@ export function AuthFlow() {
             </dd>
           </div>
         </dl>
+        <p className={styles.verticalCue}>Tap a step to inspect its trace.</p>
         <div className={styles.rail} ref={mobileRail}>
           <ol>
             {mobileStops.map((stop) => {
@@ -522,6 +533,7 @@ export function AuthFlow() {
                         <span>{state === "pending" ? "pending" : node.status}</span>
                       </span>
                     </span>
+                    <span className={styles.rowHint}>{isOpen ? "Hide" : "Inspect"}</span>
                     <ChevronDown aria-hidden="true" className={styles.chevron} />
                   </button>
                   {isOpen && (

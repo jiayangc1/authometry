@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { scenario } from "./demo-data";
 import styles from "./event-stream.module.css";
 import base from "./landing.module.css";
-import { Container, SectionLabel, cx, highlightLine } from "./primitives";
+import { Container, DemoBadge, SectionLabel, cx, highlightLine } from "./primitives";
 import { useInView } from "./use-motion";
 import { usePrefersReducedMotion } from "./use-reduced-motion";
 
@@ -178,6 +178,7 @@ export function EventStream() {
           </div>
         </div>
 
+        <DemoBadge className={base.demoBadgeAbove} />
         <div className={styles.console} ref={panel}>
           <div className={cx(base.darkWindow, styles.stream)}>
             <div className={styles.streamBar}>

@@ -42,38 +42,9 @@
   color: var(--ink-3);
 }
 
-.search {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: 220px;
-  height: 30px;
-  margin-left: auto;
-  padding: 0 6px 0 10px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--surface-2);
-  color: var(--ink-3);
-  font-size: 12.5px;
-}
-
-.search svg {
-  width: 13px;
-  height: 13px;
-}
-
-.search kbd {
-  margin-left: auto;
-  padding: 0 5px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--surface);
-  font-size: 11px;
-  line-height: 18px;
-}
-
 .avatar {
   display: inline-flex;
+  margin-left: auto;
   align-items: center;
   justify-content: center;
   width: 28px;
@@ -87,56 +58,7 @@
 
 .body {
   display: grid;
-  grid-template-columns: 196px minmax(0, 1fr);
-  min-height: 640px;
-}
-
-.sidebar {
-  display: grid;
-  align-content: start;
-  gap: 18px;
-  padding: 16px 12px;
-  border-right: 1px solid var(--line-soft);
-  background: var(--surface-2);
-}
-
-.sidebar p {
-  margin-bottom: 4px !important;
-  padding: 0 8px;
-  color: var(--ink-3);
-  font-size: 12px;
-}
-
-.sidebar ul {
-  display: grid;
-  gap: 1px;
-}
-
-.sidebar li {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  height: 30px;
-  padding: 0 8px;
-  border-radius: 6px;
-  color: var(--ink-2);
-  font-size: 13px;
-}
-
-.sidebar li svg {
-  width: 15px;
-  height: 15px;
-  color: var(--ink-3);
-}
-
-.sidebar li[data-active="true"] {
-  background: rgb(18 19 15 / 0.07);
-  color: var(--ink);
-  font-weight: 500;
-}
-
-.sidebar li[data-active="true"] svg {
-  color: var(--ink);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* ---------- Trace page ---------- */
@@ -236,19 +158,21 @@
 
 .facts dt {
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: 12.5px;
 }
 
 .facts dd {
   overflow: hidden;
   color: var(--ink);
+  font-size: 14.5px;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .monoValue {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -304,7 +228,7 @@
   top: 0;
   bottom: 0;
   left: 0;
-  width: 2px;
+  width: 3px;
   background: var(--ink);
   content: "";
   transform: scaleY(0);
@@ -312,7 +236,7 @@
 }
 
 .stepItem[data-active="true"] .step {
-  background: rgb(18 19 15 / 0.045);
+  background: rgb(204 242 74 / 0.18);
 }
 
 .stepItem[data-active="true"] .step::before {
@@ -362,7 +286,7 @@
   gap: 8px;
   overflow: hidden;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -370,7 +294,7 @@
 .stepName span {
   color: var(--ink-3);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
 }
 
@@ -378,7 +302,7 @@
   overflow: hidden;
   color: var(--ink-2);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -412,7 +336,7 @@
   display: grid;
   justify-items: end;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 18px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -453,7 +377,7 @@
 }
 
 .inspectorHead h4 {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.015em;
 }
@@ -474,8 +398,8 @@
 
 .description {
   color: var(--ink-2);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: 14.5px;
+  line-height: 22px;
 }
 
 .fields > p {
@@ -505,13 +429,13 @@
 
 .fields dt {
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .fields dd {
   overflow-wrap: anywhere;
   color: var(--ink);
-  font-size: 12.5px;
+  font-size: 14px;
 }
 
 .decision {
@@ -522,7 +446,7 @@
   border-radius: 8px;
   background: var(--allow-soft);
   color: var(--ink);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .inlinePanel {
@@ -551,16 +475,6 @@
 .frame[data-playback="play"] .bar span {
   transition: transform 520ms var(--ease);
   transition-delay: calc(var(--i) * 110ms + 320ms);
-}
-
-@media (max-width: 1199px) {
-  .body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .sidebar {
-    display: none;
-  }
 }
 
 @media (max-width: 1023px) {
@@ -595,14 +509,6 @@
 
   .facts > div:nth-last-child(-n + 2) {
     border-bottom: 0;
-  }
-
-  .search {
-    display: none;
-  }
-
-  .avatar {
-    margin-left: auto;
   }
 }
 

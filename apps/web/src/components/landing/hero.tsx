@@ -1,13 +1,23 @@
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { AuthFlow } from "./auth-flow";
-import { CopyButton } from "./copy-button";
 import { GITHUB_URL } from "./demo-data";
 import styles from "./hero.module.css";
 import base from "./landing.module.css";
-import { Container, SectionLabel, cx } from "./primitives";
+import { Container, DemoBadge, SectionLabel, cx } from "./primitives";
 
-const installCommand = "npx authometry@latest init";
+/** The one recommended path; the quickstart page walks through each step. */
+const quickstart = [
+  "Install and authorize the CLI",
+  "Provision a client",
+  "Point your OIDC library at it",
+];
+
+const model = [
+  ["In", "an authorization request"],
+  ["Checked", "client, identity, policy, consent"],
+  ["Out", "a token and its trace"],
+] as const;
 
 export function Hero() {
   return (
@@ -27,7 +37,7 @@ export function Hero() {
               </p>
               <div className={styles.actions}>
                 <Link className={cx(base.button, base.primary)} href="/docs/getting-started">
-                  Start building
+                  Read the quickstart
                 </Link>
                 <a
                   className={cx(base.button, base.secondary)}
@@ -40,17 +50,33 @@ export function Hero() {
                   <span className={base.srOnly}>(opens in a new tab)</span>
                 </a>
               </div>
-              <div className={styles.install}>
-                <code>
-                  <span aria-hidden="true">$ </span>
-                  {installCommand}
-                </code>
-                <CopyButton label="Copy install command" value={installCommand} />
-              </div>
+              <ol aria-label="The quickstart" className={styles.path}>
+                {quickstart.map((step, index) => (
+                  <li key={step}>
+                    <span aria-hidden="true">{index + 1}</span>
+                    {step}
+                  </li>
+                ))}
+              </ol>
             </div>
           </div>
         </div>
-        <div className={styles.flow}>
+        <div className={styles.flow} id="product">
+          <div className={styles.model}>
+            <p className={styles.modelLead}>
+              Authometry is the authorization server between your app and its users. Each request
+              leaves a trace of every check it ran.
+            </p>
+            <ol aria-label="What happens in one request" className={styles.modelSteps}>
+              {model.map(([term, detail]) => (
+                <li key={term}>
+                  <span>{term}</span>
+                  {detail}
+                </li>
+              ))}
+            </ol>
+            <DemoBadge className={styles.modelBadge} />
+          </div>
           <AuthFlow />
         </div>
       </Container>

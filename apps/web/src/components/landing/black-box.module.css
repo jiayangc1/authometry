@@ -1,24 +1,10 @@
 .section {
   position: relative;
   border-top: 1px solid var(--line);
-  background: var(--paper);
-}
-
-.section[data-mode="scroll"] {
-  height: 330vh;
 }
 
 .sticky {
   padding-block: clamp(88px, 11vw, 150px);
-}
-
-.section[data-mode="scroll"] .sticky {
-  position: sticky;
-  top: 0;
-  display: flex;
-  align-items: center;
-  height: 100vh;
-  padding-block: 72px 24px;
 }
 
 .grid {
@@ -34,7 +20,7 @@
 }
 
 .title {
-  max-width: 7.5em;
+  max-width: 8em;
 }
 
 .symptoms {
@@ -196,12 +182,6 @@
   border-radius: 0 0 12px 12px;
 }
 
-.section[data-mode="scroll"] .layer[data-shown="false"] {
-  opacity: 0;
-  filter: blur(3px);
-  transform: translateY(-8px);
-}
-
 .layerLabel {
   display: flex;
   align-items: flex-start;
@@ -359,4 +339,8 @@
   .compare {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.demo {
+  min-width: 0;
 }
