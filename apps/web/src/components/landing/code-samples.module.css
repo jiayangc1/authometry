@@ -1,0 +1,280 @@
+.section {
+  position: relative;
+  padding-block: clamp(96px, 12vw, 168px);
+  border-top: 1px solid var(--line);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: start;
+  gap: clamp(40px, 5vw, 80px);
+}
+
+.copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  min-width: 0;
+}
+
+.steps {
+  display: grid;
+  gap: 18px;
+  margin-top: 8px !important;
+}
+
+.stepTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.stepTitle span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.steps li:last-child .stepTitle span {
+  border-color: var(--ink);
+  background: var(--signal);
+}
+
+.command {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px 8px 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.command pre {
+  overflow-x: auto;
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 20px;
+}
+
+.prompt {
+  color: var(--ink-3);
+  user-select: none;
+}
+
+.stepNote {
+  margin-top: 8px !important;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.stepNote code {
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.agent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.agent > p {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.agentPrompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+}
+
+.agentPrompt code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Code window ---------- */
+
+.window {
+  position: sticky;
+  top: 88px;
+  min-width: 0;
+}
+
+.tabs {
+  display: flex;
+  overflow-x: auto;
+  gap: 2px;
+  padding: 8px 8px 0;
+  border-bottom: 1px solid var(--night-line);
+  scrollbar-width: none;
+}
+
+.tab {
+  position: relative;
+  flex: none;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--night-dim);
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: color 140ms var(--ease);
+}
+
+.tab:hover {
+  color: var(--night-text);
+}
+
+.tab::after {
+  position: absolute;
+  right: 10px;
+  bottom: -1px;
+  left: 10px;
+  height: 2px;
+  background: var(--signal);
+  content: "";
+  transform: scaleX(0);
+  transition: transform 220ms var(--ease);
+}
+
+.tab[aria-selected="true"] {
+  color: var(--night-text);
+}
+
+.tab[aria-selected="true"]::after {
+  transform: scaleX(1);
+}
+
+.fileBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px 6px 18px;
+  border-bottom: 1px solid var(--night-2);
+}
+
+.fileBar > span {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fileBar code {
+  color: var(--night-muted);
+  font-size: 12px;
+}
+
+.library {
+  overflow: hidden;
+  color: var(--night-dim);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code {
+  overflow-x: auto;
+  min-height: 604px;
+  padding: 14px 0 18px;
+}
+
+.code:focus-visible {
+  outline-offset: -3px;
+}
+
+.code pre {
+  min-width: max-content;
+  font-size: 13px;
+  line-height: 22px;
+  animation: code-in 220ms var(--ease);
+}
+
+@keyframes code-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 46px max-content;
+  padding-right: 22px;
+  white-space: pre;
+}
+
+.number {
+  padding-right: 16px;
+  color: var(--night-dim);
+  text-align: right;
+  user-select: none;
+}
+
+.footnote {
+  padding: 10px 18px 12px;
+  border-top: 1px solid var(--night-2);
+  color: var(--night-dim);
+  font-size: 12px;
+}
+
+@media (max-width: 1023px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .window {
+    position: static;
+  }
+
+  .code {
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code pre {
+    animation: none;
+  }
+}
+
+.title {
+  max-width: 13em;
+}
+
+.pathNote {
+  margin-bottom: -8px;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.guide {
+  justify-self: start;
+}

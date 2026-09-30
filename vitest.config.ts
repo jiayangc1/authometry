@@ -1,6 +1,10 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // Next.js preserves JSX for its own compiler; tests that render components need it compiled.
+  oxc: { jsx: { runtime: "automatic" } },
+  resolve: { alias: { "@/": fileURLToPath(new URL("./apps/web/src/", import.meta.url)) } },
   test: {
     coverage: {
       provider: "v8",

@@ -1,7 +1,11 @@
 import type { SVGProps } from "react";
 import { cn } from "./utils";
 
-export function AuthometryMark({ className, ...props }: SVGProps<SVGSVGElement>) {
+export function AuthometryMark({
+  accent = "#635bff",
+  className,
+  ...props
+}: SVGProps<SVGSVGElement> & { accent?: string }) {
   return (
     <svg
       aria-hidden="true"
@@ -18,7 +22,7 @@ export function AuthometryMark({ className, ...props }: SVGProps<SVGSVGElement>)
       />
       <path
         d="M17.8 3.65a12.75 12.75 0 0 1 9.65 9.2"
-        stroke="#635bff"
+        stroke={accent}
         strokeLinecap="round"
         strokeWidth="2.35"
       />
@@ -29,8 +33,8 @@ export function AuthometryMark({ className, ...props }: SVGProps<SVGSVGElement>)
         strokeWidth="1.9"
       />
       <path d="M16 16h9.2" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="16" cy="16" fill="#635bff" r="2.15" />
-      <circle cx="25.2" cy="16" fill="#635bff" r="1.75" />
+      <circle cx="16" cy="16" fill={accent} r="2.15" />
+      <circle cx="25.2" cy="16" fill={accent} r="1.75" />
     </svg>
   );
 }

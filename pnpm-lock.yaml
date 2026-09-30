@@ -249,6 +249,9 @@ importers:
         specifier: ^4.1.13
         version: 4.4.3
     devDependencies:
+      "@authometry/config":
+        specifier: workspace:*
+        version: link:../../packages/config
       "@tailwindcss/postcss":
         specifier: ^4.1.18
         version: 4.3.2
