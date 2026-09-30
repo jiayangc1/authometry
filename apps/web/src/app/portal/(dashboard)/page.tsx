@@ -75,6 +75,7 @@ export default function PortalApplicationsPage() {
           method: "POST",
         },
       );
+      handoff.showRedirecting();
       tab.location.replace(result.url);
       void applications.refetch();
     } catch (error) {
