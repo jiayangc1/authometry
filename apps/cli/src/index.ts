@@ -27,6 +27,14 @@ import {
   type ApplicationType,
   type CreatedApplicationResponse,
 } from "./applications.js";
+import {
+  browserLogin,
+  credentialsPath,
+  normalizeServer,
+  removeCredential,
+  saveCredential,
+  storedCredential,
+} from "./auth.js";
 
 interface GlobalOptions {
   server: string;
@@ -63,11 +71,12 @@ async function load(directory: string): Promise<ManifestDocument[]> {
 }
 
 async function api<T>(path: string, options: GlobalOptions, init?: RequestInit): Promise<T> {
-  if (!options.token) throw new Error("Set AUTHOMETRY_TOKEN or pass --token.");
-  const response = await fetch(`${options.server.replace(/\/$/, "")}${path}`, {
+  const token = options.token ?? (await storedCredential(options.server))?.token;
+  if (!token) throw new Error("Run authometry login, or set AUTHOMETRY_TOKEN or pass --token.");
+  const response = await fetch(`${normalizeServer(options.server)}${path}`, {
     ...init,
     headers: {
-      authorization: `Bearer ${options.token}`,
+      authorization: `Bearer ${token}`,
       "content-type": "application/json",
       "x-authometry-environment": options.environment,
       ...init?.headers,
@@ -101,6 +110,74 @@ function printPlan(entries: PlanEntry[]): void {
 function collectOption(value: string, values: string[]): string[] {
   return [...values, value];
 }
+
+program
+  .command("login")
+  .description("Sign in through the browser and save a token for this CLI.")
+  .option("--no-browser", "Print the login URL instead of opening a browser")
+  .action(async ({ browser }: { browser: boolean }, command: Command) => {
+    const { server } = globalOptions(command);
+    const credential = await browserLogin(server, {
+      open: browser,
+      onUrl: (url) => {
+        stdout.write(
+          `${browser ? "Opening Authometry in your browser." : "Open this URL in your browser:"}\n\n  ${chalk.cyan(url)}\n\nWaiting for approval…\n`,
+        );
+      },
+    });
+    await saveCredential(server, credential);
+    stdout.write(
+      `${chalk.green("✓")} Signed in as ${credential.email} (${credential.workspace.name})\n`,
+    );
+    stdout.write(chalk.dim(`Credentials saved to ${credentialsPath()}\n`));
+  });
+
+program
+  .command("logout")
+  .description("Revoke and remove the token saved by authometry login.")
+  .action(async (_input: unknown, command: Command) => {
+    const { server } = globalOptions(command);
+    const credential = await storedCredential(server);
+    if (!credential) {
+      stdout.write("Not signed in.\n");
+      return;
+    }
+    const revoked = await fetch(`${normalizeServer(server)}/api/v1/auth/cli/revoke`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${credential.token}` },
+    }).then(
+      (response) => response.ok,
+      () => false,
+    );
+    await removeCredential(server);
+    stdout.write(`${chalk.green("✓")} Signed out of ${normalizeServer(server)}\n`);
+    if (!revoked) {
+      stdout.write(
+        chalk.yellow(
+          "The server could not be reached to revoke the token. Revoke it in Settings → Tokens.\n",
+        ),
+      );
+    }
+  });
+
+program
+  .command("whoami")
+  .description("Show the account and workspace the CLI is using.")
+  .action(async (_input: unknown, command: Command) => {
+    const options = globalOptions(command);
+    const result = await api<{
+      user: { email: string };
+      workspaces: Array<{ id: string; name: string; role: string }>;
+      activeWorkspaceId: string;
+    }>("/api/v1/auth/me", options);
+    const workspace = result.workspaces.find(({ id }) => id === result.activeWorkspaceId);
+    stdout.write(`${result.user.email}\n`);
+    if (workspace) stdout.write(`Workspace: ${workspace.name} (${workspace.role})\n`);
+    stdout.write(`Server: ${normalizeServer(options.server)}\n`);
+    stdout.write(
+      `Token: ${options.token ? "AUTHOMETRY_TOKEN or --token" : `saved by authometry login`}\n`,
+    );
+  });
 
 const applications = program
   .command("apps")

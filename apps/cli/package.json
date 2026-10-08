@@ -1,6 +1,6 @@
 {
   "name": "authometry",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Configuration-as-code CLI for Authometry.",
   "license": "AGPL-3.0-only",
   "repository": {

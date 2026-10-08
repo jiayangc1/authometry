@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { ZodError } from "zod";
 import { adminAuthRouter, requireAdmin, requireCsrf } from "./auth/admin.js";
+import { cliAuthRouter } from "./auth/cli.js";
 import { portalRouter } from "./auth/portal.js";
 import { dashboardRouter } from "./api/dashboard.js";
 import { configurationRouter } from "./api/configuration.js";
@@ -118,6 +119,7 @@ export function createApp() {
       "/api/v1/portal/auth/login",
       "/api/v1/authorize/login",
       "/api/v1/authorize/device",
+      "/api/v1/auth/cli/token",
     ],
     authLimiter,
   );
@@ -149,6 +151,7 @@ export function createApp() {
   app.use("/w/:workspaceSlug/mcp", mcpRouter);
   app.use("/w/:workspaceSlug/:environmentSlug/mcp", mcpRouter);
   app.use("/:environmentSlug/mcp", mcpRouter);
+  app.use("/api/v1/auth/cli", cliAuthRouter);
   app.use("/api/v1/auth", adminAuthRouter);
   app.use("/api/v1/portal", portalRouter);
   app.use("/api/v1/authorize", authorizeApiRouter);

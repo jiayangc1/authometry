@@ -58,6 +58,7 @@ export const config = {
     "/developer/:path*",
     "/dev/:path*",
     "/select-workspace",
+    "/cli/:path*",
     "/login",
     "/portal/:path*",
   ],
