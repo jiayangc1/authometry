@@ -29,13 +29,21 @@ yarn dlx authometry --help
 bunx authometry --help
 ```
 
-## Provision an OAuth application
-
-Create an API token with application access, then set it for the CLI. Authometry Cloud is the default server and `production` is the default environment.
+## Sign in
 
 ```bash
-export AUTHOMETRY_TOKEN=amt_your_token
+authometry login
+```
 
+This opens Authometry in your browser. Approve the request and the CLI saves a 90-day token to `~/.config/authometry/credentials.json` with mode `0600`. The token appears in Settings → Tokens, where it can be revoked. Run `authometry whoami` to check the active account and `authometry logout` to revoke and remove the saved token.
+
+In CI, or anywhere without a browser, create an API token with application access and set `AUTHOMETRY_TOKEN` instead. It takes priority over the saved login.
+
+## Provision an OAuth application
+
+Authometry Cloud is the default server and `production` is the default environment.
+
+```bash
 authometry apps create \
   --name "Customer Portal" \
   --type web \
