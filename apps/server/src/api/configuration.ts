@@ -559,8 +559,10 @@ configurationRouter.post(
           input.repository ?? null,
           request.admin!.email,
           stableHash(desired),
-          desired,
-          plan.map(({ key, kind, name, operation }) => ({ key, kind, name, operation })),
+          JSON.stringify(desired),
+          JSON.stringify(
+            plan.map(({ key, kind, name, operation }) => ({ key, kind, name, operation })),
+          ),
         ],
       );
       const id = deployment.rows[0]?.id;
