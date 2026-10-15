@@ -75,7 +75,7 @@ async function resourceRows(
     query<Record<string, unknown>>(
       `SELECT p.*, COALESCE(array_agg(a.slug) FILTER (WHERE a.slug IS NOT NULL), '{}') AS application_slugs
        FROM authorization_policies p LEFT JOIN oauth_applications a ON a.id = ANY(p.application_ids)
-       WHERE p.environment_id = $1 ${ownershipClause}
+       WHERE p.environment_id = $1 ${includeDashboard ? "" : "AND p.ownership = 'manifest'"}
        GROUP BY p.id ORDER BY p.name`,
       [environmentId],
     ),
