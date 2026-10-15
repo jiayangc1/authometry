@@ -46,7 +46,7 @@ export const documentationPages: DocumentationPage[] = [
       {
         title: "Give the integration to an agent",
         bullets: [
-          "Prompt the agent with: Add Authometry OAuth to my app: https://authometry.ch3n.cc/SKILL.md",
+          "Prompt the agent with: Add Authometry OAuth to my app: https://authometry.jiayangchen.com/SKILL.md",
           "The agent inspects the repository, runs the provisioning command, implements the OIDC flow, and verifies the result.",
           "Pass --server only when intentionally targeting a self-hosted installation.",
         ],
@@ -121,7 +121,7 @@ export const documentationPages: DocumentationPage[] = [
       },
       {
         title: "Exchange once",
-        code: 'curl -u "$CLIENT_ID:$CLIENT_SECRET" \\\n  -H "content-type: application/x-www-form-urlencoded" \\\n  -d grant_type=authorization_code \\\n  -d code="$CODE" \\\n  -d redirect_uri=https://client.example/callback \\\n  -d code_verifier="$VERIFIER" \\\n  https://authometry.ch3n.cc/oauth/token',
+        code: 'curl -u "$CLIENT_ID:$CLIENT_SECRET" \\\n  -H "content-type: application/x-www-form-urlencoded" \\\n  -d grant_type=authorization_code \\\n  -d code="$CODE" \\\n  -d redirect_uri=https://client.example/callback \\\n  -d code_verifier="$VERIFIER" \\\n  https://authometry.jiayangchen.com/oauth/token',
         note: "The code is short-lived and single-use. A verifier mismatch or replay returns invalid_grant.",
       },
     ],
@@ -200,7 +200,7 @@ export const documentationPages: DocumentationPage[] = [
     sections: [
       {
         title: "Request codes",
-        code: 'curl -u "$CLIENT_ID:$CLIENT_SECRET" \\\n  -H "content-type: application/x-www-form-urlencoded" \\\n  -d "scope=openid profile" \\\n  https://authometry.ch3n.cc/oauth/device/authorization',
+        code: 'curl -u "$CLIENT_ID:$CLIENT_SECRET" \\\n  -H "content-type: application/x-www-form-urlencoded" \\\n  -d "scope=openid profile" \\\n  https://authometry.jiayangchen.com/oauth/device/authorization',
         paragraphs: [
           "Show the returned user_code and verification_uri, or present verification_uri_complete as a QR code. Codes expire after ten minutes.",
         ],
@@ -234,7 +234,7 @@ export const documentationPages: DocumentationPage[] = [
         paragraphs: [
           "Point the MCP client at the environment issuer followed by /mcp. Authometry returns a protected-resource challenge so the client can discover the authorization server, register as a public OAuth client when needed, and start Authorization Code with S256 PKCE.",
         ],
-        code: "https://authometry.ch3n.cc/mcp",
+        code: "https://authometry.jiayangchen.com/mcp",
       },
       {
         title: "Review and connect",
@@ -276,7 +276,7 @@ export const documentationPages: DocumentationPage[] = [
     sections: [
       {
         title: "Use the review loop",
-        code: "authometry validate\nauthometry plan --server https://authometry.ch3n.cc --token $AUTHOMETRY_TOKEN\nauthometry diff --server https://authometry.ch3n.cc --token $AUTHOMETRY_TOKEN\nauthometry apply --server https://authometry.ch3n.cc --token $AUTHOMETRY_TOKEN\nauthometry status --server https://authometry.ch3n.cc --token $AUTHOMETRY_TOKEN",
+        code: "authometry validate\nauthometry plan --server https://authometry.jiayangchen.com --token $AUTHOMETRY_TOKEN\nauthometry diff --server https://authometry.jiayangchen.com --token $AUTHOMETRY_TOKEN\nauthometry apply --server https://authometry.jiayangchen.com --token $AUTHOMETRY_TOKEN\nauthometry status --server https://authometry.jiayangchen.com --token $AUTHOMETRY_TOKEN",
         paragraphs: [
           "Validate stays local. Plan and diff compare normalized manifests with the selected environment. Apply resolves secret references locally and commits the complete plan in one database transaction under an advisory lock.",
         ],

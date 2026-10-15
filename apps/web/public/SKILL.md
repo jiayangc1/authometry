@@ -30,7 +30,7 @@ Use the current CLI without adding it to the application's runtime dependencies:
 npx authometry@latest --help
 ```
 
-Authometry Cloud at `https://authometry.ch3n.cc` and the `production` environment are the defaults. Do not pass `--server` or set `AUTHOMETRY_SERVER` unless the user explicitly requests a self-hosted installation. Select a different Cloud environment with `--environment` or `AUTHOMETRY_ENVIRONMENT` only when required.
+Authometry Cloud at `https://authometry.jiayangchen.com` and the `production` environment are the defaults. Do not pass `--server` or set `AUTHOMETRY_SERVER` unless the user explicitly requests a self-hosted installation. Select a different Cloud environment with `--environment` or `AUTHOMETRY_ENVIRONMENT` only when required.
 
 Use `AUTHOMETRY_TOKEN` from the agent's existing environment without printing it. The token needs `applications:read` and `applications:write`. If it is missing, stop only for the user to provide a scoped Authometry API token; never request their password or echo the token. The CLI must create all remaining Authometry values.
 
@@ -82,7 +82,7 @@ Implement a visible **Continue with Authometry** button in the application's exi
 
 ```html
 <a class="authometry-button" href="/auth/login">
-  <img src="https://authometry.ch3n.cc/brand/authometry-mark.svg" alt="" width="24" height="24" />
+  <img src="https://authometry.jiayangchen.com/brand/authometry-mark.svg" alt="" width="24" height="24" />
   Continue with Authometry
 </a>
 
@@ -153,4 +153,4 @@ Verify without printing secrets:
 
 Summarize the CLI command without its token or returned secrets, the created application ID, chosen client type and library, files changed, dashboard values that were provisioned automatically, and verification commands. Never include the client secret in the summary.
 
-For protocol details, read `https://authometry.ch3n.cc/docs/oauth-and-oidc`.
+For protocol details, read `https://authometry.jiayangchen.com/docs/oauth-and-oidc`.

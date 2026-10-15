@@ -16,7 +16,7 @@ Or run it without a global install:
 npx authometry@latest --help
 ```
 
-Authometry Cloud at `https://authometry.ch3n.cc` and its `production` environment are the defaults.
+Authometry Cloud at `https://authometry.jiayangchen.com` and its `production` environment are the defaults.
 
 ## 2. Authorize the CLI
 
@@ -61,7 +61,7 @@ The command creates the OAuth client in Authometry Cloud and writes these values
 
 ```dotenv
 AUTHOMETRY_APPLICATION_ID="..."
-AUTHOMETRY_ISSUER="https://authometry.ch3n.cc"
+AUTHOMETRY_ISSUER="https://authometry.jiayangchen.com"
 AUTHOMETRY_CLIENT_ID="..."
 AUTHOMETRY_CLIENT_SECRET="..."
 ```
@@ -75,7 +75,7 @@ Add `--scope offline_access` only when the application securely stores and rotat
 Give an AI coding agent this prompt:
 
 ```text
-Add Authometry OAuth to my app: https://authometry.ch3n.cc/SKILL.md
+Add Authometry OAuth to my app: https://authometry.jiayangchen.com/SKILL.md
 ```
 
 The skill tells the agent to inspect the app, run the CLI itself, select a maintained OIDC library, implement Authorization Code with S256 PKCE, protect sessions and callbacks, and run the repository's own checks.

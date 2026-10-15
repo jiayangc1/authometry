@@ -178,7 +178,7 @@ const provision = `npx authometry@latest apps create \\
   --scope openid --scope profile --scope media:read \\
   --output-env .env.local`;
 
-const agentPrompt = "Add Authometry OAuth to my app: https://authometry.ch3n.cc/SKILL.md";
+const agentPrompt = "Add Authometry OAuth to my app: https://authometry.jiayangchen.com/SKILL.md";
 
 export function CodeSamples() {
   const [active, setActive] = useState(0);

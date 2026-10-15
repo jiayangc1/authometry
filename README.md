@@ -85,7 +85,7 @@ pnpm typecheck       # type-check every workspace
 pnpm test            # run unit and integration tests
 pnpm build           # build every application and package
 pnpm test:e2e        # run the Playwright platform suite
-pnpm conformance -- https://authometry.ch3n.cc
+pnpm conformance -- https://authometry.jiayangchen.com
 ```
 
 ## License

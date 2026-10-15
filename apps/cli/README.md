@@ -1,6 +1,6 @@
 # Authometry CLI
 
-Provision and manage OAuth applications on [Authometry](https://authometry.ch3n.cc).
+Provision and manage OAuth applications on [Authometry](https://authometry.jiayangchen.com).
 
 ## Install with Homebrew
 

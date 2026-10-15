@@ -49,7 +49,7 @@ const program = new Command()
   .option(
     "--server <url>",
     "Authometry server URL",
-    process.env.AUTHOMETRY_SERVER ?? "https://authometry.ch3n.cc",
+    process.env.AUTHOMETRY_SERVER ?? "https://authometry.jiayangchen.com",
   )
   .option("--token <token>", "Authometry personal access token", process.env.AUTHOMETRY_TOKEN)
   .option(
@@ -299,7 +299,7 @@ program
       await mkdir(join(root, path), { recursive: true });
     await writeFile(
       join(root, "authometry.yaml"),
-      `apiVersion: authometry.dev/v1alpha1\nkind: AuthometryInstance\nmetadata:\n  name: primary\nspec:\n  issuer: https://authometry.ch3n.cc\n  defaultTokenLifetimes:\n    accessToken: 15m\n    refreshToken: 30d\n  supportedSigningAlgorithms: [RS256]\n  requireConsent: true\n  sessionLifetime: 7d\n`,
+      `apiVersion: authometry.dev/v1alpha1\nkind: AuthometryInstance\nmetadata:\n  name: primary\nspec:\n  issuer: https://authometry.jiayangchen.com\n  defaultTokenLifetimes:\n    accessToken: 15m\n    refreshToken: 30d\n  supportedSigningAlgorithms: [RS256]\n  requireConsent: true\n  sessionLifetime: 7d\n`,
       { flag: "wx" },
     );
     await writeFile(

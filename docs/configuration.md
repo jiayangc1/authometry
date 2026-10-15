@@ -35,7 +35,7 @@ export AUTHOMETRY_ENVIRONMENT=production
 
 The token needs `config:read` for plan, diff, status, and export; `config:write` for apply; `applications:read` to inspect OAuth clients; and `applications:write` to provision them. Settings creates tokens with these scopes by default.
 
-Every command also accepts `--server`, `--token`, and `--environment`. The server defaults to `https://authometry.ch3n.cc`; override it only for self-hosted installations. The environment may be a UUID or slug and defaults to `production`.
+Every command also accepts `--server`, `--token`, and `--environment`. The server defaults to `https://authometry.jiayangchen.com`; override it only for self-hosted installations. The environment may be a UUID or slug and defaults to `production`.
 
 ## Agent-ready application provisioning
 
@@ -103,7 +103,7 @@ kind: AuthometryInstance
 metadata:
   name: primary
 spec:
-  issuer: https://authometry.ch3n.cc
+  issuer: https://authometry.jiayangchen.com
   defaultTokenLifetimes:
     accessToken: 15m
     refreshToken: 30d

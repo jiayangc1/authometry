@@ -61,12 +61,12 @@ void test("builds a SaaS application payload with agent-selected OAuth settings"
     applicationEnvironment(
       {
         id: "app_public",
-        issuer: "https://authometry.ch3n.cc",
+        issuer: "https://authometry.jiayangchen.com",
         clientId: "amt_client_public",
       },
       "VITE_AUTHOMETRY",
     ),
-    'VITE_AUTHOMETRY_APPLICATION_ID="app_public"\nVITE_AUTHOMETRY_ISSUER="https://authometry.ch3n.cc"\nVITE_AUTHOMETRY_CLIENT_ID="amt_client_public"\n',
+    'VITE_AUTHOMETRY_APPLICATION_ID="app_public"\nVITE_AUTHOMETRY_ISSUER="https://authometry.jiayangchen.com"\nVITE_AUTHOMETRY_CLIENT_ID="amt_client_public"\n',
   );
 });
 
@@ -94,7 +94,7 @@ void test("writes one-time credentials without replacing existing values implici
   const path = join(directory, ".env.local");
   const application: CreatedApplicationResponse = {
     id: "app_123",
-    issuer: "https://authometry.ch3n.cc",
+    issuer: "https://authometry.jiayangchen.com",
     clientId: "amt_client_123",
     clientSecret: "amt_secret_original",
   };
@@ -104,7 +104,7 @@ void test("writes one-time credentials without replacing existing values implici
     assert.equal(await writeApplicationEnvironment(path, application, false), path);
     const contents = await readFile(path, "utf8");
     assert.match(contents, /^OTHER_SETTING=preserved/m);
-    assert.match(contents, /^AUTHOMETRY_ISSUER="https:\/\/authometry\.ch3n\.cc"$/m);
+    assert.match(contents, /^AUTHOMETRY_ISSUER="https:\/\/authometry\.jiayangchen\.com"$/m);
     assert.match(contents, /^AUTHOMETRY_CLIENT_SECRET="amt_secret_original"$/m);
     assert.equal((await stat(path)).mode & 0o777, 0o600);
 
