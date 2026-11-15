@@ -46,9 +46,11 @@ interface OverviewResponse {
 function GettingStarted({
   hasApplications,
   hasTraffic,
+  hasUsers,
 }: {
   hasApplications: boolean;
   hasTraffic: boolean;
+  hasUsers: boolean;
 }) {
   const steps = [
     {
@@ -60,7 +62,7 @@ function GettingStarted({
       action: "Create application",
     },
     {
-      done: false,
+      done: hasUsers,
       title: "Add a user",
       description: "Invite a teammate or create a test identity to sign in with.",
       href: "/users/new",
@@ -130,11 +132,23 @@ export default function OverviewPage() {
   const overview = useQuery({
     queryKey: ["overview"],
     queryFn: () => apiFetch<OverviewResponse>("/api/v1/overview"),
+    // Keep the monitoring view current without a manual reload.
+    refetchInterval: 30_000,
   });
   const applications = useQuery({
     queryKey: ["applications", "", "", ""],
     queryFn: () => apiFetch<{ data: unknown[] }>("/api/v1/applications?q=&type=&status="),
   });
+  const onboarding =
+    Boolean(overview.data) &&
+    !(overview.data!.metrics.authorizationRequests > 0 || overview.data!.recentTraces.length > 0);
+  const users = useQuery({
+    queryKey: ["users", ""],
+    queryFn: () => apiFetch<{ data: unknown[] }>("/api/v1/users?q="),
+    enabled: onboarding,
+  });
+  // A traced sign-in already proves a user exists, so only ask while onboarding.
+  const hasUsers = !onboarding || (users.data?.data.length ?? 0) > 0;
   if (overview.isLoading)
     return (
       <PageContainer>
@@ -203,7 +217,11 @@ export default function OverviewPage() {
         title="Overview"
       />
       {(!hasApplications || !hasTraffic) && !applications.isLoading && (
-        <GettingStarted hasApplications={hasApplications} hasTraffic={hasTraffic} />
+        <GettingStarted
+          hasApplications={hasApplications}
+          hasTraffic={hasTraffic}
+          hasUsers={hasUsers}
+        />
       )}
       <section
         aria-label="Key metrics"
