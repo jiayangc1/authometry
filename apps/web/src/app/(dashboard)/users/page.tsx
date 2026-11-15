@@ -28,7 +28,7 @@ interface UserRow {
   social_connections: string[];
 }
 const pageSize = 50;
-const knownStatuses = ["active", "invited", "suspended"];
+const knownStatuses = ["active", "disabled"];
 const columns = "minmax(220px,1.6fr) 110px 130px 110px 100px 120px";
 
 export default function UsersPage() {
@@ -140,7 +140,7 @@ export default function UsersPage() {
                     tone={
                       user.status === "active"
                         ? "success"
-                        : user.status === "suspended"
+                        : user.status === "disabled"
                           ? "danger"
                           : "neutral"
                     }

@@ -19,6 +19,7 @@ import { ErrorState, Skeleton } from "@/components/data-display/states";
 import { apiFetch } from "@/lib/api";
 
 interface ConsentRequest {
+  account?: { email: string; name: string };
   application: { name: string; clientIdSource: "auto" | "manifest" | "dynamic" };
   agent?: {
     id: string;
@@ -142,6 +143,17 @@ export default function ConsentPage() {
             )}
           </p>
         </header>
+        {query.data?.account && (
+          <p className="mb-5 flex items-center justify-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-1.5 text-xs text-[var(--text-secondary)]">
+            <UserRound aria-hidden="true" className="size-3.5 shrink-0" />
+            <span className="min-w-0 truncate">
+              Signed in as{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {query.data.account.email}
+              </span>
+            </span>
+          </p>
+        )}
         {query.data?.mcp && (
           <div className="mb-5 overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-subtle)]">
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-4">

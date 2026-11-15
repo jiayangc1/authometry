@@ -964,6 +964,80 @@ dashboardRouter.delete(
   }),
 );
 
+dashboardRouter.patch(
+  "/applications/:applicationId/status",
+  asyncRoute(async (request, response) => {
+    const input = z.object({ status: z.enum(["active", "disabled"]) }).parse(request.body);
+    const [existing] = await query<{ ownership: string }>(
+      `SELECT ownership FROM oauth_applications
+       WHERE id = $1 AND environment_id = $2 AND client_id_source <> 'dynamic'`,
+      [request.params.applicationId, request.environment!.id],
+    );
+    if (!existing)
+      throw new ApiError(404, "application_not_found", "The application was not found.");
+    if (existing.ownership === "manifest") {
+      throw new ApiError(
+        409,
+        "manifest_managed",
+        "This application is managed by a manifest and is read-only.",
+      );
+    }
+    const [updated] = await query<{ id: string; status: string }>(
+      `UPDATE oauth_applications SET status = $3, version = version + 1, updated_at = now()
+       WHERE id = $1 AND environment_id = $2 RETURNING id, status`,
+      [request.params.applicationId, request.environment!.id, input.status],
+    );
+    response.json(updated);
+  }),
+);
+
+dashboardRouter.patch(
+  "/users/:userId",
+  asyncRoute(async (request, response) => {
+    const input = z
+      .object({
+        name: z.string().trim().min(1).max(100).optional(),
+        status: z.enum(["active", "disabled"]).optional(),
+      })
+      .parse(request.body);
+    const environment = request.environment!;
+    const user = await transaction(async (client) => {
+      const result = await client.query<{ id: string; name: string; status: string }>(
+        `UPDATE identity_users
+         SET name = COALESCE($3, name), status = COALESCE($4, status), updated_at = now()
+         WHERE id = $1 AND workspace_id = $2 RETURNING id, name, status`,
+        [request.params.userId, environment.workspaceId, input.name ?? null, input.status ?? null],
+      );
+      const updated = result.rows[0];
+      if (!updated) throw new ApiError(404, "user_not_found", "The user was not found.");
+      if (input.status === "disabled") {
+        // A disabled person must lose access now, not when their tokens happen to expire.
+        const sessions = await client.query<{ refresh_family_id: string | null }>(
+          `UPDATE user_sessions SET status = 'revoked', revoked_at = now()
+           WHERE user_id = $1 AND status = 'active' RETURNING refresh_family_id`,
+          [updated.id],
+        );
+        const families = sessions.rows
+          .map((session) => session.refresh_family_id)
+          .filter((family): family is string => Boolean(family));
+        if (families.length) {
+          await client.query(
+            `UPDATE refresh_token_families SET status = 'revoked', revoked_reason = 'user_disabled'
+             WHERE id = ANY($1::uuid[]) AND status = 'active'`,
+            [families],
+          );
+          await client.query(
+            "UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = ANY($1::uuid[]) AND revoked_at IS NULL",
+            [families],
+          );
+        }
+      }
+      return updated;
+    });
+    response.json(user);
+  }),
+);
+
 dashboardRouter.delete(
   "/users/:userId",
   asyncRoute(async (request, response) => {

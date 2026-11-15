@@ -102,7 +102,7 @@ export default function TermsPage() {
         <p>
           We may update these terms as the service changes. Continued use after an update means you
           accept the revised terms. Questions can be sent to{" "}
-          <a href="mailto:auth@cams.ch3n.cc">auth@cams.ch3n.cc</a>.
+          <a href="mailto:jiayangc1@gmail.com">jiayangc1@gmail.com</a>.
         </p>
       </section>
     </LegalPage>

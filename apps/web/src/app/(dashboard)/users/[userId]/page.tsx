@@ -6,11 +6,14 @@ import {
   Activity,
   AppWindow,
   BadgeCheck,
+  CirclePause,
+  CirclePlay,
   Copy,
   Fingerprint,
   KeyRound,
   ListTree,
   MoreHorizontal,
+  Pencil,
   ShieldCheck,
   ShieldOff,
   Trash2,
@@ -34,6 +37,8 @@ import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { ResetUserPasswordDialog } from "@/components/users/reset-user-password-dialog";
 import { GroupChipInput } from "@/components/users/group-chip-input";
 import { Card } from "@/components/ui/card";
+import { Modal } from "@/components/ui/dialog";
+import { Field, Input } from "@/components/ui/form";
 import {
   menuContentClass,
   menuDangerItemClass,
@@ -103,6 +108,8 @@ export default function UserDetailPage() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const [revokingSession, setRevokingSession] = useState<string>();
+  const [renaming, setRenaming] = useState(false);
+  const [confirmingDisable, setConfirmingDisable] = useState(false);
   const [groupValues, setGroupValues] = useState<string[]>();
   const query = useQuery({
     queryKey: ["user", userId],
@@ -156,6 +163,25 @@ export default function UserDetailPage() {
       ]);
       setGroupValues(undefined);
       toast.success("Groups updated.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const updateUser = useMutation({
+    mutationFn: (input: { name?: string; status?: "active" | "disabled" }) =>
+      apiFetch(`/api/v1/users/${userId}`, { method: "PATCH", body: JSON.stringify(input) }),
+    onSuccess: async (_result, input) => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["user", userId] }),
+        client.invalidateQueries({ queryKey: ["users"] }),
+      ]);
+      setRenaming(false);
+      toast.success(
+        input.status === "disabled"
+          ? "User disabled. Their sessions were signed out."
+          : input.status === "active"
+            ? "User enabled."
+            : "Name updated.",
+      );
     },
     onError: (error) => toast.error(error.message),
   });
@@ -227,7 +253,7 @@ export default function UserDetailPage() {
   const groupsDirty =
     groupValues !== undefined && JSON.stringify(groupValues) !== JSON.stringify(user.groups);
   const statusTone =
-    user.status === "active" ? "success" : user.status === "suspended" ? "danger" : "neutral";
+    user.status === "active" ? "success" : user.status === "disabled" ? "danger" : "neutral";
   const signals: Array<{ label: string; value: string; ok: boolean; icon: LucideIcon }> = [
     {
       label: "Email",
@@ -295,12 +321,31 @@ export default function UserDetailPage() {
                 >
                   <Copy aria-hidden="true" /> Copy user ID
                 </DropdownMenu.Item>
+                <DropdownMenu.Item className={menuItemClass} onSelect={() => setRenaming(true)}>
+                  <Pencil aria-hidden="true" /> Edit name
+                </DropdownMenu.Item>
                 <DropdownMenu.Item asChild className={menuItemClass}>
                   <Link href={`/traces?q=${encodeURIComponent(user.email)}`}>
                     <ListTree aria-hidden="true" /> View traces
                   </Link>
                 </DropdownMenu.Item>
                 <DropdownMenu.Separator className={menuSeparatorClass} />
+                {user.status === "active" ? (
+                  <DropdownMenu.Item
+                    className={menuItemClass}
+                    onSelect={() => setConfirmingDisable(true)}
+                  >
+                    <CirclePause aria-hidden="true" /> Disable user
+                  </DropdownMenu.Item>
+                ) : (
+                  <DropdownMenu.Item
+                    className={menuItemClass}
+                    disabled={updateUser.isPending}
+                    onSelect={() => updateUser.mutate({ status: "active" })}
+                  >
+                    <CirclePlay aria-hidden="true" /> Enable user
+                  </DropdownMenu.Item>
+                )}
                 <DropdownMenu.Item
                   className={menuDangerItemClass}
                   onSelect={() => setConfirmingDelete(true)}
@@ -556,6 +601,57 @@ export default function UserDetailPage() {
         pendingLabel="Revoking…"
         title={`Revoke ${user.name}’s session?`}
       />
+      <ConfirmDialog
+        actionLabel="Disable user"
+        description="They will be signed out everywhere and cannot sign in until you enable them again. Nothing is deleted."
+        onConfirm={() => updateUser.mutateAsync({ status: "disabled" })}
+        onOpenChange={setConfirmingDisable}
+        open={confirmingDisable}
+        pendingLabel="Disabling…"
+        title={`Disable ${user.name}?`}
+      />
+      <Modal
+        footer={
+          <>
+            <Button disabled={updateUser.isPending} onClick={() => setRenaming(false)}>
+              Cancel
+            </Button>
+            <Button
+              form="rename-user-form"
+              loading={updateUser.isPending}
+              type="submit"
+              variant="primary"
+            >
+              Save name
+            </Button>
+          </>
+        }
+        onOpenChange={setRenaming}
+        open={renaming}
+        preventClose={updateUser.isPending}
+        title="Edit name"
+      >
+        <form
+          id="rename-user-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const name = String(new FormData(event.currentTarget).get("name") ?? "").trim();
+            if (name && name !== user.name) updateUser.mutate({ name });
+            else setRenaming(false);
+          }}
+        >
+          <Field label="Name">
+            <Input
+              autoComplete="off"
+              autoFocus
+              defaultValue={user.name}
+              maxLength={100}
+              name="name"
+              required
+            />
+          </Field>
+        </form>
+      </Modal>
       <ResetUserPasswordDialog
         email={user.email}
         onOpenChange={setResettingPassword}

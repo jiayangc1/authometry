@@ -1069,9 +1069,22 @@ authorizeApiRouter.get(
       "SELECT name, display_name, consent_description, sensitivity FROM resource_scopes WHERE environment_id = $1 AND name = ANY($2)",
       [application.environment_id, pending.parameters.scope.split(" ")],
     );
+    const subject = pending as { user_id?: string | null; admin_user_id?: string | null };
+    const [account] = subject.user_id
+      ? await query<{ email: string; name: string }>(
+          "SELECT email, name FROM identity_users WHERE id = $1",
+          [subject.user_id],
+        )
+      : subject.admin_user_id
+        ? await query<{ email: string; name: string }>(
+            "SELECT email, name FROM admin_users WHERE id = $1",
+            [subject.admin_user_id],
+          )
+        : [];
     response.json({
       requestId: pending.request_id,
       status: pending.status,
+      ...(account ? { account: { email: account.email, name: account.name } } : {}),
       application: {
         id: application.id,
         name: application.name,

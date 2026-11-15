@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus } from "lucide-react";
+import { UserPlus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button, EmptyState, Spinner, StatusBadge } from "@authometry/ui";
@@ -18,6 +18,7 @@ interface Member {
   email: string;
   name: string;
   role: "owner" | "admin" | "developer" | "auditor" | "viewer";
+  invitation_pending?: boolean;
 }
 const roles: Member["role"][] = ["admin", "developer", "auditor", "viewer"];
 const roleLabels: Record<Member["role"], string> = {
@@ -38,6 +39,7 @@ const roleDescriptions: Record<Member["role"], string> = {
 export default function MembersPage() {
   const client = useQueryClient();
   const [inviting, setInviting] = useState(false);
+  const [removing, setRemoving] = useState<Member>();
   const [roleChange, setRoleChange] = useState<{ member: Member; role: Member["role"] }>();
   const query = useQuery({
     queryKey: ["members"],
@@ -66,6 +68,23 @@ export default function MembersPage() {
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ["members"] });
       toast.success("Role updated.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const resend = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/api/v1/settings/members/${id}/invitation`, { method: "POST" }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ["members"] });
+      toast.success("Invitation sent again.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/v1/settings/members/${id}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ["members"] });
+      toast.success("Member removed.");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -113,10 +132,24 @@ export default function MembersPage() {
                     {initials(member.name, member.email)}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium">{member.name}</p>
+                    <p className="flex min-w-0 items-center gap-2 text-[13px] font-medium">
+                      <span className="truncate">{member.name}</span>
+                      {member.invitation_pending && <StatusBadge label="Invited" tone="warning" />}
+                    </p>
                     <p className="truncate text-xs text-[var(--text-secondary)]">{member.email}</p>
                   </div>
                   {pending && <Spinner className="size-3.5 text-[var(--text-tertiary)]" />}
+                  {member.invitation_pending && (
+                    <Button
+                      disabled={!smtpEnabled}
+                      loading={resend.isPending && resend.variables === member.id}
+                      onClick={() => resend.mutate(member.id)}
+                      size="compact"
+                      variant="ghost"
+                    >
+                      Resend
+                    </Button>
+                  )}
                   {member.role === "owner" ? (
                     <StatusBadge label="Owner" tone="info" />
                   ) : (
@@ -136,6 +169,18 @@ export default function MembersPage() {
                         </option>
                       ))}
                     </Select>
+                  )}
+                  {member.role !== "owner" && (
+                    <Button
+                      aria-label={`Remove ${member.name || member.email}`}
+                      className="hover:text-[var(--danger)]"
+                      onClick={() => setRemoving(member)}
+                      size="icon-compact"
+                      title={member.invitation_pending ? "Revoke invitation" : "Remove member"}
+                      variant="ghost"
+                    >
+                      <X aria-hidden="true" className="size-3.5" />
+                    </Button>
                   )}
                 </li>
               );
@@ -160,6 +205,21 @@ export default function MembersPage() {
           ))}
         </dl>
       </SettingsSection>
+      <ConfirmDialog
+        actionLabel={removing?.invitation_pending ? "Revoke invitation" : "Remove member"}
+        description={
+          removing?.invitation_pending
+            ? "Their invitation link stops working and they lose access to this workspace."
+            : "They lose access to this workspace immediately. You can invite them again later."
+        }
+        onConfirm={() => (removing ? remove.mutateAsync(removing.id) : undefined)}
+        onOpenChange={(open) => {
+          if (!open) setRemoving(undefined);
+        }}
+        open={Boolean(removing)}
+        pendingLabel="Removing…"
+        title={`Remove ${removing?.name || removing?.email || "member"}?`}
+      />
       <ConfirmDialog
         actionLabel="Change role"
         description={

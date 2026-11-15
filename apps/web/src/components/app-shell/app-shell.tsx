@@ -470,7 +470,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Button asChild className="hidden sm:inline-flex" size="icon" variant="ghost">
               <a
                 aria-label="Send feedback"
-                href="mailto:auth@cams.ch3n.cc?subject=Authometry%20feedback"
+                href="mailto:jiayangc1@gmail.com?subject=Authometry%20feedback"
                 title="Send feedback"
               >
                 <MessageSquareText aria-hidden="true" className="size-4" />

@@ -15,10 +15,10 @@ export default function DataDeletionPage() {
       <section>
         <h2>Request deletion</h2>
         <p>
-          Email <a href="mailto:auth@cams.ch3n.cc">auth@cams.ch3n.cc</a> from the address associated
-          with your Authometry identity. Use the subject “Authometry data deletion request” and
-          identify the workspace or application where you signed in. Do not send a password,
-          provider access token, OAuth code, or other secret.
+          Email <a href="mailto:jiayangc1@gmail.com">jiayangc1@gmail.com</a> from the address
+          associated with your Authometry identity. Use the subject “Authometry data deletion
+          request” and identify the workspace or application where you signed in. Do not send a
+          password, provider access token, OAuth code, or other secret.
         </p>
       </section>
 
