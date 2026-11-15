@@ -8,6 +8,7 @@ import { Button, GoogleIcon, Note } from "@authometry/ui";
 import { AuthorizationShell } from "@/components/auth/auth-shell";
 import { Field, Input } from "@/components/ui/form";
 import { PasswordInput } from "@/components/ui/password-input";
+import { ErrorState } from "@/components/data-display/states";
 import { ApiClientError, apiFetch } from "@/lib/api";
 import { useHydrated } from "@/lib/use-hydrated";
 
@@ -60,6 +61,16 @@ export default function AuthorizationLoginPage() {
     }
   }
   const hasSocial = Boolean(providers.data?.google || providers.data?.github);
+  if (!requestId || request.isError)
+    return (
+      <AuthorizationShell>
+        <ErrorState
+          description="This sign-in request is missing or has expired. Return to the application and start again."
+          {...(requestId ? { onRetry: () => void request.refetch() } : {})}
+          title="This request is no longer available"
+        />
+      </AuthorizationShell>
+    );
   return (
     <AuthorizationShell>
       <div className="w-full">
@@ -167,6 +178,18 @@ export default function AuthorizationLoginPage() {
             <Note role="alert" tone="danger">
               {error}
             </Note>
+          )}
+          {mfaRequired && (
+            <button
+              className="block w-full rounded-[4px] text-center text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
+              onClick={() => {
+                setMfaRequired(false);
+                setError(undefined);
+              }}
+              type="button"
+            >
+              Use a different account
+            </button>
           )}
           <Button
             className="w-full"

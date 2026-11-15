@@ -131,9 +131,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       </main>
       <footer className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-2 border-t border-[var(--portal-line)] px-4 py-6 text-xs text-[var(--portal-muted)] sm:px-6">
         <span>Secured by Authometry</span>
-        <span>
-          {me.data?.workspace.name} · {me.data?.environment.name}
-        </span>
+        <span>{me.data ? `${me.data.workspace.name} · ${me.data.environment.name}` : null}</span>
       </footer>
     </div>
   );

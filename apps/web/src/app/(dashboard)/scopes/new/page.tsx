@@ -1,6 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -14,6 +15,7 @@ import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
 export default function NewScopePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string>();
@@ -35,6 +37,7 @@ export default function NewScopePage() {
           sensitivity: data.get("sensitivity"),
         }),
       });
+      await queryClient.invalidateQueries({ queryKey: ["scopes"] });
       setDirty(false);
       toast.success("Scope created.");
       router.push("/scopes");

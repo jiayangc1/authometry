@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Monitor, SearchX, Smartphone } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button, EmptyState, StatusBadge } from "@authometry/ui";
@@ -14,9 +15,11 @@ import { SegmentedControl } from "@/components/ui/tabs";
 import { Table, TableFooter, TableHeader, TableRow } from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
 import { humanize } from "@/lib/status";
+import { useDebouncedSearchParam } from "@/lib/use-query-params";
 
 interface SessionRow {
   id: string;
+  user_id: string;
   email: string;
   user_name: string;
   application_name?: string;
@@ -27,11 +30,15 @@ interface SessionRow {
   last_active_at: string;
   expires_at: string;
 }
+const pageSize = 50;
+
 export default function SessionsPage() {
   const client = useQueryClient();
   const [selectedSession, setSelectedSession] = useState<SessionRow>();
-  const [filter, setFilter] = useState("");
-  const [activeOnly, setActiveOnly] = useState(true);
+  const search = useDebouncedSearchParam("q");
+  const filter = search.value;
+  const activeOnly = search.parameters.get("status") !== "all";
+  const [shown, setShown] = useState(pageSize);
   const query = useQuery({
     queryKey: ["sessions"],
     queryFn: () => apiFetch<{ data: SessionRow[] }>("/api/v1/sessions"),
@@ -56,6 +63,7 @@ export default function SessionsPage() {
           .filter(Boolean)
           .some((value) => value!.toLowerCase().includes(needle))),
   );
+  const visibleRows = rows.slice(0, shown);
   return (
     <PageContainer>
       <PageHeader
@@ -65,15 +73,15 @@ export default function SessionsPage() {
       <FilterBar>
         <SearchInput
           className="sm:w-72"
-          onChange={(event) => setFilter(event.target.value)}
-          onClear={() => setFilter("")}
+          onChange={(event) => search.setValue(event.target.value)}
+          onClear={search.clear}
           placeholder="Filter by person, app, or IP…"
           value={filter}
         />
         <SegmentedControl
           className="sm:ml-auto"
           label="Session status"
-          onChange={(value) => setActiveOnly(value === "active")}
+          onChange={(value) => search.update({ status: value === "all" ? "all" : undefined })}
           options={[
             { value: "active", label: "Active" },
             { value: "all", label: "All" },
@@ -89,6 +97,7 @@ export default function SessionsPage() {
           description="Authometry could not load sessions. Check your connection, then retry."
           headingLevel="h2"
           onRetry={() => void query.refetch()}
+          retrying={query.isRefetching}
           title="Unable to load sessions"
         />
       ) : rows.length ? (
@@ -105,7 +114,7 @@ export default function SessionsPage() {
             <span />
           </TableHeader>
           <div className="stagger">
-            {rows.map((session) => {
+            {visibleRows.map((session) => {
               const mobile = session.user_agent?.toLowerCase().includes("mobile");
               return (
                 <TableRow key={session.id} mobileColumns="minmax(0,1fr) auto">
@@ -121,7 +130,14 @@ export default function SessionsPage() {
                       )}
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate text-[13px] font-medium">{session.user_name}</p>
+                      <p className="truncate text-[13px] font-medium">
+                        <Link
+                          className="rounded-[4px] hover:underline focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
+                          href={`/users/${session.user_id}`}
+                        >
+                          {session.user_name}
+                        </Link>
+                      </p>
                       <p className="truncate text-xs text-[var(--text-secondary)]">
                         {session.email}
                         <span className="lg:hidden">
@@ -170,7 +186,13 @@ export default function SessionsPage() {
           <TableFooter>
             <span>
               {rows.length} of {all.length} {all.length === 1 ? "session" : "sessions"}
+              {visibleRows.length < rows.length ? ` · showing ${visibleRows.length}` : ""}
             </span>
+            {visibleRows.length < rows.length && (
+              <Button onClick={() => setShown(shown + pageSize)} size="compact" variant="ghost">
+                Show more
+              </Button>
+            )}
           </TableFooter>
         </Table>
       ) : (
@@ -185,8 +207,8 @@ export default function SessionsPage() {
             all.length ? (
               <Button
                 onClick={() => {
-                  setFilter("");
-                  setActiveOnly(false);
+                  search.clear();
+                  search.update({ q: undefined, status: "all" });
                 }}
               >
                 Clear filters

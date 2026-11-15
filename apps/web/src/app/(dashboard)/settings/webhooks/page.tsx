@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, RadioTower } from "lucide-react";
+import { Plus, RadioTower, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button, Checkbox, Note, StatusBadge } from "@authometry/ui";
@@ -10,8 +10,8 @@ import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { Modal } from "@/components/ui/dialog";
 import { ChoiceRow, Field, Input } from "@/components/ui/form";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { apiFetch } from "@/lib/api";
-import { humanize } from "@/lib/status";
 
 interface Webhook {
   id: string;
@@ -47,6 +47,27 @@ export default function WebhooksPage() {
       setSecret(result.secret);
       await client.invalidateQueries({ queryKey: ["webhooks"] });
       toast.success("Webhook created.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const [deleting, setDeleting] = useState<Webhook>();
+  const setStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: "enabled" | "disabled" }) =>
+      apiFetch(`/api/v1/settings/webhooks/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: async (_result, variables) => {
+      await client.invalidateQueries({ queryKey: ["webhooks"] });
+      toast.success(variables.status === "enabled" ? "Webhook resumed." : "Webhook paused.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/v1/settings/webhooks/${id}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ["webhooks"] });
+      toast.success("Webhook deleted.");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -96,9 +117,32 @@ export default function WebhooksPage() {
                   ) : null}
                 </div>
                 <StatusBadge
-                  label={humanize(webhook.status)}
+                  label={webhook.status === "enabled" ? "Enabled" : "Paused"}
                   tone={webhook.status === "enabled" ? "success" : "neutral"}
                 />
+                <Button
+                  loading={setStatus.isPending && setStatus.variables?.id === webhook.id}
+                  onClick={() =>
+                    setStatus.mutate({
+                      id: webhook.id,
+                      status: webhook.status === "enabled" ? "disabled" : "enabled",
+                    })
+                  }
+                  size="compact"
+                  variant="ghost"
+                >
+                  {webhook.status === "enabled" ? "Pause" : "Resume"}
+                </Button>
+                <Button
+                  aria-label={`Delete ${webhook.name}`}
+                  className="hover:text-[var(--danger)]"
+                  onClick={() => setDeleting(webhook)}
+                  size="icon-compact"
+                  title="Delete webhook"
+                  variant="ghost"
+                >
+                  <Trash2 aria-hidden="true" className="size-3.5" />
+                </Button>
               </li>
             ))}
           </ul>
@@ -203,6 +247,17 @@ export default function WebhooksPage() {
           </form>
         )}
       </Modal>
+      <ConfirmDialog
+        actionLabel="Delete webhook"
+        description="Deliveries to this endpoint stop immediately and its delivery history is removed. This cannot be undone."
+        onConfirm={() => (deleting ? remove.mutateAsync(deleting.id) : undefined)}
+        onOpenChange={(next) => {
+          if (!next) setDeleting(undefined);
+        }}
+        open={Boolean(deleting)}
+        pendingLabel="Deleting…"
+        title={`Delete ${deleting?.name ?? "webhook"}?`}
+      />
     </>
   );
 }

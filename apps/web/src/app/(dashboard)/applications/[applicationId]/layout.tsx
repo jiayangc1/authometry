@@ -4,6 +4,8 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
+  CirclePause,
+  CirclePlay,
   Clipboard,
   FlaskConical,
   GitBranch,
@@ -28,7 +30,7 @@ import {
 } from "@/components/ui/menu";
 import { TabNav } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
-import { apiFetch } from "@/lib/api";
+import { ApiClientError, apiFetch } from "@/lib/api";
 
 export default function ApplicationLayout({ children }: { children: React.ReactNode }) {
   const { applicationId } = useParams<{ applicationId: string }>();
@@ -44,6 +46,8 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingDisable, setConfirmingDisable] = useState(false);
+  const [failedLogo, setFailedLogo] = useState<string>();
   const { application, loading, error, refetch } = useApplication();
   const deleteApplication = useMutation({
     mutationFn: (applicationId: string) =>
@@ -58,25 +62,55 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
     },
     onError: (mutationError) => toast.error(mutationError.message),
   });
+  const changeStatus = useMutation({
+    mutationFn: ({
+      applicationId,
+      status,
+    }: {
+      applicationId: string;
+      status: "active" | "disabled";
+    }) =>
+      apiFetch(`/api/v1/applications/${applicationId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: async (_result, variables) => {
+      await Promise.all([refetch(), queryClient.invalidateQueries({ queryKey: ["applications"] })]);
+      toast.success(
+        variables.status === "active" ? "Application enabled." : "Application disabled.",
+      );
+    },
+    onError: (mutationError) => toast.error(mutationError.message),
+  });
   if (loading)
     return (
       <PageContainer>
         <PageSkeleton metrics={false} />
       </PageContainer>
     );
-  if (error || !application)
+  // A failed background refresh keeps showing the application that is already loaded.
+  if (!application) {
+    const missing = error instanceof ApiClientError && error.status === 404;
     return (
       <PageContainer>
         <Breadcrumbs
-          items={[{ label: "Applications", href: "/applications" }, { label: "Not found" }]}
+          items={[
+            { label: "Applications", href: "/applications" },
+            { label: missing ? "Not found" : "Unavailable" },
+          ]}
         />
         <ErrorState
-          title="Application not found"
-          description="This application may have been deleted or belong to another environment. Switch environments or return to the application list."
+          title={missing ? "Application not found" : "Unable to load application"}
+          description={
+            missing
+              ? "This application may have been deleted or belong to another environment. Switch environments or return to the application list."
+              : "Authometry could not reach the API. Check your connection, then retry."
+          }
           onRetry={() => void refetch()}
         />
       </PageContainer>
     );
+  }
   const tabs = [
     ["Overview", `/applications/${application.id}`],
     ["Configuration", `/applications/${application.id}/configuration`],
@@ -109,8 +143,16 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
       <header className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-subtle)] text-sm font-semibold text-[var(--text-secondary)]">
-            {application.logo_uri ? (
-              <img alt="" className="size-full object-cover" src={application.logo_uri} />
+            {application.logo_uri && failedLogo !== application.logo_uri ? (
+              <img
+                alt=""
+                className="size-full object-cover"
+                height={40}
+                onError={() => setFailedLogo(application.logo_uri ?? undefined)}
+                referrerPolicy="no-referrer"
+                src={application.logo_uri}
+                width={40}
+              />
             ) : (
               application.name.charAt(0).toUpperCase()
             )}
@@ -164,6 +206,24 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
                 {application.ownership !== "manifest" && (
                   <>
                     <DropdownMenu.Separator className={menuSeparatorClass} />
+                    {application.status === "active" ? (
+                      <DropdownMenu.Item
+                        className={menuItemClass}
+                        onSelect={() => setConfirmingDisable(true)}
+                      >
+                        <CirclePause aria-hidden="true" /> Disable application
+                      </DropdownMenu.Item>
+                    ) : (
+                      <DropdownMenu.Item
+                        className={menuItemClass}
+                        disabled={changeStatus.isPending}
+                        onSelect={() =>
+                          changeStatus.mutate({ applicationId: application.id, status: "active" })
+                        }
+                      >
+                        <CirclePlay aria-hidden="true" /> Enable application
+                      </DropdownMenu.Item>
+                    )}
                     <DropdownMenu.Item
                       className={menuDangerItemClass}
                       disabled={deleteApplication.isPending}
@@ -197,6 +257,28 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
           . Edit the manifest to make changes.
         </Note>
       )}
+      {application.status === "disabled" && (
+        <Note
+          action={
+            application.ownership !== "manifest" ? (
+              <Button
+                loading={changeStatus.isPending}
+                onClick={() =>
+                  changeStatus.mutate({ applicationId: application.id, status: "active" })
+                }
+                size="compact"
+              >
+                Enable
+              </Button>
+            ) : undefined
+          }
+          className="mb-5"
+          tone="warning"
+        >
+          This application is disabled. Sign-ins and token requests are refused until it is enabled
+          again.
+        </Note>
+      )}
       <TabNav
         className="mb-6"
         items={tabs.map(([label, href], index) => ({
@@ -209,6 +291,17 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
       <div className="animate-[fade-in_var(--motion-normal)_var(--ease-out)]" key={pathname}>
         {children}
       </div>
+      <ConfirmDialog
+        actionLabel="Disable application"
+        description="New sign-ins and token requests will be refused until you enable it again. Nothing is deleted."
+        onConfirm={() =>
+          changeStatus.mutateAsync({ applicationId: application.id, status: "disabled" })
+        }
+        onOpenChange={setConfirmingDisable}
+        open={confirmingDisable}
+        pendingLabel="Disabling…"
+        title={`Disable ${application.name}?`}
+      />
       <ConfirmDialog
         actionLabel="Delete application"
         confirmationText={application.slug}

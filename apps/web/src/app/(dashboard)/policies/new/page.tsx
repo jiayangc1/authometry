@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -27,6 +28,7 @@ function toIdentifier(value: string) {
 
 export default function NewPolicyPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string>();
@@ -72,6 +74,7 @@ export default function NewPolicyPage() {
           otherwise: { deny: { code: "policy_denied", message: draft.message.trim() } },
         }),
       });
+      await queryClient.invalidateQueries({ queryKey: ["policies"] });
       setDirty(false);
       toast.success("Policy created.");
       router.push(`/policies/${result.id}`);

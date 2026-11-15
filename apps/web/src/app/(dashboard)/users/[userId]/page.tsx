@@ -6,11 +6,14 @@ import {
   Activity,
   AppWindow,
   BadgeCheck,
+  CirclePause,
+  CirclePlay,
   Copy,
   Fingerprint,
   KeyRound,
   ListTree,
   MoreHorizontal,
+  Pencil,
   ShieldCheck,
   ShieldOff,
   Trash2,
@@ -21,7 +24,7 @@ import { useParams, useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { Button, Checkbox, EmptyState, Spinner, StatusBadge, StatusDot, cn } from "@authometry/ui";
-import { CopyableValue } from "@/components/data-display/copyable-value";
+import { CodeBlock, CopyableValue } from "@/components/data-display/copyable-value";
 import { FullDateTime, RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, PageSkeleton } from "@/components/data-display/states";
 import {
@@ -34,13 +37,15 @@ import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { ResetUserPasswordDialog } from "@/components/users/reset-user-password-dialog";
 import { GroupChipInput } from "@/components/users/group-chip-input";
 import { Card } from "@/components/ui/card";
+import { Modal } from "@/components/ui/dialog";
+import { Field, Input } from "@/components/ui/form";
 import {
   menuContentClass,
   menuDangerItemClass,
   menuItemClass,
   menuSeparatorClass,
 } from "@/components/ui/menu";
-import { apiFetch } from "@/lib/api";
+import { ApiClientError, apiFetch } from "@/lib/api";
 import { humanize } from "@/lib/status";
 
 interface UserDetail {
@@ -102,6 +107,9 @@ export default function UserDetailPage() {
   const client = useQueryClient();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [revokingSession, setRevokingSession] = useState<string>();
+  const [renaming, setRenaming] = useState(false);
+  const [confirmingDisable, setConfirmingDisable] = useState(false);
   const [groupValues, setGroupValues] = useState<string[]>();
   const query = useQuery({
     queryKey: ["user", userId],
@@ -158,6 +166,25 @@ export default function UserDetailPage() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const updateUser = useMutation({
+    mutationFn: (input: { name?: string; status?: "active" | "disabled" }) =>
+      apiFetch(`/api/v1/users/${userId}`, { method: "PATCH", body: JSON.stringify(input) }),
+    onSuccess: async (_result, input) => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["user", userId] }),
+        client.invalidateQueries({ queryKey: ["users"] }),
+      ]);
+      setRenaming(false);
+      toast.success(
+        input.status === "disabled"
+          ? "User disabled. Their sessions were signed out."
+          : input.status === "active"
+            ? "User enabled."
+            : "Name updated.",
+      );
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const revokeSession = useMutation({
     mutationFn: (sessionId: string) =>
       apiFetch(`/api/v1/sessions/${sessionId}/revoke`, { method: "POST" }),
@@ -168,18 +195,28 @@ export default function UserDetailPage() {
     onError: (error) => toast.error(error.message),
   });
   if (!query.data) {
+    const missing = query.error instanceof ApiClientError && query.error.status === 404;
     return (
       <PageContainer>
         {query.isLoading ? (
           <PageSkeleton metrics={false} />
         ) : (
           <>
-            <Breadcrumbs items={[{ label: "Users", href: "/users" }, { label: "Not found" }]} />
+            <Breadcrumbs
+              items={[
+                { label: "Users", href: "/users" },
+                { label: missing ? "Not found" : "Unavailable" },
+              ]}
+            />
             <ErrorState
-              description="This user may have been deleted. Check your connection, then retry."
+              description={
+                missing
+                  ? "This user does not exist in this workspace. They may have been deleted."
+                  : "Authometry could not reach the API. Check your connection, then retry."
+              }
               onRetry={() => void query.refetch()}
               retrying={query.isRefetching}
-              title="Unable to load user"
+              title={missing ? "User not found" : "Unable to load user"}
             />
           </>
         )}
@@ -204,11 +241,19 @@ export default function UserDetailPage() {
         "Never"
       ),
     ],
+    ...(user.email_verified_at
+      ? ([
+          ["Email verified", <FullDateTime key="verified" value={user.email_verified_at} />],
+        ] as Array<[string, ReactNode]>)
+      : []),
   ];
+  const customClaims = Object.keys(user.custom_claims ?? {}).length
+    ? JSON.stringify(user.custom_claims, null, 2)
+    : undefined;
   const groupsDirty =
     groupValues !== undefined && JSON.stringify(groupValues) !== JSON.stringify(user.groups);
   const statusTone =
-    user.status === "active" ? "success" : user.status === "suspended" ? "danger" : "neutral";
+    user.status === "active" ? "success" : user.status === "disabled" ? "danger" : "neutral";
   const signals: Array<{ label: string; value: string; ok: boolean; icon: LucideIcon }> = [
     {
       label: "Email",
@@ -276,12 +321,31 @@ export default function UserDetailPage() {
                 >
                   <Copy aria-hidden="true" /> Copy user ID
                 </DropdownMenu.Item>
+                <DropdownMenu.Item className={menuItemClass} onSelect={() => setRenaming(true)}>
+                  <Pencil aria-hidden="true" /> Edit name
+                </DropdownMenu.Item>
                 <DropdownMenu.Item asChild className={menuItemClass}>
                   <Link href={`/traces?q=${encodeURIComponent(user.email)}`}>
                     <ListTree aria-hidden="true" /> View traces
                   </Link>
                 </DropdownMenu.Item>
                 <DropdownMenu.Separator className={menuSeparatorClass} />
+                {user.status === "active" ? (
+                  <DropdownMenu.Item
+                    className={menuItemClass}
+                    onSelect={() => setConfirmingDisable(true)}
+                  >
+                    <CirclePause aria-hidden="true" /> Disable user
+                  </DropdownMenu.Item>
+                ) : (
+                  <DropdownMenu.Item
+                    className={menuItemClass}
+                    disabled={updateUser.isPending}
+                    onSelect={() => updateUser.mutate({ status: "active" })}
+                  >
+                    <CirclePlay aria-hidden="true" /> Enable user
+                  </DropdownMenu.Item>
+                )}
                 <DropdownMenu.Item
                   className={menuDangerItemClass}
                   onSelect={() => setConfirmingDelete(true)}
@@ -328,6 +392,16 @@ export default function UserDetailPage() {
             <DescriptionList items={details} />
           </section>
 
+          {customClaims && (
+            <section>
+              <SectionHeader
+                description="Extra claims added to this person’s tokens."
+                title="Custom claims"
+              />
+              <CodeBlock code={customClaims} label="JSON" maxHeight="240px" />
+            </section>
+          )}
+
           <section>
             <SectionHeader
               description="Groups grant inherited access to portal applications."
@@ -352,7 +426,7 @@ export default function UserDetailPage() {
                     groupsDirty ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
                   )}
                 >
-                  <div className="overflow-hidden">
+                  <div className="overflow-hidden" inert={!groupsDirty}>
                     <div className="flex items-center justify-end gap-2 pt-3">
                       <Button
                         disabled={updateGroups.isPending}
@@ -366,7 +440,6 @@ export default function UserDetailPage() {
                       <Button
                         loading={updateGroups.isPending}
                         size="compact"
-                        tabIndex={groupsDirty ? 0 : -1}
                         type="submit"
                         variant="primary"
                       >
@@ -475,14 +548,15 @@ export default function UserDetailPage() {
                       {session.application_name ?? "Dashboard"}
                     </p>
                     <p className="truncate text-xs text-[var(--text-secondary)]">
-                      Active <RelativeTime value={session.last_active_at} />
+                      {session.status === "active" ? "Active" : "Last active"}{" "}
+                      <RelativeTime value={session.last_active_at} />
                     </p>
                   </div>
                   {session.status === "active" ? (
                     <Button
                       className="hover:text-[var(--danger)]"
                       loading={revokeSession.isPending && revokeSession.variables === session.id}
-                      onClick={() => revokeSession.mutate(session.id)}
+                      onClick={() => setRevokingSession(session.id)}
                       size="compact"
                       variant="ghost"
                     >
@@ -516,6 +590,68 @@ export default function UserDetailPage() {
         pendingLabel="Deleting…"
         title={`Delete ${user.name}?`}
       />
+      <ConfirmDialog
+        actionLabel="Revoke session"
+        description="They will be signed out of this session and must sign in again."
+        onConfirm={() => (revokingSession ? revokeSession.mutateAsync(revokingSession) : undefined)}
+        onOpenChange={(open) => {
+          if (!open) setRevokingSession(undefined);
+        }}
+        open={Boolean(revokingSession)}
+        pendingLabel="Revoking…"
+        title={`Revoke ${user.name}’s session?`}
+      />
+      <ConfirmDialog
+        actionLabel="Disable user"
+        description="They will be signed out everywhere and cannot sign in until you enable them again. Nothing is deleted."
+        onConfirm={() => updateUser.mutateAsync({ status: "disabled" })}
+        onOpenChange={setConfirmingDisable}
+        open={confirmingDisable}
+        pendingLabel="Disabling…"
+        title={`Disable ${user.name}?`}
+      />
+      <Modal
+        footer={
+          <>
+            <Button disabled={updateUser.isPending} onClick={() => setRenaming(false)}>
+              Cancel
+            </Button>
+            <Button
+              form="rename-user-form"
+              loading={updateUser.isPending}
+              type="submit"
+              variant="primary"
+            >
+              Save name
+            </Button>
+          </>
+        }
+        onOpenChange={setRenaming}
+        open={renaming}
+        preventClose={updateUser.isPending}
+        title="Edit name"
+      >
+        <form
+          id="rename-user-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const name = String(new FormData(event.currentTarget).get("name") ?? "").trim();
+            if (name && name !== user.name) updateUser.mutate({ name });
+            else setRenaming(false);
+          }}
+        >
+          <Field label="Name">
+            <Input
+              autoComplete="off"
+              autoFocus
+              defaultValue={user.name}
+              maxLength={100}
+              name="name"
+              required
+            />
+          </Field>
+        </form>
+      </Modal>
       <ResetUserPasswordDialog
         email={user.email}
         onOpenChange={setResettingPassword}

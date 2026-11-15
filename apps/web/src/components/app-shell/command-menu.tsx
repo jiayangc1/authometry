@@ -8,12 +8,15 @@ import {
   ArrowRight,
   CornerDownLeft,
   ListTree,
+  LogOut,
   Moon,
   Plus,
   Search,
+  Settings,
   ShieldCheck,
   Sun,
   UserPlus,
+  UserRound,
   type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -22,6 +25,18 @@ import { useDeferredValue, useRef, useState } from "react";
 import { Kbd, Spinner } from "@authometry/ui";
 import { navigation, utilityNavigation } from "@/config/navigation";
 import { apiFetch } from "@/lib/api";
+
+const settingsPages: Array<[label: string, href: string]> = [
+  ["My account", "/settings/account"],
+  ["General settings", "/settings/general"],
+  ["Members", "/settings/members"],
+  ["Domains", "/settings/domains"],
+  ["API tokens", "/settings/tokens"],
+  ["Signing keys", "/settings/signing-keys"],
+  ["Audit log", "/settings/audit"],
+  ["Provisioning", "/settings/provisioning"],
+  ["Webhooks", "/settings/webhooks"],
+];
 
 const groupClass =
   "[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-[var(--text-tertiary)]";
@@ -57,9 +72,11 @@ function Item({
 export function CommandMenu({
   open,
   onOpenChange,
+  onSignOut,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSignOut?: () => void;
 }) {
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
@@ -70,7 +87,12 @@ export function CommandMenu({
     queryKey: ["command-search", deferredSearch],
     queryFn: () =>
       apiFetch<{
-        data: Array<{ id: string; name: string; slug: string; type: "application" | "trace" }>;
+        data: Array<{
+          id: string;
+          name: string;
+          slug: string;
+          type: "application" | "trace" | "user";
+        }>;
       }>(`/api/v1/search?q=${encodeURIComponent(deferredSearch)}`),
     enabled: open && deferredSearch.length > 1,
     placeholderData: (previous) => previous,
@@ -126,12 +148,12 @@ export function CommandMenu({
                 <Search aria-hidden="true" className="size-4 text-[var(--text-tertiary)]" />
               )}
               <Command.Input
-                aria-label="Search applications, traces, and pages"
+                aria-label="Search applications, users, traces, and pages"
                 autoComplete="off"
                 className="h-full flex-1 bg-transparent text-[15px] outline-none placeholder:text-[var(--text-tertiary)]"
                 name="command-search"
                 onValueChange={setSearch}
-                placeholder="Search applications, traces, pages, or actions…"
+                placeholder="Search applications, users, traces, pages, or actions…"
                 ref={inputRef}
                 spellCheck={false}
                 value={search}
@@ -148,7 +170,9 @@ export function CommandMenu({
                     const href =
                       result.type === "application"
                         ? `/applications/${result.id}`
-                        : `/traces/${result.id}`;
+                        : result.type === "user"
+                          ? `/users/${result.id}`
+                          : `/traces/${result.id}`;
                     return (
                       <Command.Item
                         className={itemClass}
@@ -158,6 +182,8 @@ export function CommandMenu({
                       >
                         {result.type === "application" ? (
                           <AppWindow aria-hidden="true" className="size-4 shrink-0" />
+                        ) : result.type === "user" ? (
+                          <UserRound aria-hidden="true" className="size-4 shrink-0" />
                         ) : (
                           <ListTree aria-hidden="true" className="size-4 shrink-0" />
                         )}
@@ -193,6 +219,17 @@ export function CommandMenu({
                     change(false);
                   }}
                 />
+                {onSignOut && (
+                  <Item
+                    icon={LogOut}
+                    keywords={["logout", "log out", "exit"]}
+                    label="Sign out"
+                    onSelect={() => {
+                      change(false);
+                      onSignOut();
+                    }}
+                  />
+                )}
               </Command.Group>
               {navigation.map((group) => (
                 <Command.Group className={groupClass} heading={group.label} key={group.label}>
@@ -207,6 +244,17 @@ export function CommandMenu({
                   ))}
                 </Command.Group>
               ))}
+              <Command.Group className={groupClass} heading="Settings">
+                {settingsPages.map(([label, href]) => (
+                  <Item
+                    icon={Settings}
+                    key={href}
+                    keywords={["settings"]}
+                    label={label}
+                    onSelect={() => go(href)}
+                  />
+                ))}
+              </Command.Group>
               <Command.Group className={groupClass} heading="Help">
                 {utilityNavigation
                   .filter((item) => !item.external)

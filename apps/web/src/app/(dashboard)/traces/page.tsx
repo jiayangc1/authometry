@@ -39,12 +39,16 @@ const statusOptions = [
 ] as const;
 type StatusFilter = (typeof statusOptions)[number]["value"];
 
+const limitSteps = [50, 100, 200, 500];
+
 const columns = "120px minmax(180px,1.4fr) minmax(140px,1fr) minmax(160px,1fr) 150px 80px 110px";
 
 export default function TracesPage() {
   const search = useDebouncedSearchParam("q");
   const status = (search.parameters.get("status") ?? "") as StatusFilter;
-  const limit = search.parameters.get("limit") === "100" ? 100 : 50;
+  const requestedLimit = Number(search.parameters.get("limit"));
+  const limit = limitSteps.includes(requestedLimit) ? requestedLimit : 50;
+  const nextLimit = limitSteps[limitSteps.indexOf(limit) + 1];
   const traces = useQuery({
     queryKey: ["traces", status, search.query, limit],
     queryFn: () =>
@@ -175,13 +179,13 @@ export default function TracesPage() {
               {traces.isFetching && <Spinner className="size-3" />}
               Showing {rows.length} most recent {rows.length === 1 ? "trace" : "traces"}
             </span>
-            {limit === 50 && rows.length === 50 && (
+            {nextLimit && rows.length === limit && (
               <Button
-                onClick={() => search.update({ limit: "100" })}
+                onClick={() => search.update({ limit: String(nextLimit) })}
                 size="compact"
                 variant="ghost"
               >
-                Show more
+                Show older
               </Button>
             )}
           </TableFooter>

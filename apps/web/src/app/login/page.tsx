@@ -54,11 +54,11 @@ export default function LoginPage() {
         method: "POST",
         body: JSON.stringify({ email: data.get("email"), password: data.get("password") }),
       });
+      // Keep the button busy until the dashboard replaces this page.
       router.push(returnTo);
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Sign in failed.");
-    } finally {
       setLoading(false);
     }
   }
@@ -74,6 +74,11 @@ export default function LoginPage() {
               : "Manage applications, policies, identities, and authorization traces."
           }
         />
+        {params.get("reason") === "expired" && (
+          <Note className="mb-5" role="status" tone="info">
+            Your session ended. Sign in again to pick up where you left off.
+          </Note>
+        )}
         {bootstrapRequired && (
           <Note className="mb-5" tone="info">
             This installation needs its first owner.{" "}
@@ -127,13 +132,7 @@ export default function LoginPage() {
               </Link>
             }
           >
-            <PasswordInput
-              autoComplete="current-password"
-              large
-              minLength={12}
-              name="password"
-              required
-            />
+            <PasswordInput autoComplete="current-password" large name="password" required />
           </Field>
           {error && (
             <Note role="alert" tone="danger">

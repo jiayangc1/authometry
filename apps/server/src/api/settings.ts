@@ -190,6 +190,30 @@ settingsRouter.post(
   }),
 );
 
+settingsRouter.delete(
+  "/settings/domains/:domainId",
+  asyncRoute(async (request, response) => {
+    requireRole(request.admin?.role, ["owner", "admin"]);
+    const [domain] = await query<{ is_primary: boolean }>(
+      "SELECT is_primary FROM domains WHERE id = $1 AND environment_id = $2",
+      [request.params.domainId, request.environment!.id],
+    );
+    if (!domain) throw new ApiError(404, "domain_not_found", "The domain was not found.");
+    if (domain.is_primary) {
+      throw new ApiError(
+        409,
+        "primary_domain",
+        "The primary domain serves this environment's issuer and cannot be removed.",
+      );
+    }
+    await query("DELETE FROM domains WHERE id = $1 AND environment_id = $2", [
+      request.params.domainId,
+      request.environment!.id,
+    ]);
+    response.status(204).end();
+  }),
+);
+
 settingsRouter.get(
   "/settings/signing-keys",
   asyncRoute(async (request, response) => {
@@ -276,6 +300,35 @@ settingsRouter.post(
       ],
     );
     response.status(201).json({ id: webhook?.id, secret });
+  }),
+);
+
+settingsRouter.patch(
+  "/settings/webhooks/:webhookId",
+  asyncRoute(async (request, response) => {
+    requireRole(request.admin?.role, ["owner", "admin", "developer"]);
+    const input = z.object({ status: z.enum(["enabled", "disabled"]) }).parse(request.body);
+    const [webhook] = await query<{ id: string; status: string }>(
+      `UPDATE webhooks SET status = $3, updated_at = now()
+       WHERE id = $1 AND environment_id = $2 AND purpose = 'events' RETURNING id, status`,
+      [request.params.webhookId, request.environment!.id, input.status],
+    );
+    if (!webhook) throw new ApiError(404, "webhook_not_found", "The webhook was not found.");
+    response.json(webhook);
+  }),
+);
+
+settingsRouter.delete(
+  "/settings/webhooks/:webhookId",
+  asyncRoute(async (request, response) => {
+    requireRole(request.admin?.role, ["owner", "admin", "developer"]);
+    const [webhook] = await query<{ id: string }>(
+      `DELETE FROM webhooks WHERE id = $1 AND environment_id = $2 AND purpose = 'events'
+       RETURNING id`,
+      [request.params.webhookId, request.environment!.id],
+    );
+    if (!webhook) throw new ApiError(404, "webhook_not_found", "The webhook was not found.");
+    response.status(204).end();
   }),
 );
 
@@ -440,7 +493,15 @@ settingsRouter.get(
   asyncRoute(async (request, response) => {
     response.json({
       data: await query(
-        `SELECT u.id, u.email, u.name, m.role, m.created_at, u.disabled_at
+        `SELECT u.id, u.email, u.name, m.role, m.created_at, u.disabled_at,
+                EXISTS (
+                  SELECT 1 FROM one_time_tokens t
+                  WHERE t.user_id = u.id AND t.workspace_id = m.workspace_id
+                    AND t.purpose = 'account_link' AND t.consumed_at IS NULL
+                ) AS invitation_pending,
+                (SELECT max(t.expires_at) FROM one_time_tokens t
+                  WHERE t.user_id = u.id AND t.workspace_id = m.workspace_id
+                    AND t.purpose = 'account_link' AND t.consumed_at IS NULL) AS invitation_expires_at
          FROM workspace_memberships m JOIN admin_users u ON u.id = m.admin_user_id
          WHERE m.workspace_id = $1 ORDER BY u.name`,
         [request.environment!.workspaceId],
@@ -506,6 +567,96 @@ settingsRouter.post(
       });
     }
     response.status(201).json(result);
+  }),
+);
+
+settingsRouter.post(
+  "/settings/members/:memberId/invitation",
+  asyncRoute(async (request, response) => {
+    requireRole(request.admin?.role, ["owner", "admin"]);
+    if (!emailEnabled()) {
+      throw new ApiError(
+        409,
+        "email_disabled",
+        "Configure Resend or SMTP before sending invitations.",
+      );
+    }
+    const workspaceId = request.environment!.workspaceId;
+    const [member] = await query<{ id: string; email: string }>(
+      `SELECT u.id, u.email FROM workspace_memberships m JOIN admin_users u ON u.id = m.admin_user_id
+       WHERE m.workspace_id = $1 AND u.id = $2`,
+      [workspaceId, request.params.memberId],
+    );
+    if (!member) throw new ApiError(404, "member_not_found", "The workspace member was not found.");
+    const invitation = randomToken(40);
+    const replaced = await transaction(async (client) => {
+      // Only a member who has not accepted yet has an open invitation to replace.
+      const removed = await client.query(
+        `DELETE FROM one_time_tokens
+         WHERE workspace_id = $1 AND user_id = $2 AND purpose = 'account_link' AND consumed_at IS NULL`,
+        [workspaceId, member.id],
+      );
+      if (!removed.rowCount) return false;
+      await client.query(
+        `INSERT INTO one_time_tokens(workspace_id, user_id, purpose, token_hash, expires_at)
+         VALUES ($1,$2,'account_link',$3,now() + interval '24 hours')`,
+        [workspaceId, member.id, hashToken(invitation)],
+      );
+      return true;
+    });
+    if (!replaced) {
+      throw new ApiError(
+        409,
+        "invitation_not_pending",
+        "This member has already accepted their invitation.",
+      );
+    }
+    const acceptUrl = `${env.PUBLIC_ORIGIN}/accept-invite?token=${encodeURIComponent(invitation)}`;
+    await sendEmail({
+      to: member.email,
+      subject: "You were invited to Authometry",
+      text: `Accept your Authometry workspace invitation: ${acceptUrl}\n\nThis link expires in 24 hours.`,
+      html: `<p>You were invited to an Authometry workspace.</p><p><a href="${acceptUrl}">Accept invitation</a></p><p>This link expires in 24 hours.</p>`,
+    });
+    response.status(204).end();
+  }),
+);
+
+settingsRouter.delete(
+  "/settings/members/:memberId",
+  asyncRoute(async (request, response) => {
+    requireRole(request.admin?.role, ["owner", "admin"]);
+    const workspaceId = request.environment!.workspaceId;
+    if (request.params.memberId === request.admin!.userId) {
+      throw new ApiError(409, "cannot_remove_self", "You cannot remove yourself from a workspace.");
+    }
+    await transaction(async (client) => {
+      const membership = await client.query<{ role: string }>(
+        `SELECT role FROM workspace_memberships
+         WHERE workspace_id = $1 AND admin_user_id = $2 FOR UPDATE`,
+        [workspaceId, request.params.memberId],
+      );
+      const role = membership.rows[0]?.role;
+      if (!role) throw new ApiError(404, "member_not_found", "The workspace member was not found.");
+      if (role === "owner") {
+        throw new ApiError(
+          409,
+          "cannot_remove_owner",
+          "Change this owner to another role before removing them.",
+        );
+      }
+      await client.query(
+        "DELETE FROM workspace_memberships WHERE workspace_id = $1 AND admin_user_id = $2",
+        [workspaceId, request.params.memberId],
+      );
+      // An unaccepted invitation must stop working once the seat is gone.
+      await client.query(
+        `DELETE FROM one_time_tokens
+         WHERE workspace_id = $1 AND user_id = $2 AND purpose = 'account_link' AND consumed_at IS NULL`,
+        [workspaceId, request.params.memberId],
+      );
+    });
+    response.status(204).end();
   }),
 );
 

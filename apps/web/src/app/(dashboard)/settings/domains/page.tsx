@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Globe2, Plus } from "lucide-react";
+import { Globe2, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button, StatusBadge } from "@authometry/ui";
@@ -9,6 +9,7 @@ import { Snippet } from "@/components/data-display/copyable-value";
 import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { Field, Input } from "@/components/ui/form";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { apiFetch } from "@/lib/api";
 import { humanize } from "@/lib/status";
 
@@ -43,6 +44,15 @@ export default function DomainsPage() {
       setHostname("");
       await client.invalidateQueries({ queryKey: ["domains"] });
       toast.success("Domain added.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const [removing, setRemoving] = useState<Domain>();
+  const remove = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/v1/settings/domains/${id}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ["domains"] });
+      toast.success("Domain removed.");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -154,6 +164,18 @@ export default function DomainsPage() {
                     Verify
                   </Button>
                 )}
+                {!domain.is_primary && (
+                  <Button
+                    aria-label={`Remove ${domain.hostname}`}
+                    className="hover:text-[var(--danger)]"
+                    onClick={() => setRemoving(domain)}
+                    size="icon-compact"
+                    title="Remove domain"
+                    variant="ghost"
+                  >
+                    <Trash2 aria-hidden="true" className="size-3.5" />
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -163,6 +185,17 @@ export default function DomainsPage() {
           </p>
         )}
       </SettingsSection>
+      <ConfirmDialog
+        actionLabel="Remove domain"
+        description="Authometry stops answering on this hostname. Applications using it as their issuer will fail until they are updated."
+        onConfirm={() => (removing ? remove.mutateAsync(removing.id) : undefined)}
+        onOpenChange={(open) => {
+          if (!open) setRemoving(undefined);
+        }}
+        open={Boolean(removing)}
+        pendingLabel="Removing…"
+        title={`Remove ${removing?.hostname ?? "domain"}?`}
+      />
     </>
   );
 }

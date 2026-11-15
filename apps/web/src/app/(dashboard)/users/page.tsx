@@ -3,6 +3,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { SearchX, ShieldCheck, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { Button, EmptyState, StatusBadge, cn } from "@authometry/ui";
 import { RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, ListSkeleton } from "@/components/data-display/states";
@@ -11,6 +12,7 @@ import { PageContainer, PageHeader } from "@/components/layout/page";
 import { Select } from "@/components/ui/form";
 import { Table, TableFooter, TableHeader, TableRow } from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
+import { initials } from "@/lib/format";
 import { humanize } from "@/lib/status";
 import { useDebouncedSearchParam } from "@/lib/use-query-params";
 
@@ -25,6 +27,8 @@ interface UserRow {
   active_sessions: number;
   social_connections: string[];
 }
+const pageSize = 50;
+const knownStatuses = ["active", "disabled"];
 const columns = "minmax(220px,1.6fr) 110px 130px 110px 100px 120px";
 
 export default function UsersPage() {
@@ -38,7 +42,12 @@ export default function UsersPage() {
   });
   const all = users.data?.data ?? [];
   const filteredUsers = all.filter((user) => !status || user.status === status);
-  const statuses = [...new Set(all.map((user) => user.status))];
+  // Known statuses stay selectable even when the current results contain none of them.
+  const statuses = [
+    ...new Set([...knownStatuses, ...(status ? [status] : []), ...all.map((user) => user.status)]),
+  ];
+  const [shown, setShown] = useState(pageSize);
+  const visibleUsers = filteredUsers.slice(0, shown);
   const filtered = Boolean(search.query || status);
   function clearFilters() {
     search.clear();
@@ -111,19 +120,14 @@ export default function UsersPage() {
             <span className="text-right">Last sign-in</span>
           </TableHeader>
           <div className="stagger">
-            {filteredUsers.map((user) => (
+            {visibleUsers.map((user) => (
               <TableRow href={`/users/${user.id}`} key={user.id}>
                 <div className="flex min-w-0 items-center gap-3">
                   <span
                     aria-hidden="true"
                     className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--geist-gray-100)] text-[11px] font-semibold text-[var(--text-secondary)] transition-transform duration-[var(--motion-normal)] ease-[var(--ease-spring)] group-hover:scale-105"
                   >
-                    {user.name
-                      .split(/\s+/)
-                      .map((part) => part[0])
-                      .slice(0, 2)
-                      .join("")
-                      .toUpperCase()}
+                    {initials(user.name, user.email)}
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-medium">{user.name}</p>
@@ -136,7 +140,7 @@ export default function UsersPage() {
                     tone={
                       user.status === "active"
                         ? "success"
-                        : user.status === "suspended"
+                        : user.status === "disabled"
                           ? "danger"
                           : "neutral"
                     }
@@ -174,7 +178,15 @@ export default function UsersPage() {
             <span>
               {filteredUsers.length} {filteredUsers.length === 1 ? "user" : "users"}
               {filtered && all.length !== filteredUsers.length ? ` of ${all.length}` : ""}
+              {visibleUsers.length < filteredUsers.length
+                ? ` · showing ${visibleUsers.length}`
+                : ""}
             </span>
+            {visibleUsers.length < filteredUsers.length && (
+              <Button onClick={() => setShown(shown + pageSize)} size="compact" variant="ghost">
+                Show more
+              </Button>
+            )}
           </TableFooter>
         </Table>
       ) : (

@@ -432,7 +432,7 @@ dashboardRouter.get(
     const status = String(request.query.status ?? "");
     const application = String(request.query.application ?? "");
     const search = String(request.query.q ?? "");
-    const limit = Math.min(Math.max(Number(request.query.limit ?? 50), 1), 100);
+    const limit = Math.min(Math.max(Number(request.query.limit ?? 50) || 50, 1), 500);
     const traces = await query(
       `SELECT id, request_id, status, event_type, application_id, application_name, client_id,
               user_snapshot, grant_type, endpoint, duration_ms, oauth_error, started_at
@@ -476,7 +476,8 @@ dashboardRouter.get(
               COALESCE(array_agg(DISTINCT s.provider) FILTER (WHERE s.provider IS NOT NULL), '{}') AS social_connections,
               (SELECT count(*)::integer FROM user_sessions us WHERE us.user_id = u.id AND us.status = 'active') AS active_sessions
        FROM identity_users u LEFT JOIN social_identities s ON s.user_id = u.id
-       WHERE u.workspace_id = $1 AND ($2 = '' OR u.email ILIKE '%' || $2 || '%' OR u.name ILIKE '%' || $2 || '%')
+       WHERE u.workspace_id = $1 AND ($2 = '' OR u.email ILIKE '%' || $2 || '%' OR u.name ILIKE '%' || $2 || '%'
+              OR u.id::text ILIKE '%' || $2 || '%')
        GROUP BY u.id ORDER BY u.last_authenticated_at DESC NULLS LAST`,
       [request.environment!.workspaceId, search],
     );
@@ -963,6 +964,80 @@ dashboardRouter.delete(
   }),
 );
 
+dashboardRouter.patch(
+  "/applications/:applicationId/status",
+  asyncRoute(async (request, response) => {
+    const input = z.object({ status: z.enum(["active", "disabled"]) }).parse(request.body);
+    const [existing] = await query<{ ownership: string }>(
+      `SELECT ownership FROM oauth_applications
+       WHERE id = $1 AND environment_id = $2 AND client_id_source <> 'dynamic'`,
+      [request.params.applicationId, request.environment!.id],
+    );
+    if (!existing)
+      throw new ApiError(404, "application_not_found", "The application was not found.");
+    if (existing.ownership === "manifest") {
+      throw new ApiError(
+        409,
+        "manifest_managed",
+        "This application is managed by a manifest and is read-only.",
+      );
+    }
+    const [updated] = await query<{ id: string; status: string }>(
+      `UPDATE oauth_applications SET status = $3, version = version + 1, updated_at = now()
+       WHERE id = $1 AND environment_id = $2 RETURNING id, status`,
+      [request.params.applicationId, request.environment!.id, input.status],
+    );
+    response.json(updated);
+  }),
+);
+
+dashboardRouter.patch(
+  "/users/:userId",
+  asyncRoute(async (request, response) => {
+    const input = z
+      .object({
+        name: z.string().trim().min(1).max(100).optional(),
+        status: z.enum(["active", "disabled"]).optional(),
+      })
+      .parse(request.body);
+    const environment = request.environment!;
+    const user = await transaction(async (client) => {
+      const result = await client.query<{ id: string; name: string; status: string }>(
+        `UPDATE identity_users
+         SET name = COALESCE($3, name), status = COALESCE($4, status), updated_at = now()
+         WHERE id = $1 AND workspace_id = $2 RETURNING id, name, status`,
+        [request.params.userId, environment.workspaceId, input.name ?? null, input.status ?? null],
+      );
+      const updated = result.rows[0];
+      if (!updated) throw new ApiError(404, "user_not_found", "The user was not found.");
+      if (input.status === "disabled") {
+        // A disabled person must lose access now, not when their tokens happen to expire.
+        const sessions = await client.query<{ refresh_family_id: string | null }>(
+          `UPDATE user_sessions SET status = 'revoked', revoked_at = now()
+           WHERE user_id = $1 AND status = 'active' RETURNING refresh_family_id`,
+          [updated.id],
+        );
+        const families = sessions.rows
+          .map((session) => session.refresh_family_id)
+          .filter((family): family is string => Boolean(family));
+        if (families.length) {
+          await client.query(
+            `UPDATE refresh_token_families SET status = 'revoked', revoked_reason = 'user_disabled'
+             WHERE id = ANY($1::uuid[]) AND status = 'active'`,
+            [families],
+          );
+          await client.query(
+            "UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = ANY($1::uuid[]) AND revoked_at IS NULL",
+            [families],
+          );
+        }
+      }
+      return updated;
+    });
+    response.json(user);
+  }),
+);
+
 dashboardRouter.delete(
   "/users/:userId",
   asyncRoute(async (request, response) => {
@@ -1130,6 +1205,61 @@ dashboardRouter.patch(
   }),
 );
 
+dashboardRouter.delete(
+  "/scopes/:scopeId",
+  asyncRoute(async (request, response) => {
+    const environmentId = request.environment!.id;
+    await transaction(async (client) => {
+      const result = await client.query<{ name: string; ownership: string; is_system: boolean }>(
+        `SELECT name, ownership, is_system FROM resource_scopes
+         WHERE id = $1 AND environment_id = $2 FOR UPDATE`,
+        [request.params.scopeId, environmentId],
+      );
+      const scope = result.rows[0];
+      if (!scope) throw new ApiError(404, "scope_not_found", "The scope was not found.");
+      if (scope.is_system || scope.ownership !== "dashboard") {
+        throw new ApiError(
+          409,
+          "scope_not_editable",
+          "System scopes and scopes managed by a manifest cannot be deleted here.",
+        );
+      }
+      // Applications must stop requesting a permission that no longer exists.
+      await client.query(
+        `UPDATE oauth_applications SET allowed_scopes = array_remove(allowed_scopes, $2),
+           version = version + 1, updated_at = now()
+         WHERE environment_id = $1 AND $2 = ANY(allowed_scopes)`,
+        [environmentId, scope.name],
+      );
+      await client.query("DELETE FROM resource_scopes WHERE id = $1", [request.params.scopeId]);
+    });
+    response.status(204).end();
+  }),
+);
+
+dashboardRouter.delete(
+  "/policies/:policyId",
+  asyncRoute(async (request, response) => {
+    const [existing] = await query<{ ownership: string }>(
+      "SELECT ownership FROM authorization_policies WHERE id = $1 AND environment_id = $2",
+      [request.params.policyId, request.environment!.id],
+    );
+    if (!existing) throw new ApiError(404, "policy_not_found", "The policy was not found.");
+    if (existing.ownership !== "dashboard") {
+      throw new ApiError(
+        409,
+        "manifest_managed",
+        "This policy is managed by a manifest. Remove it from the manifest instead.",
+      );
+    }
+    await query("DELETE FROM authorization_policies WHERE id = $1 AND environment_id = $2", [
+      request.params.policyId,
+      request.environment!.id,
+    ]);
+    response.status(204).end();
+  }),
+);
+
 dashboardRouter.get(
   "/policies",
   asyncRoute(async (request, response) => {
@@ -1268,7 +1398,7 @@ dashboardRouter.get(
   "/search",
   asyncRoute(async (request, response) => {
     const q = String(request.query.q ?? "");
-    const [applications, traces] = await Promise.all([
+    const [applications, users, traces] = await Promise.all([
       query(
         `SELECT id, name, slug, 'application' AS type FROM oauth_applications
          WHERE environment_id = $1 AND client_id_source <> 'dynamic'
@@ -1276,12 +1406,17 @@ dashboardRouter.get(
         [request.environment!.id, q],
       ),
       query(
+        `SELECT id, name, email AS slug, 'user' AS type FROM identity_users
+         WHERE workspace_id = $1 AND (name ILIKE '%' || $2 || '%' OR email ILIKE '%' || $2 || '%') LIMIT 6`,
+        [request.environment!.workspaceId, q],
+      ),
+      query(
         `SELECT id, request_id AS name, event_type AS slug, 'trace' AS type FROM authorization_traces
          WHERE environment_id = $1 AND (request_id ILIKE '%' || $2 || '%' OR application_name ILIKE '%' || $2 || '%') LIMIT 6`,
         [request.environment!.id, q],
       ),
     ]);
-    response.json({ data: [...applications, ...traces] });
+    response.json({ data: [...applications, ...users, ...traces] });
   }),
 );
 

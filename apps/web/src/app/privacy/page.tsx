@@ -18,7 +18,7 @@ export default function PrivacyPage() {
         <p>
           Authometry is an open-source OAuth 2.0 and OpenID Connect service operated through the
           Authometry project. Questions about this policy or personal information can be sent to{" "}
-          <a href="mailto:auth@cams.ch3n.cc">auth@cams.ch3n.cc</a>. The source code and issue
+          <a href="mailto:jiayangc1@gmail.com">jiayangc1@gmail.com</a>. The source code and issue
           tracker are available on <a href="https://github.com/jiayangc1/authometry">GitHub</a>.
         </p>
       </section>

@@ -102,7 +102,8 @@ export default function GroupsPage() {
                   <span className="min-w-0">
                     <span className="block truncate text-[13px] font-medium">{group.name}</span>
                     <span className="block text-xs text-[var(--text-secondary)] lg:hidden">
-                      {group.member_count} members · {group.application_count} apps
+                      {group.member_count} {group.member_count === 1 ? "member" : "members"} ·{" "}
+                      {group.application_count} {group.application_count === 1 ? "app" : "apps"}
                     </span>
                   </span>
                 </span>

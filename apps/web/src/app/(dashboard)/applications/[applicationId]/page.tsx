@@ -5,6 +5,7 @@ import { AuthometryProviderButton } from "@authometry/ui";
 import { useApplication } from "@/components/applications/application-context";
 import { CodeBlock, CopyableValue } from "@/components/data-display/copyable-value";
 import { RelativeTime } from "@/components/data-display/formatted-time";
+import { ListSkeleton } from "@/components/data-display/states";
 import { DescriptionList, SectionHeader } from "@/components/layout/page";
 import { SegmentedControl } from "@/components/ui/tabs";
 import { useActiveEnvironment } from "@/lib/use-environment";
@@ -14,7 +15,14 @@ import { useQueryParams } from "@/lib/use-query-params";
 const frameworks = ["Next.js", "React", "Express", "Go", "Other"] as const;
 type Framework = (typeof frameworks)[number];
 
-function snippet(framework: Framework, issuer: string, clientId: string, redirectUri: string) {
+function snippet(
+  framework: Framework,
+  issuer: string,
+  clientId: string,
+  redirectUri: string,
+  scopes: string[],
+) {
+  const scope = scopes.join(" ");
   switch (framework) {
     case "Next.js":
       return {
@@ -44,7 +52,7 @@ export const auth = new UserManager({
   client_id: "${clientId}",
   redirect_uri: "${redirectUri}",
   response_type: "code", // Authorization Code + PKCE
-  scope: "openid profile email",
+  scope: "${scope}",
 });
 
 // Start sign-in:   await auth.signinRedirect();
@@ -66,7 +74,7 @@ app.get("/auth/login", async (req, res) => {
   req.session.verifier = verifier;
   const url = client.buildAuthorizationUrl(config, {
     redirect_uri: "${redirectUri}",
-    scope: "openid profile email",
+    scope: "${scope}",
     code_challenge: await client.calculatePKCECodeChallenge(verifier),
     code_challenge_method: "S256",
   });
@@ -86,7 +94,7 @@ config := oauth2.Config{
     ClientSecret: os.Getenv("AUTHOMETRY_CLIENT_SECRET"),
     Endpoint:     provider.Endpoint(),
     RedirectURL:  "${redirectUri}",
-    Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
+    Scopes:       []string{${scopes.map((value) => `"${value}"`).join(", ")}},
 }`,
       };
     default:
@@ -99,6 +107,16 @@ AUTHOMETRY_CLIENT_SECRET=<create one under Credentials>
 AUTHOMETRY_REDIRECT_URI=${redirectUri}`,
       };
   }
+}
+
+function machineSnippet(issuer: string, clientId: string, scopes: string[]) {
+  const scope = scopes.filter((value) => value !== "openid").join(" ");
+  return {
+    label: "Terminal · client credentials",
+    code: `curl -X POST ${issuer}/oauth/token \\
+  -u "${clientId}:$AUTHOMETRY_CLIENT_SECRET" \\
+  -d grant_type=client_credentials${scope ? ` \\\n  -d scope="${scope}"` : ""}`,
+  };
 }
 
 export default function ApplicationOverviewPage() {
@@ -122,7 +140,13 @@ export default function ApplicationOverviewPage() {
     [
       "Callback URLs",
       application.redirect_uris.length ? (
-        <span className="technical-value">{application.redirect_uris.join(", ")}</span>
+        <ul className="space-y-1">
+          {application.redirect_uris.map((uri) => (
+            <li className="technical-value break-all" key={uri}>
+              {uri}
+            </li>
+          ))}
+        </ul>
       ) : (
         <span className="text-[var(--text-tertiary)]">None configured</span>
       ),
@@ -147,7 +171,13 @@ export default function ApplicationOverviewPage() {
         ["JWKS", `${issuer}/.well-known/jwks.json`],
       ].map(([label, value]) => [label!, <CopyableValue key={label} value={value!} />])
     : [];
-  const { code, label } = snippet(framework, issuer, application.client_id, redirectUri);
+  const isMachine = application.type === "machine";
+  const scopes = application.allowed_scopes.length
+    ? application.allowed_scopes
+    : ["openid", "profile", "email"];
+  const { code, label } = isMachine
+    ? machineSnippet(issuer, application.client_id, application.allowed_scopes)
+    : snippet(framework, issuer, application.client_id, redirectUri, scopes);
   const buttonMarkup = `<a class="authometry-button" href="/auth/login">
   <img src="${issuer || "https://your-authometry"}/brand/authometry-mark.svg" alt="" width="24" height="24" />
   Continue with Authometry
@@ -173,15 +203,21 @@ export default function ApplicationOverviewPage() {
       <section>
         <SectionHeader
           actions={
-            <SegmentedControl
-              label="Framework"
-              onChange={(value) => update({ framework: value === "Next.js" ? undefined : value })}
-              options={frameworks.map((value) => ({ value, label: value }))}
-              size="compact"
-              value={framework}
-            />
+            isMachine ? undefined : (
+              <SegmentedControl
+                label="Framework"
+                onChange={(value) => update({ framework: value === "Next.js" ? undefined : value })}
+                options={frameworks.map((value) => ({ value, label: value }))}
+                size="compact"
+                value={framework}
+              />
+            )
           }
-          description={`Connect your app to the ${active?.name ?? "current"} environment.`}
+          description={
+            isMachine
+              ? `Request a token from the ${active?.name ?? "current"} environment with the client credentials grant.`
+              : `Connect your app to the ${active?.name ?? "current"} environment.`
+          }
           title="Quickstart"
         />
         <CodeBlock
@@ -196,38 +232,40 @@ export default function ApplicationOverviewPage() {
           title="Endpoints"
           description="OpenID Connect endpoints for this environment."
         />
-        <DescriptionList items={endpoints} />
+        {endpoints.length ? <DescriptionList items={endpoints} /> : <ListSkeleton rows={3} />}
       </section>
-      <section>
-        <SectionHeader
-          description="A recognizable entry point for your sign-in page. Link it to your app’s login route, which starts Authorization Code with PKCE."
-          title="Sign-in button"
-        />
-        <div className="grid overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
-          <div
-            className={`flex min-h-56 flex-col items-center justify-center gap-5 p-6 transition-colors duration-[var(--motion-normal)] ${buttonAppearance === "dark" ? "bg-[#0a0a0a]" : "bg-[var(--surface-subtle)]"}`}
-          >
-            <AuthometryProviderButton appearance={buttonAppearance} tabIndex={-1} />
-            <SegmentedControl
-              label="Button appearance"
-              onChange={(value) => update({ appearance: value === "light" ? undefined : value })}
-              options={[
-                { value: "light", label: "Light" },
-                { value: "brand", label: "Brand" },
-                { value: "dark", label: "Dark" },
-              ]}
-              size="compact"
-              value={buttonAppearance}
+      {!isMachine && (
+        <section>
+          <SectionHeader
+            description="A recognizable entry point for your sign-in page. Link it to your app’s login route, which starts Authorization Code with PKCE."
+            title="Sign-in button"
+          />
+          <div className="grid overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
+            <div
+              className={`flex min-h-56 flex-col items-center justify-center gap-5 p-6 transition-colors duration-[var(--motion-normal)] ${buttonAppearance === "dark" ? "bg-[#0a0a0a]" : "bg-[var(--surface-subtle)]"}`}
+            >
+              <AuthometryProviderButton appearance={buttonAppearance} tabIndex={-1} />
+              <SegmentedControl
+                label="Button appearance"
+                onChange={(value) => update({ appearance: value === "light" ? undefined : value })}
+                options={[
+                  { value: "light", label: "Light" },
+                  { value: "brand", label: "Brand" },
+                  { value: "dark", label: "Dark" },
+                ]}
+                size="compact"
+                value={buttonAppearance}
+              />
+            </div>
+            <CodeBlock
+              className="rounded-none border-0 border-t border-[var(--border)] lg:border-t-0 lg:border-l"
+              code={buttonMarkup}
+              label="HTML + CSS"
+              maxHeight="224px"
             />
           </div>
-          <CodeBlock
-            className="rounded-none border-0 border-t border-[var(--border)] lg:border-t-0 lg:border-l"
-            code={buttonMarkup}
-            label="HTML + CSS"
-            maxHeight="224px"
-          />
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }

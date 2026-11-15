@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity, SearchX } from "lucide-react";
 import { Button, EmptyState, StatusBadge, type StatusTone } from "@authometry/ui";
-import { RelativeTime } from "@/components/data-display/formatted-time";
+import { FullDateTime, RelativeTime } from "@/components/data-display/formatted-time";
 import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { FilterBar, SearchInput } from "@/components/data-display/search-input";
 import { PageContainer, PageHeader } from "@/components/layout/page";
@@ -31,6 +31,8 @@ const severityTone: Record<string, StatusTone> = {
   warning: "warning",
   info: "neutral",
 };
+
+const eventLimit = 100;
 
 function format(value: unknown) {
   return value === undefined ? "—" : JSON.stringify(value);
@@ -150,6 +152,9 @@ export default function EventsPage() {
                 </div>
               }
             >
+              <p className="mb-3 text-xs text-[var(--text-secondary)]">
+                <FullDateTime value={event.created_at} /> · {event.actor_name ?? "System"}
+              </p>
               {event.changes?.length ? (
                 <div className="space-y-2">
                   {event.changes.map((change) => (
@@ -190,6 +195,14 @@ export default function EventsPage() {
           }
           title={filtered ? "No matching events" : "No events yet"}
         />
+      )}
+      {!query.isLoading && !query.isError && all.length > 0 && (
+        <p className="mt-3 text-xs text-[var(--text-secondary)]">
+          {events.length} of {all.length} {all.length === 1 ? "event" : "events"}
+          {all.length >= eventLimit
+            ? ` · only the ${eventLimit} most recent events are loaded and searched.`
+            : ""}
+        </p>
       )}
     </PageContainer>
   );

@@ -136,6 +136,7 @@ export default function ApplicationScopesPage() {
       )}
       <div
         aria-label="Save scopes"
+        inert={!dirty}
         className={cn(
           "sticky bottom-4 z-10 mt-6 flex items-center gap-3 rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface-raised)] py-2 pr-2 pl-4 shadow-[var(--shadow-menu)] transition-[opacity,transform] duration-[var(--motion-normal)] ease-[var(--ease-out)]",
           dirty ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0",

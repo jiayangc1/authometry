@@ -581,3 +581,10 @@ textarea {
     animation: none;
   }
 }
+
+/* Search fields draw their own clear button; hide the native WebKit one. */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}

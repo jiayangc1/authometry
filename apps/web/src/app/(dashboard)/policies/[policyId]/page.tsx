@@ -1,8 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { GitBranch } from "lucide-react";
-import { useParams } from "next/navigation";
+import { GitBranch, Trash2 } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button, Note, StatusBadge, cn } from "@authometry/ui";
@@ -17,7 +17,8 @@ import {
   type PolicyDraft,
   type TestContext,
 } from "@/components/policies/policy-editor";
-import { apiFetch } from "@/lib/api";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
+import { ApiClientError, apiFetch } from "@/lib/api";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
 interface Policy {
@@ -61,6 +62,8 @@ export default function PolicyDetailPage() {
     applicationSlug: "",
     scopes: "openid, profile",
   });
+  const router = useRouter();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const original = query.data ? toDraft(query.data) : undefined;
   const draft = edits ?? original;
   const dirty = Boolean(edits && original && JSON.stringify(edits) !== JSON.stringify(original));
@@ -89,23 +92,45 @@ export default function PolicyDetailPage() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const remove = useMutation({
+    mutationFn: () => apiFetch(`/api/v1/policies/${id}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      setEdits(undefined);
+      client.removeQueries({ queryKey: ["policy", id] });
+      await client.invalidateQueries({ queryKey: ["policies"] });
+      toast.success("Policy deleted.");
+      router.push("/policies");
+    },
+    onError: (error) => toast.error(error.message),
+  });
   if (query.isLoading)
     return (
       <PageContainer>
         <PageSkeleton metrics={false} />
       </PageContainer>
     );
-  if (!query.data || !draft)
+  if (!query.data || !draft) {
+    const missing = query.error instanceof ApiClientError && query.error.status === 404;
     return (
       <PageContainer>
-        <Breadcrumbs items={[{ label: "Policies", href: "/policies" }, { label: "Not found" }]} />
+        <Breadcrumbs
+          items={[
+            { label: "Policies", href: "/policies" },
+            { label: missing ? "Not found" : "Unavailable" },
+          ]}
+        />
         <ErrorState
-          description="This policy may have been deleted or belong to another environment."
+          description={
+            missing
+              ? "This policy may have been deleted or belong to another environment."
+              : "Authometry could not reach the API. Check your connection, then retry."
+          }
           onRetry={() => void query.refetch()}
-          title="Unable to load policy"
+          title={missing ? "Policy not found" : "Unable to load policy"}
         />
       </PageContainer>
     );
+  }
   const policy = query.data;
   const managed = policy.ownership === "manifest";
   return (
@@ -114,6 +139,16 @@ export default function PolicyDetailPage() {
         items={[{ label: "Policies", href: "/policies" }, { label: policy.display_name }]}
       />
       <PageHeader
+        actions={
+          managed ? undefined : (
+            <Button
+              className="hover:text-[var(--danger)]"
+              onClick={() => setConfirmingDelete(true)}
+            >
+              <Trash2 aria-hidden="true" className="size-3.5" /> Delete
+            </Button>
+          )
+        }
         badges={
           <>
             <StatusBadge
@@ -151,6 +186,7 @@ export default function PolicyDetailPage() {
         {!managed && (
           <div
             aria-label="Save policy"
+            inert={!dirty}
             className={cn(
               "sticky bottom-4 z-10 flex items-center gap-3 rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface-raised)] py-2 pr-2 pl-4 shadow-[var(--shadow-menu)] transition-[opacity,transform] duration-[var(--motion-normal)] ease-[var(--ease-out)] lg:col-span-2",
               dirty ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0",
@@ -174,6 +210,16 @@ export default function PolicyDetailPage() {
           </div>
         )}
       </form>
+      <ConfirmDialog
+        actionLabel="Delete policy"
+        confirmationText={policy.name}
+        description="Requests will no longer be checked against this policy. This cannot be undone."
+        onConfirm={() => remove.mutateAsync()}
+        onOpenChange={setConfirmingDelete}
+        open={confirmingDelete}
+        pendingLabel="Deleting…"
+        title={`Delete ${policy.display_name}?`}
+      />
     </PageContainer>
   );
 }
