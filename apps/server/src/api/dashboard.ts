@@ -432,7 +432,7 @@ dashboardRouter.get(
     const status = String(request.query.status ?? "");
     const application = String(request.query.application ?? "");
     const search = String(request.query.q ?? "");
-    const limit = Math.min(Math.max(Number(request.query.limit ?? 50), 1), 100);
+    const limit = Math.min(Math.max(Number(request.query.limit ?? 50) || 50, 1), 500);
     const traces = await query(
       `SELECT id, request_id, status, event_type, application_id, application_name, client_id,
               user_snapshot, grant_type, endpoint, duration_ms, oauth_error, started_at
@@ -476,7 +476,8 @@ dashboardRouter.get(
               COALESCE(array_agg(DISTINCT s.provider) FILTER (WHERE s.provider IS NOT NULL), '{}') AS social_connections,
               (SELECT count(*)::integer FROM user_sessions us WHERE us.user_id = u.id AND us.status = 'active') AS active_sessions
        FROM identity_users u LEFT JOIN social_identities s ON s.user_id = u.id
-       WHERE u.workspace_id = $1 AND ($2 = '' OR u.email ILIKE '%' || $2 || '%' OR u.name ILIKE '%' || $2 || '%')
+       WHERE u.workspace_id = $1 AND ($2 = '' OR u.email ILIKE '%' || $2 || '%' OR u.name ILIKE '%' || $2 || '%'
+              OR u.id::text ILIKE '%' || $2 || '%')
        GROUP BY u.id ORDER BY u.last_authenticated_at DESC NULLS LAST`,
       [request.environment!.workspaceId, search],
     );
@@ -1268,7 +1269,7 @@ dashboardRouter.get(
   "/search",
   asyncRoute(async (request, response) => {
     const q = String(request.query.q ?? "");
-    const [applications, traces] = await Promise.all([
+    const [applications, users, traces] = await Promise.all([
       query(
         `SELECT id, name, slug, 'application' AS type FROM oauth_applications
          WHERE environment_id = $1 AND client_id_source <> 'dynamic'
@@ -1276,12 +1277,17 @@ dashboardRouter.get(
         [request.environment!.id, q],
       ),
       query(
+        `SELECT id, name, email AS slug, 'user' AS type FROM identity_users
+         WHERE workspace_id = $1 AND (name ILIKE '%' || $2 || '%' OR email ILIKE '%' || $2 || '%') LIMIT 6`,
+        [request.environment!.workspaceId, q],
+      ),
+      query(
         `SELECT id, request_id AS name, event_type AS slug, 'trace' AS type FROM authorization_traces
          WHERE environment_id = $1 AND (request_id ILIKE '%' || $2 || '%' OR application_name ILIKE '%' || $2 || '%') LIMIT 6`,
         [request.environment!.id, q],
       ),
     ]);
-    response.json({ data: [...applications, ...traces] });
+    response.json({ data: [...applications, ...users, ...traces] });
   }),
 );
 

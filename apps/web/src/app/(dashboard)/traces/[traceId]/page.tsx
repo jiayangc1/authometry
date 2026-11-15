@@ -113,7 +113,7 @@ export default function TraceDetailPage() {
       </span>,
     ],
     ["Environment", environmentName],
-    ["Started", <FullDateTime key="started" value={data.started_at} />],
+    ["Started", <FullDateTime key="started" precise value={data.started_at} />],
     [
       "Duration",
       <span className="technical-value" key="duration">

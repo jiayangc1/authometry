@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -14,6 +15,7 @@ import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
 export default function NewUserPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string>();
@@ -35,6 +37,7 @@ export default function NewUserPage() {
           groups,
         }),
       });
+      await queryClient.invalidateQueries({ queryKey: ["users"] });
       setDirty(false);
       toast.success("User created.");
       router.push(`/users/${user.id}`);

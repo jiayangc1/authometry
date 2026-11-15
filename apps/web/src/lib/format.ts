@@ -7,7 +7,24 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en", {
   second: "2-digit",
   fractionalSecondDigits: 3,
 });
-const relativeTimeFormatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+const dateTimeSecondsFormatter = new Intl.DateTimeFormat("en", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  second: "2-digit",
+  timeZoneName: "short",
+});
+
+/** Up to two initials for an avatar, falling back when the name is blank. */
+export function initials(name?: string | null, fallback = "?"): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length > 1) return `${parts[0]?.[0] ?? ""}${parts.at(-1)?.[0] ?? ""}`.toUpperCase();
+  return (parts[0]?.slice(0, 2) || fallback.trim().slice(0, 2) || "?").toUpperCase();
+}
+
+const relativeTimeFormatter =new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
 function rounded(value: number, maximumFractionDigits: number): string {
   return new Intl.NumberFormat("en", {
@@ -30,8 +47,9 @@ export function relativeTime(value: string | Date): string {
   return relativeTimeFormatter.format(Math.round(deltaSeconds / seconds), unit);
 }
 
-export function fullDateTime(value: string | Date): string {
-  return dateTimeFormatter.format(new Date(value));
+/** Full timestamp. `precise` keeps milliseconds, which only traces need. */
+export function fullDateTime(value: string | Date, precise = true): string {
+  return (precise ? dateTimeFormatter : dateTimeSecondsFormatter).format(new Date(value));
 }
 
 export function duration(milliseconds?: number | null): string {

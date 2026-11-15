@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
-import { Toaster } from "sonner";
+import { AppToaster } from "@/components/app-toaster";
 import { AppProviders } from "@/components/providers";
 import "./globals.css";
 
@@ -43,8 +43,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className={`${GeistSans.variable} ${GeistMono.variable}`}>
         <AppProviders>
           <Suspense fallback={null}>{children}</Suspense>
+          <AppToaster />
         </AppProviders>
-        <Toaster closeButton position="bottom-right" richColors={false} />
       </body>
     </html>
   );

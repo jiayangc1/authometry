@@ -61,9 +61,10 @@ export function ConfirmDialog({
           </Button>
           <Button
             disabled={!confirmed}
-            form="confirm-dialog-form"
             loading={pending}
-            type="submit"
+            {...(confirmationText
+              ? { form: "confirm-dialog-form", type: "submit" as const }
+              : { onClick: () => void confirm(), type: "button" as const })}
             variant={tone === "danger" ? "danger" : "primary"}
           >
             {pending ? pendingLabel : actionLabel}
@@ -75,14 +76,14 @@ export function ConfirmDialog({
       preventClose={pending}
       title={title}
     >
-      <form
-        id="confirm-dialog-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void confirm();
-        }}
-      >
-        {confirmationText && (
+      {confirmationText && (
+        <form
+          id="confirm-dialog-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void confirm();
+          }}
+        >
           <Field
             label={
               <>
@@ -99,8 +100,8 @@ export function ConfirmDialog({
               value={typed}
             />
           </Field>
-        )}
-      </form>
+        </form>
+      )}
     </Modal>
   );
 }

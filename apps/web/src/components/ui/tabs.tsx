@@ -2,7 +2,7 @@
 
 import { LayoutGroup, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { useId, type ReactNode } from "react";
+import { useId, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@authometry/ui";
 
 const spring = { type: "spring", stiffness: 520, damping: 40, mass: 0.8 } as const;
@@ -79,17 +79,36 @@ export function SegmentedControl<T extends string>({
 }) {
   const id = useId();
   const reduced = useReducedMotion();
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const step =
+      event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? 1
+        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+          ? -1
+          : 0;
+    const edge = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : undefined;
+    if (!step && edge === undefined) return;
+    event.preventDefault();
+    const current = options.findIndex((option) => option.value === value);
+    const next = edge ?? (Math.max(current, 0) + step + options.length) % options.length;
+    const option = options[next];
+    if (!option) return;
+    onChange(option.value);
+    event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
+  }
+  const hasSelection = options.some((option) => option.value === value);
   return (
     <LayoutGroup id={id}>
       <div
         aria-label={label}
+        onKeyDown={onKeyDown}
         className={cn(
           "inline-flex max-w-full overflow-x-auto rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-subtle)] p-0.5",
           className,
         )}
         role="radiogroup"
       >
-        {options.map((option) => {
+        {options.map((option, index) => {
           const selected = option.value === value;
           return (
             <button
@@ -104,6 +123,7 @@ export function SegmentedControl<T extends string>({
               key={option.value}
               onClick={() => onChange(option.value)}
               role="radio"
+              tabIndex={selected || (!hasSelection && index === 0) ? 0 : -1}
               type="button"
             >
               {selected && (

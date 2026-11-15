@@ -33,11 +33,19 @@ export function useDebouncedSearchParam(key = "q", delay = 250) {
   const [value, setValue] = useState(query);
   const committed = useRef(query);
 
+  // The URL changed without the input (sidebar link, back/forward): follow it.
   useEffect(() => {
-    if (value === committed.current) return;
+    if (query === committed.current) return;
+    committed.current = query;
+    setValue(query);
+  }, [query]);
+
+  useEffect(() => {
+    const trimmed = value.trim();
+    if (trimmed === committed.current) return;
     const timer = window.setTimeout(() => {
-      committed.current = value;
-      update({ [key]: value.trim() || undefined });
+      committed.current = trimmed;
+      update({ [key]: trimmed || undefined });
     }, delay);
     return () => window.clearTimeout(timer);
   }, [delay, key, update, value]);

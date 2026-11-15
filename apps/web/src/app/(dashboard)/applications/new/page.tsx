@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { AppWindow, Check, MonitorSmartphone, Server, Smartphone, Workflow } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -85,6 +86,7 @@ const types: Array<{
 
 export default function NewApplicationPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [type, setType] = useState<ApplicationType>("web");
   const [slugEdited, setSlugEdited] = useState(false);
   const [secret, setSecret] = useState<{ id: string; clientId: string; clientSecret: string }>();
@@ -101,7 +103,8 @@ export default function NewApplicationPage() {
     },
   });
   const errors = form.formState.errors;
-  useUnsavedChanges(form.formState.isDirty && !secret);
+  // The secret is shown once, so leaving before acknowledging it is the costliest exit.
+  useUnsavedChanges(secret ? !acknowledged : form.formState.isDirty);
   async function submit(values: Values) {
     if (type !== "machine" && values.redirectUri) {
       const uri = redirectUriSchema.safeParse(values.redirectUri);
@@ -129,6 +132,7 @@ export default function NewApplicationPage() {
           }),
         },
       );
+      await queryClient.invalidateQueries({ queryKey: ["applications"] });
       toast.success(`${values.name} created.`);
       if (result.clientSecret)
         setSecret({ id: result.id, clientId: result.clientId, clientSecret: result.clientSecret });

@@ -26,6 +26,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AuthometryMark, Button, Kbd, StatusDot, cn } from "@authometry/ui";
 import { navigation, utilityNavigation } from "@/config/navigation";
+import { version } from "../../../package.json";
 import { apiFetch, onSessionExpired, renewDashboardSession } from "@/lib/api";
 import { useHydrated } from "@/lib/use-hydrated";
 import { SkipLink } from "@/components/layout/skip-link";
@@ -138,8 +139,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     () =>
       onSessionExpired(() => {
         const returnTo = `${window.location.pathname}${window.location.search}`;
-        toast.info("Your session ended. Sign in again to continue.", { id: "session-expired" });
-        window.location.assign(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+        window.location.assign(`/login?reason=expired&returnTo=${encodeURIComponent(returnTo)}`);
       }),
     [],
   );
@@ -287,8 +287,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="border-t border-[var(--border)] p-3">
         {utilityNavigation.map((item) => {
           const Icon = item.icon;
-          const className =
-            "group flex h-8 items-center gap-2.5 rounded-[var(--radius-control)] px-2 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none";
+          const selected =
+            !item.external && (pathname === item.href || pathname.startsWith(`${item.href}/`));
+          const className = cn(
+            "group flex h-8 items-center gap-2.5 rounded-[var(--radius-control)] px-2 text-[13px] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none",
+            selected
+              ? "bg-[var(--surface-active)] font-medium text-[var(--text-primary)]"
+              : "text-[var(--text-secondary)]",
+          );
           const content = (
             <>
               <Icon
@@ -312,6 +318,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </a>
           ) : (
             <Link
+              aria-current={selected ? "page" : undefined}
               className={className}
               href={item.href}
               key={item.href}
@@ -322,7 +329,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           );
         })}
         <p className="technical-value px-2 pt-2 text-[11px] text-[var(--text-tertiary)]">
-          Authometry v0.1.1
+          Authometry v{version}
         </p>
       </div>
     </div>
@@ -581,7 +588,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         {children}
       </main>
-      <CommandMenu onOpenChange={setCommandOpen} open={commandOpen} />
+      <CommandMenu
+        onOpenChange={setCommandOpen}
+        onSignOut={() => void logout()}
+        open={commandOpen}
+      />
     </div>
   );
 }
