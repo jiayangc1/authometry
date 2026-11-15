@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Pencil, Plus, SearchX } from "lucide-react";
+import { KeyRound, Pencil, Plus, SearchX, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -9,11 +9,13 @@ import { Button, EmptyState, Note, StatusBadge, type StatusTone } from "@authome
 import { FilterBar, SearchInput } from "@/components/data-display/search-input";
 import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { PageContainer, PageHeader } from "@/components/layout/page";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { Modal } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
 import { Table, TableHeader, TableRow } from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
 import { humanize } from "@/lib/status";
+import { useDebouncedSearchParam } from "@/lib/use-query-params";
 
 interface Scope {
   id: string;
@@ -34,7 +36,15 @@ const sensitivityTone: Record<string, StatusTone> = {
   restricted: "danger",
 };
 
-function EditScopeDialog({ scope, onClose }: { scope: Scope | undefined; onClose: () => void }) {
+function EditScopeDialog({
+  scope,
+  onClose,
+  onDelete,
+}: {
+  scope: Scope | undefined;
+  onClose: () => void;
+  onDelete: (scope: Scope) => void;
+}) {
   const client = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
@@ -76,6 +86,14 @@ function EditScopeDialog({ scope, onClose }: { scope: Scope | undefined; onClose
       }
       footer={
         <>
+          <Button
+            className="hover:text-[var(--danger)] sm:mr-auto"
+            disabled={saving}
+            onClick={() => scope && onDelete(scope)}
+            variant="ghost"
+          >
+            <Trash2 aria-hidden="true" className="size-3.5" /> Delete scope
+          </Button>
           <Button disabled={saving} onClick={onClose}>
             Cancel
           </Button>
@@ -143,8 +161,24 @@ function EditScopeDialog({ scope, onClose }: { scope: Scope | undefined; onClose
 }
 
 export default function ScopesPage() {
-  const [filter, setFilter] = useState("");
+  const client = useQueryClient();
+  const search = useDebouncedSearchParam("q");
+  const filter = search.value;
   const [editing, setEditing] = useState<Scope>();
+  const [deleting, setDeleting] = useState<Scope>();
+  async function remove(scope: Scope) {
+    try {
+      await apiFetch(`/api/v1/scopes/${scope.id}`, { method: "DELETE" });
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["scopes"] }),
+        client.invalidateQueries({ queryKey: ["application"] }),
+      ]);
+      toast.success(`${scope.name} deleted.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The scope could not be deleted.");
+      throw error;
+    }
+  }
   const query = useQuery({
     queryKey: ["scopes"],
     queryFn: () => apiFetch<{ data: Scope[] }>("/api/v1/scopes"),
@@ -174,8 +208,8 @@ export default function ScopesPage() {
       <FilterBar>
         <SearchInput
           className="sm:w-72"
-          onChange={(event) => setFilter(event.target.value)}
-          onClear={() => setFilter("")}
+          onChange={(event) => search.setValue(event.target.value)}
+          onClear={search.clear}
           placeholder="Filter scopes…"
           value={filter}
         />
@@ -209,7 +243,9 @@ export default function ScopesPage() {
                         {scope.name}
                       </code>
                       {scope.is_system && <StatusBadge label="System" tone="info" />}
-                      {scope.ownership === "manifest" && <StatusBadge label="Git" tone="neutral" />}
+                      {scope.ownership === "manifest" && (
+                        <StatusBadge label="Git-managed" tone="neutral" />
+                      )}
                     </div>
                     <p className="truncate text-xs text-[var(--text-secondary)]">
                       {scope.display_name}
@@ -254,7 +290,7 @@ export default function ScopesPage() {
           icon={all.length ? SearchX : KeyRound}
           primaryAction={
             all.length ? (
-              <Button onClick={() => setFilter("")}>Clear filter</Button>
+              <Button onClick={search.clear}>Clear filter</Button>
             ) : (
               <Button asChild variant="primary">
                 <Link href="/scopes/new">Create scope</Link>
@@ -264,7 +300,30 @@ export default function ScopesPage() {
           title={all.length ? "No matching scopes" : "No scopes yet"}
         />
       )}
-      <EditScopeDialog onClose={() => setEditing(undefined)} scope={editing} />
+      <EditScopeDialog
+        onClose={() => setEditing(undefined)}
+        onDelete={(scope) => {
+          setEditing(undefined);
+          setDeleting(scope);
+        }}
+        scope={editing}
+      />
+      <ConfirmDialog
+        actionLabel="Delete scope"
+        confirmationText={deleting?.name ?? ""}
+        description={
+          deleting?.application_count
+            ? `${deleting.application_count} ${deleting.application_count === 1 ? "application uses" : "applications use"} this scope. It will be removed from them, and requests for it will be refused. This cannot be undone.`
+            : "Requests for this scope will be refused. This cannot be undone."
+        }
+        onConfirm={() => (deleting ? remove(deleting) : undefined)}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(undefined);
+        }}
+        open={Boolean(deleting)}
+        pendingLabel="Deleting…"
+        title={`Delete ${deleting?.name ?? "scope"}?`}
+      />
     </PageContainer>
   );
 }

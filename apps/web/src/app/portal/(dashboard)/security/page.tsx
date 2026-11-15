@@ -23,6 +23,7 @@ import { inputClass } from "@/components/ui/form";
 import { PasswordInput } from "@/components/ui/password-input";
 import { RelativeTime } from "@/components/data-display/formatted-time";
 import type { PortalMe } from "@/components/portal/types";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { portalApiFetch, portalCsrfToken } from "@/lib/portal-api";
 
 interface MfaSetup {
@@ -46,6 +47,8 @@ export default function PortalSecurityPage() {
   const [mfaLoading, setMfaLoading] = useState(false);
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>();
   const [csrfToken, setCsrfToken] = useState("");
+  const [disconnecting, setDisconnecting] = useState<"google" | "github">();
+  const [signingOut, setSigningOut] = useState<string>();
 
   useEffect(() => {
     if (me.data) setCsrfToken(portalCsrfToken());
@@ -147,6 +150,7 @@ export default function PortalSecurityPage() {
       toast.error(
         error instanceof Error ? error.message : "The account could not be disconnected.",
       );
+      throw error;
     }
   }
 
@@ -157,6 +161,7 @@ export default function PortalSecurityPage() {
       toast.success("Session signed out.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The session could not be signed out.");
+      throw error;
     }
   }
 
@@ -400,7 +405,7 @@ export default function PortalSecurityPage() {
                     </p>
                   </div>
                   {connected ? (
-                    <Button onClick={() => void disconnect(provider)} size="compact">
+                    <Button onClick={() => setDisconnecting(provider)} size="compact">
                       <Unlink aria-hidden="true" className="size-3.5" /> Disconnect
                     </Button>
                   ) : (
@@ -449,13 +454,13 @@ export default function PortalSecurityPage() {
                     {session.application_name ?? "Employee portal"}
                   </p>
                   <p className="text-[11px] text-[var(--portal-muted)]">
-                    Active <RelativeTime value={session.last_active_at} />
+                    Last active <RelativeTime value={session.last_active_at} />
                   </p>
                 </div>
                 {session.current ? (
                   <StatusBadge label="This session" tone="success" />
                 ) : (
-                  <Button onClick={() => void revokeSession(session.id)} size="compact">
+                  <Button onClick={() => setSigningOut(session.id)} size="compact">
                     Sign out
                   </Button>
                 )}
@@ -464,6 +469,28 @@ export default function PortalSecurityPage() {
           </div>
         </section>
       </div>
+      <ConfirmDialog
+        actionLabel="Disconnect"
+        description="You will no longer be able to sign in with this account. Make sure you have another way in, such as a password."
+        onConfirm={() => (disconnecting ? disconnect(disconnecting) : undefined)}
+        onOpenChange={(open) => {
+          if (!open) setDisconnecting(undefined);
+        }}
+        open={Boolean(disconnecting)}
+        pendingLabel="Disconnecting…"
+        title={`Disconnect ${disconnecting === "github" ? "GitHub" : "Google"}?`}
+      />
+      <ConfirmDialog
+        actionLabel="Sign out session"
+        description="That device or app is signed out and has to sign in again."
+        onConfirm={() => (signingOut ? revokeSession(signingOut) : undefined)}
+        onOpenChange={(open) => {
+          if (!open) setSigningOut(undefined);
+        }}
+        open={Boolean(signingOut)}
+        pendingLabel="Signing out…"
+        title="Sign out this session?"
+      />
     </div>
   );
 }

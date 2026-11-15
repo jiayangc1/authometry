@@ -1205,6 +1205,61 @@ dashboardRouter.patch(
   }),
 );
 
+dashboardRouter.delete(
+  "/scopes/:scopeId",
+  asyncRoute(async (request, response) => {
+    const environmentId = request.environment!.id;
+    await transaction(async (client) => {
+      const result = await client.query<{ name: string; ownership: string; is_system: boolean }>(
+        `SELECT name, ownership, is_system FROM resource_scopes
+         WHERE id = $1 AND environment_id = $2 FOR UPDATE`,
+        [request.params.scopeId, environmentId],
+      );
+      const scope = result.rows[0];
+      if (!scope) throw new ApiError(404, "scope_not_found", "The scope was not found.");
+      if (scope.is_system || scope.ownership !== "dashboard") {
+        throw new ApiError(
+          409,
+          "scope_not_editable",
+          "System scopes and scopes managed by a manifest cannot be deleted here.",
+        );
+      }
+      // Applications must stop requesting a permission that no longer exists.
+      await client.query(
+        `UPDATE oauth_applications SET allowed_scopes = array_remove(allowed_scopes, $2),
+           version = version + 1, updated_at = now()
+         WHERE environment_id = $1 AND $2 = ANY(allowed_scopes)`,
+        [environmentId, scope.name],
+      );
+      await client.query("DELETE FROM resource_scopes WHERE id = $1", [request.params.scopeId]);
+    });
+    response.status(204).end();
+  }),
+);
+
+dashboardRouter.delete(
+  "/policies/:policyId",
+  asyncRoute(async (request, response) => {
+    const [existing] = await query<{ ownership: string }>(
+      "SELECT ownership FROM authorization_policies WHERE id = $1 AND environment_id = $2",
+      [request.params.policyId, request.environment!.id],
+    );
+    if (!existing) throw new ApiError(404, "policy_not_found", "The policy was not found.");
+    if (existing.ownership !== "dashboard") {
+      throw new ApiError(
+        409,
+        "manifest_managed",
+        "This policy is managed by a manifest. Remove it from the manifest instead.",
+      );
+    }
+    await query("DELETE FROM authorization_policies WHERE id = $1 AND environment_id = $2", [
+      request.params.policyId,
+      request.environment!.id,
+    ]);
+    response.status(204).end();
+  }),
+);
+
 dashboardRouter.get(
   "/policies",
   asyncRoute(async (request, response) => {

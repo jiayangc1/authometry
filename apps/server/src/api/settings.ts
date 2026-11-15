@@ -190,6 +190,30 @@ settingsRouter.post(
   }),
 );
 
+settingsRouter.delete(
+  "/settings/domains/:domainId",
+  asyncRoute(async (request, response) => {
+    requireRole(request.admin?.role, ["owner", "admin"]);
+    const [domain] = await query<{ is_primary: boolean }>(
+      "SELECT is_primary FROM domains WHERE id = $1 AND environment_id = $2",
+      [request.params.domainId, request.environment!.id],
+    );
+    if (!domain) throw new ApiError(404, "domain_not_found", "The domain was not found.");
+    if (domain.is_primary) {
+      throw new ApiError(
+        409,
+        "primary_domain",
+        "The primary domain serves this environment's issuer and cannot be removed.",
+      );
+    }
+    await query("DELETE FROM domains WHERE id = $1 AND environment_id = $2", [
+      request.params.domainId,
+      request.environment!.id,
+    ]);
+    response.status(204).end();
+  }),
+);
+
 settingsRouter.get(
   "/settings/signing-keys",
   asyncRoute(async (request, response) => {
@@ -276,6 +300,35 @@ settingsRouter.post(
       ],
     );
     response.status(201).json({ id: webhook?.id, secret });
+  }),
+);
+
+settingsRouter.patch(
+  "/settings/webhooks/:webhookId",
+  asyncRoute(async (request, response) => {
+    requireRole(request.admin?.role, ["owner", "admin", "developer"]);
+    const input = z.object({ status: z.enum(["enabled", "disabled"]) }).parse(request.body);
+    const [webhook] = await query<{ id: string; status: string }>(
+      `UPDATE webhooks SET status = $3, updated_at = now()
+       WHERE id = $1 AND environment_id = $2 AND purpose = 'events' RETURNING id, status`,
+      [request.params.webhookId, request.environment!.id, input.status],
+    );
+    if (!webhook) throw new ApiError(404, "webhook_not_found", "The webhook was not found.");
+    response.json(webhook);
+  }),
+);
+
+settingsRouter.delete(
+  "/settings/webhooks/:webhookId",
+  asyncRoute(async (request, response) => {
+    requireRole(request.admin?.role, ["owner", "admin", "developer"]);
+    const [webhook] = await query<{ id: string }>(
+      `DELETE FROM webhooks WHERE id = $1 AND environment_id = $2 AND purpose = 'events'
+       RETURNING id`,
+      [request.params.webhookId, request.environment!.id],
+    );
+    if (!webhook) throw new ApiError(404, "webhook_not_found", "The webhook was not found.");
+    response.status(204).end();
   }),
 );
 
