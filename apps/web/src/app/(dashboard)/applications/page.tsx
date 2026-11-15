@@ -187,8 +187,11 @@ export default function ApplicationsPage() {
                       tone={application.status === "active" ? "success" : "neutral"}
                     />
                     {application.ownership === "manifest" && (
-                      <span className="hidden text-[11px] text-[var(--text-tertiary)] lg:inline">
-                        Git
+                      <span
+                        className="hidden text-[11px] text-[var(--text-tertiary)] lg:inline"
+                        title="Managed by a Git manifest — edit the manifest to change it"
+                      >
+                        Git-managed
                       </span>
                     )}
                   </div>

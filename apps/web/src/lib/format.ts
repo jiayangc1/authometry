@@ -24,7 +24,7 @@ export function initials(name?: string | null, fallback = "?"): string {
   return (parts[0]?.slice(0, 2) || fallback.trim().slice(0, 2) || "?").toUpperCase();
 }
 
-const relativeTimeFormatter =new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+const relativeTimeFormatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
 function rounded(value: number, maximumFractionDigits: number): string {
   return new Intl.NumberFormat("en", {

@@ -132,12 +132,7 @@ export default function LoginPage() {
               </Link>
             }
           >
-            <PasswordInput
-              autoComplete="current-password"
-              large
-              name="password"
-              required
-            />
+            <PasswordInput autoComplete="current-password" large name="password" required />
           </Field>
           {error && (
             <Note role="alert" tone="danger">

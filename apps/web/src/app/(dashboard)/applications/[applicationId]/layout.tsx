@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/menu";
 import { TabNav } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
-import { apiFetch } from "@/lib/api";
+import { ApiClientError, apiFetch } from "@/lib/api";
 
 export default function ApplicationLayout({ children }: { children: React.ReactNode }) {
   const { applicationId } = useParams<{ applicationId: string }>();
@@ -44,6 +44,7 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [failedLogo, setFailedLogo] = useState<string>();
   const { application, loading, error, refetch } = useApplication();
   const deleteApplication = useMutation({
     mutationFn: (applicationId: string) =>
@@ -64,19 +65,29 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
         <PageSkeleton metrics={false} />
       </PageContainer>
     );
-  if (error || !application)
+  // A failed background refresh keeps showing the application that is already loaded.
+  if (!application) {
+    const missing = error instanceof ApiClientError && error.status === 404;
     return (
       <PageContainer>
         <Breadcrumbs
-          items={[{ label: "Applications", href: "/applications" }, { label: "Not found" }]}
+          items={[
+            { label: "Applications", href: "/applications" },
+            { label: missing ? "Not found" : "Unavailable" },
+          ]}
         />
         <ErrorState
-          title="Application not found"
-          description="This application may have been deleted or belong to another environment. Switch environments or return to the application list."
+          title={missing ? "Application not found" : "Unable to load application"}
+          description={
+            missing
+              ? "This application may have been deleted or belong to another environment. Switch environments or return to the application list."
+              : "Authometry could not reach the API. Check your connection, then retry."
+          }
           onRetry={() => void refetch()}
         />
       </PageContainer>
     );
+  }
   const tabs = [
     ["Overview", `/applications/${application.id}`],
     ["Configuration", `/applications/${application.id}/configuration`],
@@ -109,8 +120,16 @@ function ApplicationFrame({ children }: { children: React.ReactNode }) {
       <header className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface-subtle)] text-sm font-semibold text-[var(--text-secondary)]">
-            {application.logo_uri ? (
-              <img alt="" className="size-full object-cover" src={application.logo_uri} />
+            {application.logo_uri && failedLogo !== application.logo_uri ? (
+              <img
+                alt=""
+                className="size-full object-cover"
+                height={40}
+                onError={() => setFailedLogo(application.logo_uri ?? undefined)}
+                referrerPolicy="no-referrer"
+                src={application.logo_uri}
+                width={40}
+              />
             ) : (
               application.name.charAt(0).toUpperCase()
             )}

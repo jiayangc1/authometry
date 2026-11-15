@@ -45,6 +45,16 @@ interface ConsentRequest {
     sensitivity: string;
   }>;
 }
+function lifetime(seconds: number): string {
+  const [amount, unit] =
+    seconds < 90
+      ? [Math.max(Math.round(seconds), 1), "second"]
+      : seconds < 5400
+        ? [Math.round(seconds / 60), "minute"]
+        : [Math.round(seconds / 3600), "hour"];
+  return `${amount} ${unit}${amount === 1 ? "" : "s"}`;
+}
+
 export default function ConsentPage() {
   const requestId = useSearchParams().get("request_id") ?? "";
   const query = useQuery({
@@ -210,10 +220,10 @@ export default function ConsentPage() {
             </div>
           </>
         )}
-        <div className="stagger overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] px-4">
+        <div className="stagger overflow-hidden rounded-[var(--radius-card)] border border-[var(--border)] px-4 empty:hidden">
           {query.data?.authorizationDetails?.map((detail, index) => (
             <div
-              className="border-b border-[var(--border)] py-3"
+              className="border-b border-[var(--border)] py-3 last:border-0"
               key={`${detail.locations.join(":")}-${index}`}
             >
               <div className="flex items-start gap-3">
@@ -285,9 +295,9 @@ export default function ConsentPage() {
           <div className="mt-4 flex items-start gap-2 text-xs leading-5 text-[var(--text-secondary)]">
             <Clock3 aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
             <p>
-              Expires {Math.round(query.data.agent.maximumAuthorizationSeconds / 60)} minutes after
-              approval. The agent cannot use this grant for another resource or purpose, and cannot
-              expand it without another approval.
+              Expires {lifetime(query.data.agent.maximumAuthorizationSeconds)} after approval. The
+              agent cannot use this grant for another resource or purpose, and cannot expand it
+              without another approval.
               {query.data.agent.mayDelegate
                 ? ` It may delegate a reduced subset up to depth ${query.data.agent.maximumDelegationDepth}.`
                 : " It cannot delegate this authority to another agent."}

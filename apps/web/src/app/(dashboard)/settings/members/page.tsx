@@ -9,7 +9,9 @@ import { ErrorState, ListSkeleton } from "@/components/data-display/states";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { Modal } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/form";
+import { ConfirmDialog } from "@/components/overlays/confirm-dialog";
 import { apiFetch } from "@/lib/api";
+import { initials } from "@/lib/format";
 
 interface Member {
   id: string;
@@ -36,6 +38,7 @@ const roleDescriptions: Record<Member["role"], string> = {
 export default function MembersPage() {
   const client = useQueryClient();
   const [inviting, setInviting] = useState(false);
+  const [roleChange, setRoleChange] = useState<{ member: Member; role: Member["role"] }>();
   const query = useQuery({
     queryKey: ["members"],
     queryFn: () => apiFetch<{ data: Member[] }>("/api/v1/settings/members"),
@@ -107,12 +110,7 @@ export default function MembersPage() {
                     aria-hidden="true"
                     className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--geist-gray-100)] text-[11px] font-semibold text-[var(--text-secondary)]"
                   >
-                    {member.name
-                      .split(/\s+/)
-                      .map((part) => part[0])
-                      .slice(0, 2)
-                      .join("")
-                      .toUpperCase()}
+                    {initials(member.name, member.email)}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] font-medium">{member.name}</p>
@@ -127,7 +125,7 @@ export default function MembersPage() {
                       compact
                       disabled={pending}
                       onChange={(event) =>
-                        update.mutate({ id: member.id, role: event.target.value as Member["role"] })
+                        setRoleChange({ member, role: event.target.value as Member["role"] })
                       }
                       value={member.role}
                       wrapperClassName="w-32"
@@ -162,6 +160,30 @@ export default function MembersPage() {
           ))}
         </dl>
       </SettingsSection>
+      <ConfirmDialog
+        actionLabel="Change role"
+        description={
+          roleChange
+            ? `${roleLabels[roleChange.role]}: ${roleDescriptions[roleChange.role]} This takes effect immediately.`
+            : ""
+        }
+        onConfirm={() =>
+          roleChange
+            ? update.mutateAsync({ id: roleChange.member.id, role: roleChange.role })
+            : undefined
+        }
+        onOpenChange={(open) => {
+          if (!open) setRoleChange(undefined);
+        }}
+        open={Boolean(roleChange)}
+        pendingLabel="Saving…"
+        title={
+          roleChange
+            ? `Make ${roleChange.member.name || roleChange.member.email} ${/^[aeiou]/i.test(roleLabels[roleChange.role]) ? "an" : "a"} ${roleLabels[roleChange.role].toLowerCase()}?`
+            : "Change role?"
+        }
+        tone="neutral"
+      />
       <Modal
         description="They’ll get an email with a single-use link that expires in 24 hours."
         footer={

@@ -30,6 +30,7 @@ export default function CredentialsPage() {
   if (!application) return null;
   const app = application;
   const readOnly = app.ownership === "manifest";
+  const isPublic = publicTypes.has(app.type);
   async function create() {
     setCreating(true);
     setCreateError(undefined);
@@ -69,6 +70,7 @@ export default function CredentialsPage() {
       setStored(false);
       setCreateError(undefined);
       setName("Deployment secret");
+      setExpiresInDays("90");
     }
   }
   const active = application.credentials.filter((credential) => !credential.revoked_at);
@@ -102,7 +104,7 @@ export default function CredentialsPage() {
       <section>
         <SectionHeader
           actions={
-            <Button disabled={readOnly} onClick={() => setOpen(true)}>
+            <Button disabled={readOnly || isPublic} onClick={() => setOpen(true)}>
               <Plus aria-hidden="true" className="size-3.5" /> Create secret
             </Button>
           }
@@ -162,7 +164,9 @@ export default function CredentialsPage() {
                         Revoke
                       </Button>
                     ) : (
-                      <span className="text-xs text-[var(--text-tertiary)] lg:hidden">Revoked</span>
+                      <span className="text-xs text-[var(--text-tertiary)] lg:hidden">
+                        {credential.revoked_at ? "Revoked" : expired ? "Expired" : "Active"}
+                      </span>
                     )}
                   </span>
                 </TableRow>
@@ -171,11 +175,15 @@ export default function CredentialsPage() {
           </Table>
         ) : (
           <EmptyState
-            description="Create a client secret for a confidential server-side deployment."
+            description={
+              isPublic
+                ? "Public clients sign in with PKCE and do not use client secrets."
+                : "Create a client secret for a confidential server-side deployment."
+            }
             headingLevel="h3"
             icon={KeyRound}
             primaryAction={
-              readOnly ? undefined : (
+              readOnly || isPublic ? undefined : (
                 <Button onClick={() => setOpen(true)} variant="primary">
                   Create secret
                 </Button>
@@ -260,6 +268,7 @@ export default function CredentialsPage() {
             </Field>
             <Field description="Rotate secrets before they expire." label="Expires in">
               <Select
+                name="expiresInDays"
                 onChange={(event) => setExpiresInDays(event.target.value)}
                 value={expiresInDays}
               >

@@ -88,7 +88,7 @@ export default function PortalApplicationsPage() {
     }
   }
 
-  const firstName = me.data?.user.name.split(/\s+/)[0] ?? "there";
+  const firstName = me.data?.user.name.trim().split(/\s+/)[0];
   const list = applications.data?.data ?? [];
   const needle = filter.trim().toLowerCase();
   const visible = list.filter(
@@ -102,7 +102,7 @@ export default function PortalApplicationsPage() {
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl leading-8 font-semibold tracking-[-0.03em] text-balance sm:text-[32px] sm:leading-10">
-            Welcome back, {firstName}
+            {firstName ? `Welcome back, ${firstName}` : "Welcome back"}
           </h1>
           <p className="mt-1 text-sm text-[var(--portal-muted)]">
             Open a company app — your Authometry session signs you in.
@@ -189,8 +189,10 @@ export default function PortalApplicationsPage() {
                           <>
                             Opened <RelativeTime value={application.last_launched_at} />
                           </>
-                        ) : (
+                        ) : ready ? (
                           "Not opened yet"
+                        ) : (
+                          "Your administrator is finishing setup"
                         )}
                       </span>
                       {!ready && <StatusBadge label="Setup pending" tone="warning" />}

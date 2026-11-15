@@ -8,9 +8,18 @@ import { applicationLogoUriSchema, redirectUriSchema } from "@authometry/domain"
 import { Button, Note, StatusBadge, Switch, cn } from "@authometry/ui";
 import { useApplication } from "@/components/applications/application-context";
 import { Card, CardHeader } from "@/components/ui/card";
-import { ChoiceRow, Field, Input } from "@/components/ui/form";
+import { ChoiceRow, Field, Input, Textarea } from "@/components/ui/form";
 import { apiFetch } from "@/lib/api";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
+
+type ErrorField = "name" | "logoUri" | "redirectUri" | "launchUri" | "postLogoutUris";
+
+function lines(value: string): string[] {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
 
 export default function ConfigurationPage() {
   const { application, refetch } = useApplication();
@@ -21,8 +30,15 @@ export default function ConfigurationPage() {
   const [nextUri, setNextUri] = useState("");
   const [portalEnabled, setPortalEnabled] = useState(false);
   const [launchUri, setLaunchUri] = useState("");
-  const [error, setError] = useState<string>();
+  const [requireConsent, setRequireConsent] = useState(true);
+  const [postLogoutUris, setPostLogoutUris] = useState("");
+  const [error, setErrorMessage] = useState<string>();
+  const [errorField, setErrorField] = useState<ErrorField>();
   const [saving, setSaving] = useState(false);
+  function setError(message: string | undefined, field?: ErrorField) {
+    setErrorMessage(message);
+    setErrorField(message ? field : undefined);
+  }
   useEffect(() => {
     if (application) {
       setName(application.name);
@@ -31,6 +47,8 @@ export default function ConfigurationPage() {
       setUris(application.redirect_uris);
       setPortalEnabled(application.portal_enabled);
       setLaunchUri(application.launch_uri ?? "");
+      setRequireConsent(application.require_consent);
+      setPostLogoutUris(application.post_logout_redirect_uris.join("\n"));
     }
   }, [application]);
   const dirty = Boolean(
@@ -40,6 +58,10 @@ export default function ConfigurationPage() {
       logoUri !== (application.logo_uri ?? "") ||
       portalEnabled !== application.portal_enabled ||
       launchUri !== (application.launch_uri ?? "") ||
+      requireConsent !== application.require_consent ||
+      JSON.stringify(lines(postLogoutUris)) !==
+        JSON.stringify(application.post_logout_redirect_uris) ||
+      nextUri.trim() !== "" ||
       JSON.stringify(uris) !== JSON.stringify(application.redirect_uris)),
   );
   useUnsavedChanges(dirty);
@@ -47,38 +69,66 @@ export default function ConfigurationPage() {
   const app = application;
   const readOnly = app.ownership === "manifest";
   function addUri() {
-    const parsed = redirectUriSchema.safeParse(nextUri);
+    const candidate = nextUri.trim();
+    const parsed = redirectUriSchema.safeParse(candidate);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message);
+      setError(parsed.error.issues[0]?.message, "redirectUri");
       return;
     }
-    if (uris.includes(nextUri)) {
-      setError("This redirect URI is already registered.");
+    if (uris.includes(candidate)) {
+      setError("This callback URL is already registered.", "redirectUri");
       return;
     }
-    setUris([...uris, nextUri]);
+    setUris([...uris, candidate]);
     setNextUri("");
     setError(undefined);
   }
   async function save() {
+    if (name.trim().length < 2) {
+      setError("Use at least 2 characters for the name.", "name");
+      return;
+    }
+    // A callback URL typed but never added would otherwise be dropped without a word.
+    let nextUris = uris;
+    const pendingUri = nextUri.trim();
+    if (pendingUri) {
+      const parsed = redirectUriSchema.safeParse(pendingUri);
+      if (!parsed.success) {
+        setError(parsed.error.issues[0]?.message, "redirectUri");
+        return;
+      }
+      if (!uris.includes(pendingUri)) nextUris = [...uris, pendingUri];
+    }
     if (portalEnabled && !launchUri) {
-      setError("Add the application's sign-in URL before enabling portal access.");
+      setError("Add the application's sign-in URL before enabling portal access.", "launchUri");
       return;
     }
     if (launchUri) {
       const parsed = redirectUriSchema.safeParse(launchUri);
       if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message);
+        setError(parsed.error.issues[0]?.message, "launchUri");
         return;
       }
     }
     if (logoUri) {
       const parsed = applicationLogoUriSchema.safeParse(logoUri);
       if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message);
+        setError(parsed.error.issues[0]?.message, "logoUri");
         return;
       }
     }
+    const nextPostLogoutUris = [...new Set(lines(postLogoutUris))];
+    for (const uri of nextPostLogoutUris) {
+      const parsed = redirectUriSchema.safeParse(uri);
+      if (!parsed.success) {
+        setError(
+          `${uri}: ${parsed.error.issues[0]?.message ?? "Enter a valid URL."}`,
+          "postLogoutUris",
+        );
+        return;
+      }
+    }
+    setError(undefined);
     setSaving(true);
     try {
       await apiFetch(`/api/v1/applications/${app.id}`, {
@@ -87,12 +137,15 @@ export default function ConfigurationPage() {
           name,
           description: description || null,
           logoUri: logoUri || null,
-          redirectUris: uris,
+          redirectUris: nextUris,
+          postLogoutRedirectUris: nextPostLogoutUris,
+          requireConsent,
           portalEnabled,
           launchUri: launchUri || null,
           version: app.version,
         }),
       });
+      setNextUri("");
       await refetch();
       toast.success("Configuration saved.");
     } catch (caught) {
@@ -109,8 +162,11 @@ export default function ConfigurationPage() {
     setNextUri("");
     setPortalEnabled(app.portal_enabled);
     setLaunchUri(app.launch_uri ?? "");
+    setRequireConsent(app.require_consent);
+    setPostLogoutUris(app.post_logout_redirect_uris.join("\n"));
     setError(undefined);
   }
+  const fieldError = (field: ErrorField) => (errorField === field ? error : undefined);
   const securitySettings = [
     ["Authorization Code", "Enabled"],
     ["PKCE", application.require_pkce ? "Required" : "Optional"],
@@ -128,16 +184,19 @@ export default function ConfigurationPage() {
               title="Identity"
             />
             <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
-              <Field label="Name">
+              <Field error={fieldError("name")} label="Name">
                 <Input
                   autoComplete="off"
                   disabled={readOnly}
                   name="applicationName"
-                  onChange={(event) => setName(event.target.value)}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    setError(undefined);
+                  }}
                   value={name}
                 />
               </Field>
-              <Field label="Logo URL" optional>
+              <Field error={fieldError("logoUri")} label="Logo URL" optional>
                 <Input
                   autoComplete="url"
                   disabled={readOnly}
@@ -238,6 +297,55 @@ export default function ConfigurationPage() {
                   </Button>
                 </form>
               )}
+              {fieldError("redirectUri") && (
+                <p className="mt-1.5 text-xs leading-[18px] text-[var(--danger)]" role="alert">
+                  {fieldError("redirectUri")}
+                </p>
+              )}
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader
+              description="What people see before access is granted, and where they may land after signing out."
+              title="Consent and sign-out"
+            />
+            <div className="space-y-4 p-4 sm:p-5">
+              <ChoiceRow
+                control={
+                  <Switch
+                    checked={requireConsent}
+                    disabled={readOnly}
+                    onChange={(event) => {
+                      setRequireConsent(event.target.checked);
+                      setError(undefined);
+                    }}
+                  />
+                }
+                description="Ask people to review the requested permissions before this application gets access."
+                title="Require consent"
+              />
+              <Field
+                description="One URL per line. Authometry only redirects to these after sign-out."
+                error={fieldError("postLogoutUris")}
+                label="Post-logout redirect URLs"
+                optional
+              >
+                <Textarea
+                  autoComplete="off"
+                  className="min-h-20"
+                  disabled={readOnly}
+                  mono
+                  name="postLogoutRedirectUris"
+                  onChange={(event) => {
+                    setPostLogoutUris(event.target.value);
+                    setError(undefined);
+                  }}
+                  placeholder="https://app.example.com/signed-out"
+                  spellCheck={false}
+                  value={postLogoutUris}
+                />
+              </Field>
             </div>
           </Card>
 
@@ -298,6 +406,7 @@ export default function ConfigurationPage() {
             />
             <Field
               description="The URL that starts this app’s Authometry sign-in."
+              error={fieldError("launchUri")}
               label="App sign-in URL"
             >
               <Input
@@ -335,6 +444,7 @@ export default function ConfigurationPage() {
           )}
           role="region"
           aria-label="Save changes"
+          inert={!(dirty || error)}
         >
           <span
             aria-live="polite"

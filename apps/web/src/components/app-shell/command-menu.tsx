@@ -87,7 +87,12 @@ export function CommandMenu({
     queryKey: ["command-search", deferredSearch],
     queryFn: () =>
       apiFetch<{
-        data: Array<{ id: string; name: string; slug: string; type: "application" | "trace" | "user" }>;
+        data: Array<{
+          id: string;
+          name: string;
+          slug: string;
+          type: "application" | "trace" | "user";
+        }>;
       }>(`/api/v1/search?q=${encodeURIComponent(deferredSearch)}`),
     enabled: open && deferredSearch.length > 1,
     placeholderData: (previous) => previous,
